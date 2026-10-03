@@ -15,6 +15,10 @@ class VulnerabilityCategory(str, Enum):
     SSRF = "SSRF"
     INJECTION = "INJECTION"
     MASS_ASSIGNMENT = "MASS_ASSIGNMENT"
+    PATH_TRAVERSAL = "PATH_TRAVERSAL"
+    SSTI = "SSTI"
+    CORS = "CORS"
+    DESERIALIZATION = "DESERIALIZATION"
 
 
 class SecurityHypothesis(BaseModel):
@@ -160,6 +164,85 @@ class HypothesisEngine:
                         static_evidence=[
                             "User query parameter routed to database handler",
                             f"Endpoint parameters: {[p.name for p in ep.parameters]}",
+                        ],
+                    )
+                )
+                hypo_idx += 1
+
+            # 7. Path Traversal Hypothesis: Endpoints accepting file or path parameters
+            file_param_names = [p.name for p in ep.parameters if any(term in p.name.lower() for term in ("file", "path", "doc", "dir", "download", "name", "asset", "key"))]
+            if file_param_names or any(term in ep.path.lower() for term in ("file", "doc", "download", "asset", "static")):
+                hypotheses.append(
+                    SecurityHypothesis(
+                        id=f"HYP-TRAV-{hypo_idx:03d}",
+                        category=VulnerabilityCategory.PATH_TRAVERSAL,
+                        endpoint_id=ep.id,
+                        endpoint_display=ep_disp,
+                        title=f"Potential Path Traversal on {ep_disp}",
+                        description="Endpoint handles file or path parameters without verified filesystem boundary isolation.",
+                        recommended_test_pack="path_traversal",
+                        confidence_prior=0.65,
+                        static_evidence=[
+                            f"File/path parameter names detected: {file_param_names or [ep.path]}",
+                            f"Source location: {ep.source}",
+                        ],
+                    )
+                )
+                hypo_idx += 1
+
+            # 8. Server-Side Template Injection (SSTI) Hypothesis
+            template_param_names = [p.name for p in ep.parameters if any(term in p.name.lower() for term in ("template", "render", "msg", "format", "view", "preview"))]
+            if template_param_names or any(term in ep.path.lower() for term in ("template", "render", "preview", "email", "notify")):
+                hypotheses.append(
+                    SecurityHypothesis(
+                        id=f"HYP-SSTI-{hypo_idx:03d}",
+                        category=VulnerabilityCategory.SSTI,
+                        endpoint_id=ep.id,
+                        endpoint_display=ep_disp,
+                        title=f"Potential Template Injection on {ep_disp}",
+                        description="Endpoint processes dynamic template formatting or user-interpolated rendering.",
+                        recommended_test_pack="ssti",
+                        confidence_prior=0.60,
+                        static_evidence=[
+                            f"Template rendering parameter detected: {template_param_names or [ep.path]}",
+                        ],
+                    )
+                )
+                hypo_idx += 1
+
+            # 9. CORS Misconfiguration Hypothesis
+            if ep.auth_required and ep.sensitive_data:
+                hypotheses.append(
+                    SecurityHypothesis(
+                        id=f"HYP-CORS-{hypo_idx:03d}",
+                        category=VulnerabilityCategory.CORS,
+                        endpoint_id=ep.id,
+                        endpoint_display=ep_disp,
+                        title=f"Potential CORS Misconfiguration on {ep_disp}",
+                        description="Authenticated sensitive endpoint may reflect arbitrary cross-origin request headers with credentials.",
+                        recommended_test_pack="cors",
+                        confidence_prior=0.55,
+                        static_evidence=[
+                            f"Authenticated: {ep.auth_required}, Sensitive data: {ep.sensitive_data}",
+                        ],
+                    )
+                )
+                hypo_idx += 1
+
+            # 10. Insecure Deserialization Hypothesis
+            if ep.method in ("POST", "PUT", "PATCH") and any(term in ep.path.lower() for term in ("import", "upload", "state", "event", "session", "restore", "sync")):
+                hypotheses.append(
+                    SecurityHypothesis(
+                        id=f"HYP-DESER-{hypo_idx:03d}",
+                        category=VulnerabilityCategory.DESERIALIZATION,
+                        endpoint_id=ep.id,
+                        endpoint_display=ep_disp,
+                        title=f"Potential Insecure Deserialization on {ep_disp}",
+                        description="State or data restoration endpoint accepting structured object representations.",
+                        recommended_test_pack="deserialization",
+                        confidence_prior=0.60,
+                        static_evidence=[
+                            f"State restoration path pattern in method {ep.method}: {ep.path}",
                         ],
                     )
                 )

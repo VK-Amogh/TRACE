@@ -18,6 +18,10 @@ VULN_CATEGORIES = [
     "SSRF",
     "INJECTION",
     "MASS_ASSIGNMENT",
+    "PATH_TRAVERSAL",
+    "SSTI",
+    "CORS",
+    "DESERIALIZATION",
 ]
 
 
@@ -26,10 +30,12 @@ class SecureBERTClassifier:
 
     def __init__(
         self,
-        model_name: str = "ehsanaghaei/SecureBERT",
+        model_name: Optional[str] = None,
         cache_path: Optional[Path] = None,
     ):
-        self.model_name = model_name
+        finetuned_dir = Path(".trace/models/securebert-finetuned")
+        default_model = str(finetuned_dir.resolve()) if (finetuned_dir / "model.safetensors").exists() else "ehsanaghaei/SecureBERT"
+        self.model_name = model_name or default_model
         cache_file = cache_path or Path(".trace/cache/securebert_cache.json")
         self.cache = SecureBERTCache(cache_file)
         self._tokenizer = None
@@ -55,7 +61,7 @@ class SecureBERTClassifier:
                 ignore_mismatched_sizes=True,
             ).to(self._device)
             self._model.eval()
-            logger.info("SecureBERT loaded successfully.")
+            logger.info(f"SecureBERT loaded successfully on {self._device}.")
         except Exception as e:
             logger.debug(f"SecureBERT initialization deferred: {e}. Semantic encoder active.")
             self._tokenizer = None
@@ -122,7 +128,6 @@ class SecureBERTClassifier:
 
     def classify_slice(self, code_text: str, endpoint: Endpoint) -> Dict[str, float]:
         """Classify a code slice and return probability distribution over vulnerability families."""
-        # Check cache first
         cached = self.cache.get(code_text)
         if cached:
             return cached
@@ -139,7 +144,7 @@ class SecureBERTClassifier:
                     code_text,
                     max_length=512,
                     truncation=True,
-                    padding=True,
+                    padding="max_length",
                     return_tensors="pt",
                 ).to(self._device)
 
@@ -195,6 +200,22 @@ class SecureBERTClassifier:
         # Mass assignment signals
         if endpoint.method in ("PATCH", "PUT") and ("user" in text_lower or "update" in text_lower or "payload" in text_lower):
             scores["MASS_ASSIGNMENT"] += 0.60
+
+        # Path traversal signals
+        if "file" in text_lower or "path" in text_lower or "open(" in text_lower or "readfile" in text_lower:
+            scores["PATH_TRAVERSAL"] += 0.65
+
+        # SSTI signals
+        if "template" in text_lower or "render" in text_lower or "{{" in text_lower or "${" in text_lower:
+            scores["SSTI"] += 0.60
+
+        # CORS signals
+        if "origin" in text_lower or "access-control" in text_lower or "cors" in text_lower:
+            scores["CORS"] += 0.55
+
+        # Deserialization signals
+        if "pickle" in text_lower or "yaml" in text_lower or "readobject" in text_lower or "unserialize" in text_lower:
+            scores["DESERIALIZATION"] += 0.65
 
         # Normalize to probability distribution
         total = sum(scores.values())

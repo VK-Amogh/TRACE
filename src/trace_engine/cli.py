@@ -1039,6 +1039,28 @@ def eval_patch(
     console.print(f"  • Status: [dim]{result.output_message}[/dim]\n")
 
 
+@app.command()
+def train(
+    epochs: int = typer.Option(3, "--epochs", "-e", help="Number of training epochs"),
+    batch_size: int = typer.Option(8, "--batch-size", "-b", help="Training batch size"),
+    lr: float = typer.Option(2e-5, "--lr", help="Learning rate"),
+    model_name: str = typer.Option("ehsanaghaei/SecureBERT", "--model", "-m", help="Base transformer checkpoint"),
+    output_dir: str = typer.Option(".trace/models/securebert-finetuned", "--output", "-o", help="Checkpoint output directory"),
+):
+    """Fine-tune SecureBERT 2.0 vulnerability classifier using local GPU (CUDA acceleration)."""
+    from trace_engine.intelligence.training.trainer import SecureBERTTrainer, TrainingConfig
+
+    config = TrainingConfig(
+        model_name=model_name,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=lr,
+        output_dir=output_dir,
+    )
+    trainer = SecureBERTTrainer(config)
+    trainer.train()
+
+
 if __name__ == "__main__":
     app()
 
