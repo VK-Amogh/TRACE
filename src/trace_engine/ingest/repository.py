@@ -23,7 +23,7 @@ class RepositoryScanner:
         for item in self.repo_path.rglob("*"):
             if item.is_file() and not self.ignore_filter.should_ignore(item):
                 lang = detect_language(item)
-                if lang in ("python", "javascript", "typescript", "go"):
+                if lang is not None and lang != "unknown":
                     try:
                         stat = item.stat()
                         # Avoid huge files (> 2MB)

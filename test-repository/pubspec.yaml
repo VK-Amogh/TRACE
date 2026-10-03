@@ -1,0 +1,21 @@
+name: enterprise_cloud_portal
+description: "Enterprise Cloud Backend Service for Multi-Tenant Infrastructure"
+version: 2.4.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  shelf_cors_headers: ^0.1.5
+  postgres: ^3.0.0
+  drift: ^2.14.0
+  http: ^1.1.0
+  crypto: ^3.0.3
+  meta: ^1.9.1
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^2.1.0

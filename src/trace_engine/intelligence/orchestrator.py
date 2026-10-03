@@ -81,3 +81,50 @@ class IntelligenceOrchestrator:
             decision_path=decision_path,
             rationale=rationale,
         )
+
+    def evaluate_endpoints_batch(
+        self,
+        endpoints: List[Endpoint],
+        code_slices: List[str],
+        apm: AttackPathModel,
+        hypotheses: List[SecurityHypothesis],
+    ) -> List[TestPlanRecommendation]:
+        """Evaluates a batch of endpoints through SecureBERT and Laya System 1."""
+        items = list(zip(code_slices, endpoints))
+        bert_scores_list = self.securebert.classify_batch(items)
+
+        recommendations: List[TestPlanRecommendation] = []
+        for ep, code_slice, bert_scores in zip(endpoints, code_slices, bert_scores_list):
+            priority_dec = self.laya.decide_priority(ep, apm)
+            test_dec = self.laya.decide_test_selection(ep, apm, hypotheses)
+
+            top_category = max(bert_scores, key=bert_scores.get) if bert_scores else "UNKNOWN"
+            top_score = bert_scores.get(top_category, 0.0)
+            chosen_pack = test_dec.primary_testpack
+
+            decision_path = (
+                "laya_system1"
+                if self.laya.is_available()
+                else ("securebert_guided" if top_score > 0.35 else "calibrated_system1")
+            )
+            rationale = (
+                f"Evaluated via {decision_path}. "
+                f"Top vulnerability family: {top_category} ({int(top_score * 100)}%). "
+                f"Assigned priority: {priority_dec.priority_level}."
+            )
+
+            recommendations.append(
+                TestPlanRecommendation(
+                    endpoint_id=ep.id,
+                    endpoint_display=ep.display_name(),
+                    primary_testpack=chosen_pack,
+                    priority_level=priority_dec.priority_level,
+                    securebert_scores=bert_scores,
+                    laya_confidence=test_dec.confidence,
+                    decision_path=decision_path,
+                    rationale=rationale,
+                )
+            )
+
+        return recommendations
+

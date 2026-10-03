@@ -65,7 +65,7 @@ class VerificationEngine:
         discovered_endpoints = []
         for sf in source_files:
             content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-            pf = parser.parse(sf.path, content, sf.language)
+            pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
             parsed_files.append(pf)
             for adapter in adapters:
                 if adapter.can_handle(pf):

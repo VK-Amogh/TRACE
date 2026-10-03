@@ -21,6 +21,7 @@ from trace_engine.parsing.language import get_tree_sitter_parser
 class ParsedFile(BaseModel):
     """Result of parsing a source file."""
     file_path: str
+    absolute_path: Optional[str] = None
     language: str
     imports: List[ImportSymbol] = Field(default_factory=list)
     classes: List[ClassSymbol] = Field(default_factory=list)
@@ -31,16 +32,30 @@ class ParsedFile(BaseModel):
 class CodeParser:
     """Parses source files into structured AST symbols and calls."""
 
-    def parse(self, file_path: str, content: str, language: str) -> ParsedFile:
+    def parse(
+        self,
+        file_path: str,
+        content: str,
+        language: str,
+        absolute_path: Optional[str] = None,
+    ) -> ParsedFile:
         if language == "python":
-            return self._parse_python(file_path, content)
+            return self._parse_python(file_path, content, absolute_path=absolute_path)
         elif language in ("javascript", "typescript"):
-            return self._parse_js_ts(file_path, content, language)
+            return self._parse_js_ts(file_path, content, language, absolute_path=absolute_path)
+        elif language == "dart":
+            return self._parse_dart(file_path, content, absolute_path=absolute_path)
+        elif language in ("java", "kotlin"):
+            return self._parse_jvm(file_path, content, language, absolute_path=absolute_path)
+        elif language == "go":
+            return self._parse_go(file_path, content, absolute_path=absolute_path)
         else:
-            return ParsedFile(file_path=file_path, language=language)
+            return ParsedFile(file_path=file_path, absolute_path=absolute_path, language=language)
 
-    def _parse_python(self, file_path: str, content: str) -> ParsedFile:
-        parsed = ParsedFile(file_path=file_path, language="python")
+    def _parse_python(
+        self, file_path: str, content: str, absolute_path: Optional[str] = None
+    ) -> ParsedFile:
+        parsed = ParsedFile(file_path=file_path, absolute_path=absolute_path, language="python")
         try:
             tree = ast.parse(content, filename=file_path)
         except Exception:
@@ -224,8 +239,10 @@ class CodeParser:
             )
         return calls
 
-    def _parse_js_ts(self, file_path: str, content: str, language: str) -> ParsedFile:
-        parsed = ParsedFile(file_path=file_path, language=language)
+    def _parse_js_ts(
+        self, file_path: str, content: str, language: str, absolute_path: Optional[str] = None
+    ) -> ParsedFile:
+        parsed = ParsedFile(file_path=file_path, absolute_path=absolute_path, language=language)
         lines = content.splitlines()
 
         # Extract Imports: import ... from '...'; or require('...')
@@ -278,3 +295,167 @@ class CodeParser:
                     )
 
         return parsed
+
+    def _parse_dart(
+        self, file_path: str, content: str, absolute_path: Optional[str] = None
+    ) -> ParsedFile:
+        parsed = ParsedFile(file_path=file_path, absolute_path=absolute_path, language="dart")
+        lines = content.splitlines()
+
+        # Imports: import 'package:...';
+        import_pat = re.compile(r"""import\s+['"](.*?)['"](?:\s+as\s+([a-zA-Z0-9_]+))?""")
+        for idx, line in enumerate(lines, 1):
+            for match in import_pat.finditer(line):
+                mod = match.group(1)
+                alias = match.group(2)
+                parsed.imports.append(
+                    ImportSymbol(
+                        module=mod,
+                        alias=alias,
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        # Classes
+        cls_pat = re.compile(r"""class\s+([a-zA-Z0-9_$]+)""")
+        for idx, line in enumerate(lines, 1):
+            for match in cls_pat.finditer(line):
+                cls_name = match.group(1)
+                parsed.classes.append(
+                    ClassSymbol(
+                        name=cls_name,
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        # Functions / Handlers / Methods
+        fn_pat = re.compile(
+            r"""(?:(?:FutureOr|Future)<[^>]+>|[a-zA-Z0-9_<>]+)\s+([a-zA-Z0-9_$]+)\s*\((.*?)\)\s*(?:async\s*)?[{=]"""
+        )
+        for idx, line in enumerate(lines, 1):
+            for match in fn_pat.finditer(line):
+                name = match.group(1)
+                if name in ("if", "for", "while", "switch", "catch"):
+                    continue
+                raw_args = match.group(2) or ""
+                args = [a.strip() for a in raw_args.split(",") if a.strip()]
+                params = [
+                    ParameterSymbol(
+                        name=arg.split()[-1].replace("?", ""),
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                    for arg in args
+                ]
+                parsed.functions.append(
+                    FunctionSymbol(
+                        name=name,
+                        qualified_name=name,
+                        parameters=params,
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        return parsed
+
+    def _parse_jvm(
+        self, file_path: str, content: str, language: str, absolute_path: Optional[str] = None
+    ) -> ParsedFile:
+        parsed = ParsedFile(file_path=file_path, absolute_path=absolute_path, language=language)
+        lines = content.splitlines()
+
+        # Imports
+        import_pat = re.compile(r"""import\s+([a-zA-Z0-9_\.\*]+);?""")
+        for idx, line in enumerate(lines, 1):
+            for match in import_pat.finditer(line):
+                parsed.imports.append(
+                    ImportSymbol(
+                        module=match.group(1),
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        # Classes
+        cls_pat = re.compile(r"""(?:public\s+|private\s+|protected\s+|open\s+)?class\s+([a-zA-Z0-9_$]+)""")
+        for idx, line in enumerate(lines, 1):
+            for match in cls_pat.finditer(line):
+                parsed.classes.append(
+                    ClassSymbol(
+                        name=match.group(1),
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        # Functions (Kotlin 'fun' & Java methods)
+        if language == "kotlin":
+            fn_pat = re.compile(r"""fun\s+([a-zA-Z0-9_$]+)\s*\((.*?)\)""")
+        else:
+            fn_pat = re.compile(r"""(?:public|protected|private)?\s*(?:static\s+)?(?:final\s+)?(?:[a-zA-Z0-9_<>,\[\]]+)\s+([a-zA-Z0-9_$]+)\s*\((.*?)\)""")
+
+        for idx, line in enumerate(lines, 1):
+            for match in fn_pat.finditer(line):
+                name = match.group(1)
+                if name in ("if", "for", "while", "switch", "catch", "return", "class"):
+                    continue
+                raw_args = match.group(2) or ""
+                args = [a.strip() for a in raw_args.split(",") if a.strip()]
+                params = [
+                    ParameterSymbol(
+                        name=arg.split()[-1] if language != "kotlin" else arg.split(":")[0].strip(),
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                    for arg in args
+                ]
+                parsed.functions.append(
+                    FunctionSymbol(
+                        name=name,
+                        qualified_name=name,
+                        parameters=params,
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        return parsed
+
+    def _parse_go(
+        self, file_path: str, content: str, absolute_path: Optional[str] = None
+    ) -> ParsedFile:
+        parsed = ParsedFile(file_path=file_path, absolute_path=absolute_path, language="go")
+        lines = content.splitlines()
+
+        # Imports
+        import_pat = re.compile(r'''(?:import\s+['"](.*?)['"]|import\s*\((.*?)\))''', re.DOTALL)
+        for idx, line in enumerate(lines, 1):
+            m = re.search(r'''import\s+['"](.*?)['"]''', line)
+            if m:
+                parsed.imports.append(
+                    ImportSymbol(
+                        module=m.group(1),
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        # Functions
+        fn_pat = re.compile(r"""func\s+(?:\([^\)]+\)\s+)?([a-zA-Z0-9_]+)\s*\((.*?)\)""")
+        for idx, line in enumerate(lines, 1):
+            for match in fn_pat.finditer(line):
+                name = match.group(1)
+                raw_args = match.group(2) or ""
+                args = [a.strip() for a in raw_args.split(",") if a.strip()]
+                params = [
+                    ParameterSymbol(
+                        name=arg.split()[0],
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                    for arg in args
+                ]
+                parsed.functions.append(
+                    FunctionSymbol(
+                        name=name,
+                        qualified_name=name,
+                        parameters=params,
+                        location=SourceLocation(file=file_path, line_start=idx, line_end=idx),
+                    )
+                )
+
+        return parsed
+

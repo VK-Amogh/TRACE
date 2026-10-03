@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import math
 
 from trace_engine.intelligence.securebert.cache import SecureBERTCache
@@ -60,6 +60,65 @@ class SecureBERTClassifier:
             logger.debug(f"SecureBERT initialization deferred: {e}. Semantic encoder active.")
             self._tokenizer = None
             self._model = None
+
+    def classify_batch(self, items: List[Tuple[str, Endpoint]]) -> List[Dict[str, float]]:
+        """Batch classification of multiple code slices using SecureBERT."""
+        results: List[Optional[Dict[str, float]]] = [None] * len(items)
+        uncached_indices: List[int] = []
+        uncached_texts: List[str] = []
+
+        for idx, (code_text, ep) in enumerate(items):
+            cached = self.cache.get(code_text)
+            if cached:
+                results[idx] = cached
+            else:
+                uncached_indices.append(idx)
+                uncached_texts.append(code_text)
+
+        if uncached_texts:
+            self._init_model()
+            if self._model and self._tokenizer:
+                try:
+                    import torch
+                    chunk_size = 64
+                    for c_start in range(0, len(uncached_texts), chunk_size):
+                        c_end = c_start + chunk_size
+                        c_texts = uncached_texts[c_start:c_end]
+                        c_indices = uncached_indices[c_start:c_end]
+
+                        inputs = self._tokenizer(
+                            c_texts,
+                            max_length=256,
+                            truncation=True,
+                            padding=True,
+                            return_tensors="pt",
+                        ).to(self._device)
+
+                        with torch.no_grad():
+                            outputs = self._model(**inputs)
+                            raw_probs = torch.softmax(outputs.logits, dim=-1).detach().cpu().tolist()
+
+                        probs_list = [raw_probs] if len(c_texts) == 1 and isinstance(raw_probs[0], (int, float)) else raw_probs
+
+                        for sub_i, orig_idx in enumerate(c_indices):
+                            if sub_i < len(probs_list) and isinstance(probs_list[sub_i], list):
+                                score_dict = {
+                                    cat: round(probs_list[sub_i][p_idx], 4)
+                                    for p_idx, cat in enumerate(VULN_CATEGORIES)
+                                }
+                                results[orig_idx] = score_dict
+                                self.cache.set(items[orig_idx][0], score_dict)
+                except Exception as e:
+                    logger.debug(f"SecureBERT batch inference error: {e}")
+
+            for orig_idx in uncached_indices:
+                if results[orig_idx] is None:
+                    code_text, ep = items[orig_idx]
+                    scores = self._semantic_scoring(code_text, ep)
+                    results[orig_idx] = scores
+                    self.cache.set(code_text, scores)
+
+        return [r for r in results if r is not None]
 
     def classify_slice(self, code_text: str, endpoint: Endpoint) -> Dict[str, float]:
         """Classify a code slice and return probability distribution over vulnerability families."""
