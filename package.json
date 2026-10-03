@@ -1,0 +1,22 @@
+{
+  "name": "@trace-security/trace",
+  "version": "2.0.0",
+  "description": "Threat Reconnaissance & Attack-path Correlation Engine — Security Verification Layer for Coding Agents",
+  "type": "module",
+  "main": "bin/trace.js",
+  "bin": {
+    "trace": "./bin/trace.js"
+  },
+  "keywords": [
+    "security",
+    "dast",
+    "sast",
+    "attack-path",
+    "mcp",
+    "claude-code",
+    "codex",
+    "vulnerability"
+  ],
+  "author": "TRACE Core Team",
+  "license": "Apache-2.0"
+}

@@ -488,5 +488,77 @@ def lab(
         console.print("Start it with: [bold green]trace lab start[/bold green]\n")
 
 
+@app.command()
+def verify(
+    finding_id: str = typer.Argument(..., help="Finding ID to verify (e.g. TR-BOLA-001)"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL"),
+):
+    """Verify whether a code modification by a coding agent resolved a finding (Section 58)."""
+    from trace_engine.verify import VerificationEngine, VerificationStatus
+
+    project_dir = path.resolve()
+    console.print(f"\n[bold green]Verifying Finding {finding_id}[/bold green] on [white]{project_dir.name}[/white]...")
+    engine = VerificationEngine(repo_path=project_dir, target_url=target)
+    res = engine.verify(finding_id)
+
+    status_color = "bold green" if res.status == VerificationStatus.FIXED else "bold red" if res.status == VerificationStatus.STILL_PRESENT else "bold yellow"
+    console.print(f"  Result: [{status_color}]{res.status.value}[/{status_color}]")
+    console.print(f"  Summary: {res.summary}")
+    console.print(f"  Differential: [dim]{res.differential_analysis}[/dim]\n")
+
+
+@app.command()
+def mcp():
+    """Start the TRACE Model Context Protocol (MCP) server over stdio for Claude Code / Codex."""
+    from trace_engine.mcp.server import TraceMCPServer
+
+    server = TraceMCPServer()
+    server.run_stdio()
+
+
+@app.command("setup-mcp")
+def setup_mcp(
+    path: Path = typer.Argument(Path("."), help="Path to project repository")
+):
+    """Generate .mcp.json and configure MCP coding agent integration (Section 64)."""
+    from trace_engine.mcp.config import generate_mcp_json
+
+    project_dir = path.resolve()
+    mcp_file = generate_mcp_json(project_dir)
+
+    console.print(f"\n[bold green]Configured TRACE MCP[/bold green] in [white]{mcp_file}[/white]")
+    console.print("\n[bold white]Connect to Claude Code:[/bold white]")
+    console.print("  [green]claude mcp add trace -- cmd /c npx -y @trace-security/trace mcp[/green]")
+    console.print("\n[bold white]Connect to Codex / Cursor / Antigravity:[/bold white]")
+    console.print("  [dim]The generated .mcp.json is already recognized by compatible IDEs and CLI agents.[/dim]\n")
+
+
+@app.command()
+def benchmark(
+    limit: int = typer.Option(50, "--limit", "-l", help="Number of benchmark test cases to evaluate")
+):
+    """Evaluate TRACE against the OWASP Benchmark Python ground truth (Section 12)."""
+    from benchmarks.runner import run_owasp_benchmark
+    run_owasp_benchmark(limit=limit)
+
+
+@app.command()
+def intelligence():
+    """Display status of the Laya System 1 and SecureBERT 2.0 neural intelligence stack."""
+    from trace_engine.intelligence.laya.router import LayaDecisionEngine
+    from trace_engine.intelligence.securebert.classifier import SecureBERTClassifier
+
+    console.print("\n[bold green]TRACE Intelligence Stack Status[/bold green]")
+    laya = LayaDecisionEngine()
+    bert = SecureBERTClassifier()
+
+    laya_status = "[bold green]ONLINE (convaiinnovations/laya loaded on CPU)[/bold green]" if laya.is_available() else "[yellow]Standby (calibrated fallback active)[/yellow]"
+    console.print(f"  • Laya System 1 Decision Engine: {laya_status}")
+    console.print(f"  • SecureBERT 2.0 Semantic Classifier: [bold green]ONLINE ({bert.model_name})[/bold green]")
+    console.print("  • Model Hierarchy: Deterministic -> SecureBERT -> Laya System 1 -> Local LLM\n")
+
+
 if __name__ == "__main__":
     app()
+

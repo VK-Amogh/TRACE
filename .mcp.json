@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "trace": {
+      "command": "D:\\Startup\\TRACE\\trace.cmd",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
