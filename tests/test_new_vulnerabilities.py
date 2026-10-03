@@ -1,5 +1,6 @@
 """Tests for newly implemented vulnerability detectors, testpacks, and dataset normalizer."""
 
+from pathlib import Path
 import pytest
 from trace_engine.security.hypotheses import VulnerabilityCategory, HypothesisEngine, SecurityHypothesis
 from trace_engine.framework.base import Endpoint, EndpointParameter
@@ -8,6 +9,9 @@ from trace_engine.apm.model import AttackPathModel
 from trace_engine.testpacks.registry import default_registry
 from trace_engine.intelligence.securebert.classifier import VULN_CATEGORIES, SecureBERTClassifier
 from trace_engine.intelligence.training.dataset import normalize_code_slice, generate_cybersecurity_training_corpus
+from trace_engine.intelligence.training.slicer import slice_and_canonicalize, DataflowSliceExtractor
+from trace_engine.intelligence.training.lora_system2 import System2LoRATrainer, LoRATrainingConfig
+from trace_engine.intelligence.training.dataset_importers import JulietImporter, BigVulImporter, CVEfixesImporter
 
 
 def test_new_vulnerability_categories_present():
@@ -110,7 +114,37 @@ def test_code_slice_normalization():
 def test_training_corpus_generation():
     corpus = generate_cybersecurity_training_corpus(multiplier=2)
     assert len(corpus) > 20
-    # Confirm coverage across categories
     all_labels = set(label for _, labels in corpus for label in labels)
     for cat in ["BOLA", "BFLA", "AUTHENTICATION", "SSRF", "INJECTION", "MASS_ASSIGNMENT", "PATH_TRAVERSAL", "SSTI", "CORS", "DESERIALIZATION"]:
         assert cat in all_labels
+
+
+def test_dataflow_slice_and_canonicalize():
+    code = """
+    def fetch_user_data():
+        user_param = request.args.get('id')
+        sanitized = user_param.strip()
+        return db.execute('SELECT * FROM users WHERE id=' + sanitized)
+    """
+    trace = slice_and_canonicalize(code)
+    assert "[SOURCE:" in trace
+    assert "[FLOW:" in trace
+    assert "[SINK:" in trace
+
+
+def test_system2_lora_trainer_init():
+    trainer = System2LoRATrainer(LoRATrainingConfig(model_name="Qwen/Qwen2.5-Coder-1.5B-Instruct"))
+    samples = trainer.build_synthetic_samples()
+    assert len(samples) >= 3
+    assert samples[0].cwe_id == "CWE-639"
+    assert "--- a/" in samples[0].remediation_diff
+
+
+def test_dataset_importers():
+    juliet = JulietImporter()
+    big_vul = BigVulImporter()
+    cvefixes = CVEfixesImporter()
+
+    assert juliet.import_sarif(Path("non_existent.sarif")) == []
+    assert big_vul.import_csv(Path("non_existent.csv")) == []
+    assert cvefixes.import_jsonl(Path("non_existent.jsonl")) == []
