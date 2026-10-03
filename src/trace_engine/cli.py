@@ -436,38 +436,41 @@ def test_all(
     # 4. Intelligence Stack Evaluation (Laya System 1 & SecureBERT 2.0)
     model_metrics = {}
     if models and discovered_endpoints:
-        with console.status("  [bold green]Running AI Models:[/bold green] Evaluating SecureBERT 2.0 & Laya System 1..."):
-            orchestrator = IntelligenceOrchestrator()
-            code_slices = [f"{ep.method} {ep.path}" for ep in discovered_endpoints]
-            
-            t0 = time.perf_counter()
-            recommendations = orchestrator.evaluate_endpoints_batch(
-                discovered_endpoints, code_slices, graph_model, hypotheses
-            )
-            total_time_ms = (time.perf_counter() - t0) * 1000
+        try:
+            with console.status("  [bold green]Running AI Models:[/bold green] Evaluating SecureBERT 2.0 & Laya System 1..."):
+                orchestrator = IntelligenceOrchestrator()
+                code_slices = [f"{ep.method} {ep.path}" for ep in discovered_endpoints]
+                
+                t0 = time.perf_counter()
+                recommendations = orchestrator.evaluate_endpoints_batch(
+                    discovered_endpoints, code_slices, graph_model, hypotheses
+                )
+                total_time_ms = (time.perf_counter() - t0) * 1000
 
-            category_counts: Dict[str, int] = {}
-            for rec in recommendations:
-                top_fam = max(rec.securebert_scores, key=rec.securebert_scores.get) if rec.securebert_scores else "UNKNOWN"
-                category_counts[top_fam] = category_counts.get(top_fam, 0) + 1
+                category_counts: Dict[str, int] = {}
+                for rec in recommendations:
+                    top_fam = max(rec.securebert_scores, key=rec.securebert_scores.get) if rec.securebert_scores else "UNKNOWN"
+                    category_counts[top_fam] = category_counts.get(top_fam, 0) + 1
 
-            top_families_str = ", ".join(f"{cat} ({cnt})" for cat, cnt in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:3])
-            avg_lat = total_time_ms / len(discovered_endpoints) if discovered_endpoints else 0.5
+                top_families_str = ", ".join(f"{cat} ({cnt})" for cat, cnt in sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:3])
+                avg_lat = total_time_ms / len(discovered_endpoints) if discovered_endpoints else 0.5
 
-            model_metrics = {
-                "securebert": {
-                    "inferences": len(discovered_endpoints),
-                    "avg_latency_ms": avg_lat * 0.6,
-                    "top_families": top_families_str or "BOLA, AUTH, SSRF",
-                },
-                "laya": {
-                    "inferences": len(discovered_endpoints),
-                    "avg_latency_ms": avg_lat * 0.4,
-                    "breakdown": f"Evaluated {len(discovered_endpoints)} endpoints across P0/P1/P2/P3",
-                    "available": orchestrator.laya.is_available(),
-                },
-            }
-        console.print(f"  [dim]✓ AI Intelligence:[/dim] Evaluated [bold white]{len(discovered_endpoints)}[/bold white] endpoints via SecureBERT 2.0 & Laya System 1")
+                model_metrics = {
+                    "securebert": {
+                        "inferences": len(discovered_endpoints),
+                        "avg_latency_ms": avg_lat * 0.6,
+                        "top_families": top_families_str or "BOLA, AUTH, SSRF",
+                    },
+                    "laya": {
+                        "inferences": len(discovered_endpoints),
+                        "avg_latency_ms": avg_lat * 0.4,
+                        "breakdown": f"Evaluated {len(discovered_endpoints)} endpoints across P0/P1/P2/P3",
+                        "available": orchestrator.laya.is_available(),
+                    },
+                }
+            console.print(f"  [dim]✓ AI Intelligence:[/dim] Evaluated [bold white]{len(discovered_endpoints)}[/bold white] endpoints via SecureBERT 2.0 & Laya System 1")
+        except Exception as e:
+            console.print(f"  [dim]• AI Intelligence:[/dim] [dim]Bypassed ({e})[/dim]")
 
     # 5. Runtime Validation & Test Pack Execution
     target_online = False
@@ -550,7 +553,7 @@ def test_all(
     if format == "json":
         console.print_json(json.dumps(report_payload, default=str))
     elif format == "markdown":
-        md = generate_markdown_report(project_dir.name, findings)
+        md = generate_markdown_report(findings, project_name=project_dir.name)
         console.print(md)
     else:
         print_test_all_report(
@@ -669,21 +672,21 @@ def report(
 ):
     """Export comprehensive security assessment report."""
     project_dir = (repo or path).resolve()
-    store = FindingStore(get_trace_dir(project_dir))
+    store, resolved_dir = resolve_finding_store(project_dir)
     findings_list = store.load_findings()
 
     if format.lower() == "html":
-        content = generate_html_report(findings_list, project_name=project_dir.name)
+        content = generate_html_report(findings_list, project_name=resolved_dir.name)
         ext = ".html"
     elif format.lower() == "json":
         import json
         content = json.dumps([f.model_dump() for f in findings_list], indent=2)
         ext = ".json"
     else:
-        content = generate_markdown_report(findings_list, project_name=project_dir.name)
+        content = generate_markdown_report(findings_list, project_name=resolved_dir.name)
         ext = ".md"
 
-    out_file = output or (get_trace_dir(project_dir) / f"reports/trace_report{ext}")
+    out_file = output or (get_trace_dir(resolved_dir) / f"reports/trace_report{ext}")
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(content, encoding="utf-8")
     console.print(f"[bold green]Report generated:[/bold green] [white]{out_file}[/white]\n")
@@ -753,9 +756,10 @@ def verify(
     """Verify whether a code modification by a coding agent resolved a finding (Section 58)."""
     from trace_engine.verify import VerificationEngine, VerificationStatus
 
-    project_dir = (repo or path).resolve()
-    console.print(f"\n[bold green]Verifying Finding {finding_id}[/bold green] on [white]{project_dir.name}[/white]...")
-    engine = VerificationEngine(repo_path=project_dir, target_url=target)
+    target_path = repo or path
+    store, resolved_dir = resolve_finding_store(target_path.resolve())
+    console.print(f"\n[bold green]Verifying Finding {finding_id}[/bold green] on [white]{resolved_dir.name}[/white]...")
+    engine = VerificationEngine(repo_path=resolved_dir, target_url=target)
     res = engine.verify(finding_id)
 
     status_color = "bold green" if res.status == VerificationStatus.FIXED else "bold red" if res.status == VerificationStatus.STILL_PRESENT else "bold yellow"
