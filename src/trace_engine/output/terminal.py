@@ -318,9 +318,33 @@ def print_test_all_report(
     confirmed_count: int,
     model_metrics: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Renders the comprehensive priority-ranked vulnerability audit report for test-all."""
     if not findings:
-        console.print("\n[bold green]No vulnerabilities or control boundary violations detected across all test packs.[/bold green]\n")
+        console.print("\n[bold green]✓ No vulnerabilities or control boundary violations detected across all test packs.[/bold green]\n")
+        if model_metrics:
+            print_model_intelligence_report(model_metrics)
+
+        summary_text = Text()
+        summary_text.append(f"Endpoints Audited: ", style="bold green")
+        summary_text.append(f"{endpoints_count}  |  ", style="bold white")
+        summary_text.append(f"Attack Hypotheses Evaluated: ", style="bold green")
+        summary_text.append(f"{hypotheses_count}  |  ", style="bold white")
+        summary_text.append(f"Runtime Confirmed Vulnerabilities: ", style="bold green")
+        summary_text.append("0\n", style="bold green")
+        summary_text.append("Breakdown: ", style="bold green")
+        summary_text.append("Critical: 0  |  High: 0  |  Medium: 0\n", style="bold white")
+        summary_text.append("Security Posture Rating: ", style="bold green")
+        summary_text.append("100/100 [A (SECURE)]", style="bold green")
+
+        console.print(
+            Panel(
+                summary_text,
+                title="[bold green]Executive Audit Summary[/bold green]",
+                border_style="green",
+                box=ROUNDED,
+                padding=(1, 2),
+            )
+        )
+        console.print()
         return
 
     # Sort strictly by priority / severity: CRITICAL (P0) > HIGH (P1) > MEDIUM (P2) > LOW (P3)
@@ -354,28 +378,17 @@ def print_test_all_report(
         border_style="dim",
         show_lines=True,
     )
-    table.add_column("Rank", justify="center", style="bold white", width=6)
-    table.add_column("Priority", justify="center", no_wrap=True, width=16)
-    table.add_column("Finding ID", style="bold white", no_wrap=True, width=14)
-    table.add_column("Category", style="bold white", width=14)
-    table.add_column("Exposed Endpoint", style="white", width=26)
-    table.add_column("Exposed Asset / Param", style="dim white", width=22)
-    table.add_column("Source Location", style="dim", width=26)
-    table.add_column("What Needs to be Changed (Remediation)", style="white", width=42)
+    table.add_column("Rank", justify="center", style="bold white", width=5)
+    table.add_column("Priority", justify="center", no_wrap=True)
+    table.add_column("Finding ID", style="bold white", no_wrap=True)
+    table.add_column("Category", style="bold green")
+    table.add_column("Exposed Endpoint", style="white")
+    table.add_column("Source Location", style="dim")
+    table.add_column("Remediation", style="white")
 
     for idx, f in enumerate(sorted_findings, 1):
         prio = priority_labels.get(f.severity, str(f.severity.value))
         loc_str = str(f.source_location) if f.source_location else "-"
-        
-        # Extract exposed asset from static evidence or endpoint
-        exposed_asset = "-"
-        for ev in f.static_evidence:
-            if "parameter" in ev.lower() or "matches" in ev.lower():
-                exposed_asset = ev.split(":")[-1].strip()
-                break
-        if exposed_asset == "-" and f.reproduction_steps:
-            exposed_asset = f.endpoint.split()[-1]
-
         remediation_snippet = f.remediation.strip().split(".")[0] + "." if f.remediation else "Apply strict authorization check."
 
         table.add_row(
@@ -384,7 +397,6 @@ def print_test_all_report(
             f.id,
             f.category,
             f.endpoint,
-            exposed_asset,
             loc_str,
             remediation_snippet,
         )
@@ -401,7 +413,7 @@ def print_test_all_report(
     med_count = sum(1 for f in findings if f.severity == Severity.MEDIUM)
 
     posture_score = max(0, 100 - (crit_count * 20 + high_count * 10 + med_count * 3))
-    rating = "A (SECURE)" if posture_score >= 90 else "B (MODERATE)" if posture_score >= 75 else "C (NEEDS ATTENTION)" if posture_score >= 50 else "D (HIGH RISK)" if posture_score >= 25 else "F (CRITICAL EXPOSURE)"
+    rating = "A (SECURE)" if posture_score >= 90 else "B (MODERATE)" if posture_score >= 75 else "C (NEEDS ATTENTION)" if posture_score >= 50 else "D (HIGH RISK)" if posture_score >= 25 else "F (CRITICAL RISK - Multiple P0/P1 exploits detected)"
     score_color = "bold green" if posture_score >= 75 else "bold yellow" if posture_score >= 50 else "bold red"
 
     summary_text = Text()
@@ -475,11 +487,11 @@ def print_harness_report(report: Any) -> None:
         header_style="bold green",
         border_style="dim",
     )
-    table.add_column("Finding ID", style="bold white", width=14)
-    table.add_column("Vulnerability Title", style="white", width=34)
-    table.add_column("Target File", style="dim", width=30)
-    table.add_column("Remediation Status", justify="center", width=20)
-    table.add_column("Differential Proof", style="green", width=32)
+    table.add_column("Finding ID", style="bold white", no_wrap=True)
+    table.add_column("Vulnerability Title", style="white")
+    table.add_column("Target File", style="dim")
+    table.add_column("Remediation Status", justify="center")
+    table.add_column("Differential Proof", style="green")
 
     for item in report.verified_patches:
         table.add_row(

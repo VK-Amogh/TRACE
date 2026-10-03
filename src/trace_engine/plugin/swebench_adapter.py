@@ -17,6 +17,12 @@ def build_harness_task(finding: Finding, repo_path: Path) -> HarnessTaskSpec:
     code_snippet = ""
     try:
         full_file = repo_path / rel_path
+        if not full_file.is_file():
+            for sub in repo_path.iterdir():
+                if sub.is_dir() and (sub / rel_path).is_file():
+                    full_file = sub / rel_path
+                    break
+
         if full_file.is_file():
             lines = full_file.read_text(encoding="utf-8", errors="replace").splitlines()
             sl = max(0, start_line - 1)

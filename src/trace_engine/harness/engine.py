@@ -52,11 +52,17 @@ class AgentHarness:
     def build_remediation_package(self, finding: Finding, rank: int = 1) -> AgentRemediationPackage:
         """Packages rich context, surrounding AST lines, and exploit proof for an AI agent."""
         file_path = self.repo_path / finding.source_location.file
+        if not file_path.exists():
+            for sub in self.repo_path.iterdir():
+                if sub.is_dir() and (sub / finding.source_location.file).exists():
+                    file_path = sub / finding.source_location.file
+                    break
+
         code_snippet = ""
         if file_path.exists():
             lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
-            start = max(0, finding.source_location.line_start - 10)
-            end = min(len(lines), finding.source_location.line_end + 15)
+            start = max(0, finding.source_location.line_start - 5)
+            end = min(len(lines), finding.source_location.line_end + 10)
             code_snippet = "\n".join(lines[start:end])
 
         return AgentRemediationPackage(

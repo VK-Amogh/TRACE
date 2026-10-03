@@ -364,6 +364,16 @@ def scan(
     store = FindingStore(trace_dir)
     store.save_findings(findings)
 
+    try:
+        root_trace = Path(".trace")
+        root_trace.mkdir(parents=True, exist_ok=True)
+        (root_trace / "last_scan_repo.txt").write_text(str(project_dir), encoding="utf-8")
+        if project_dir != Path(".").resolve():
+            root_store = FindingStore(root_trace)
+            root_store.save_findings(findings)
+    except Exception:
+        pass
+
     console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings\n")
     print_findings_table(findings)
 
@@ -512,6 +522,16 @@ def test_all(
     # 6. Persist Findings & Report
     store = FindingStore(trace_dir)
     store.save_findings(findings)
+
+    try:
+        root_trace = Path(".trace")
+        root_trace.mkdir(parents=True, exist_ok=True)
+        (root_trace / "last_scan_repo.txt").write_text(str(project_dir), encoding="utf-8")
+        if project_dir != Path(".").resolve():
+            root_store = FindingStore(root_trace)
+            root_store.save_findings(findings)
+    except Exception:
+        pass
 
     report_payload = {
         "project": project_dir.name,
