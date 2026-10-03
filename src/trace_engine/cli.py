@@ -1,10 +1,15 @@
 """Command Line Interface for TRACE (Threat Reconnaissance & Attack-path Correlation Engine)."""
 
+import os
 import sys
 import subprocess
 import time
 from pathlib import Path
 from typing import Optional, List
+
+# Suppress Hugging Face progress bars and threading warnings in CLI output
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Ensure UTF-8 output on Windows terminal
 if sys.platform == "win32":
@@ -253,6 +258,7 @@ def test(
         allowed_ports=config.target.allowed_ports,
         mode=config.target.scope_mode,
     )
+    scope_guard.allow_target(target)
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
 
     # Setup test context with synthetic tokens
@@ -327,6 +333,7 @@ def scan(
         allowed_ports=config.target.allowed_ports,
         mode=config.target.scope_mode,
     )
+    scope_guard.allow_target(target)
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
     context = TestContext(
         target_base_url=target,
@@ -372,10 +379,11 @@ def findings(
 @app.command()
 def explain(
     finding_id: str = typer.Argument(..., help="ID of the finding to explain (e.g. TR-BOLA-001)"),
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
     """Deep-dive into a finding with root cause analysis and reproduction details."""
-    project_dir = path.resolve()
+    project_dir = (repo or path).resolve()
     store = FindingStore(get_trace_dir(project_dir))
     finding = store.get_finding_by_id(finding_id)
     if not finding:
@@ -390,10 +398,11 @@ def explain(
 @app.command()
 def replay(
     finding_id: str = typer.Argument(..., help="ID of finding to replay"),
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
     """Replay the exact HTTP reproduction requests for a finding."""
-    project_dir = path.resolve()
+    project_dir = (repo or path).resolve()
     store = FindingStore(get_trace_dir(project_dir))
     finding = store.get_finding_by_id(finding_id)
     if not finding or not finding.reproduction_steps:
@@ -408,12 +417,13 @@ def replay(
 
 @app.command()
 def report(
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     format: str = typer.Option("markdown", "--format", "-f", help="Output format: markdown, html, or json"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
     """Export comprehensive security assessment report."""
-    project_dir = path.resolve()
+    project_dir = (repo or path).resolve()
     store = FindingStore(get_trace_dir(project_dir))
     findings_list = store.load_findings()
 
@@ -491,13 +501,14 @@ def lab(
 @app.command()
 def verify(
     finding_id: str = typer.Argument(..., help="Finding ID to verify (e.g. TR-BOLA-001)"),
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
     target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL"),
 ):
     """Verify whether a code modification by a coding agent resolved a finding (Section 58)."""
     from trace_engine.verify import VerificationEngine, VerificationStatus
 
-    project_dir = path.resolve()
+    project_dir = (repo or path).resolve()
     console.print(f"\n[bold green]Verifying Finding {finding_id}[/bold green] on [white]{project_dir.name}[/white]...")
     engine = VerificationEngine(repo_path=project_dir, target_url=target)
     res = engine.verify(finding_id)

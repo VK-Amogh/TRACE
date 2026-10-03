@@ -69,7 +69,7 @@ def run_doctor() -> DoctorReport:
         import tree_sitter_language_pack
         items.append(
             CheckItem(
-                name="Tree-sitter Language Pack",
+                name="Tree-sitter AST",
                 status=True,
                 category="Code Analysis",
                 details="Multi-language AST parsing enabled",
@@ -79,7 +79,7 @@ def run_doctor() -> DoctorReport:
     except Exception as e:
         items.append(
             CheckItem(
-                name="Tree-sitter",
+                name="Tree-sitter AST",
                 status=False,
                 category="Code Analysis",
                 details="Fallback AST mode active",
@@ -92,7 +92,7 @@ def run_doctor() -> DoctorReport:
         import networkx as nx
         items.append(
             CheckItem(
-                name="NetworkX",
+                name="NetworkX APM",
                 status=True,
                 category="Attack-Path Model",
                 details=f"Graph engine v{nx.__version__}",
@@ -102,7 +102,7 @@ def run_doctor() -> DoctorReport:
     except Exception as e:
         items.append(
             CheckItem(
-                name="NetworkX",
+                name="NetworkX APM",
                 status=False,
                 category="Attack-Path Model",
                 details=str(e),
@@ -115,7 +115,7 @@ def run_doctor() -> DoctorReport:
         import httpx
         items.append(
             CheckItem(
-                name="HTTPX Scoped Client",
+                name="HTTPX Client",
                 status=True,
                 category="Runtime Testing",
                 details=f"HTTP engine v{httpx.__version__}",
@@ -125,7 +125,7 @@ def run_doctor() -> DoctorReport:
     except Exception as e:
         items.append(
             CheckItem(
-                name="HTTPX",
+                name="HTTPX Client",
                 status=False,
                 category="Runtime Testing",
                 details=str(e),
@@ -138,13 +138,89 @@ def run_doctor() -> DoctorReport:
     ollama_ok = ollama.is_available()
     items.append(
         CheckItem(
-            name="Ollama Local LLM",
+            name="Ollama LLM",
             status=ollama_ok,
             category="AI Inference",
             details="Connected at http://127.0.0.1:11434" if ollama_ok else "Not reachable (using deterministic planner)",
             critical=False,
         )
     )
+
+    # 7. PyTorch & Transformers
+    try:
+        import torch
+        import transformers
+        items.append(
+            CheckItem(
+                name="PyTorch",
+                status=True,
+                category="AI Inference",
+                details=f"PyTorch v{torch.__version__}, Transformers v{transformers.__version__}",
+                critical=False,
+            )
+        )
+    except Exception as e:
+        items.append(
+            CheckItem(
+                name="PyTorch",
+                status=False,
+                category="AI Inference",
+                details=str(e),
+                critical=False,
+            )
+        )
+
+    # 8. Laya System 1 Engine
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            from trace_engine.intelligence.laya.router import LayaDecisionEngine
+            laya = LayaDecisionEngine()
+        laya_avail = laya.is_available()
+        items.append(
+            CheckItem(
+                name="Laya System 1",
+                status=laya_avail,
+                category="AI Inference",
+                details="Online (convaiinnovations/laya on CPU)" if laya_avail else "Standby (calibrated fallback active)",
+                critical=False,
+            )
+        )
+    except Exception as e:
+        items.append(
+            CheckItem(
+                name="Laya System 1",
+                status=False,
+                category="AI Inference",
+                details=str(e),
+                critical=False,
+            )
+        )
+
+    # 9. SecureBERT 2.0 Classifier
+    try:
+        from trace_engine.intelligence.securebert.classifier import SecureBERTClassifier
+        bert = SecureBERTClassifier()
+        items.append(
+            CheckItem(
+                name="SecureBERT 2.0",
+                status=True,
+                category="AI Inference",
+                details=f"Model: {bert.model_name}",
+                critical=False,
+            )
+        )
+    except Exception as e:
+        items.append(
+            CheckItem(
+                name="SecureBERT 2.0 Semantic Classifier",
+                status=False,
+                category="AI Inference",
+                details=str(e),
+                critical=False,
+            )
+        )
 
     # 7. External Tools
     for tool_info in default_tool_registry.get_all_info():

@@ -18,6 +18,7 @@ class UserIdentity(BaseModel):
 
 class TestContext(BaseModel):
     """Context provided to a test pack execution."""
+    __test__ = False
     target_base_url: str
     identities: Dict[str, UserIdentity] = Field(default_factory=dict)
     active_tokens: Dict[str, str] = Field(default_factory=dict)
@@ -25,6 +26,7 @@ class TestContext(BaseModel):
 
 class TestExecutionResult(BaseModel):
     """Outcome of running a test pack against a hypothesis."""
+    __test__ = False
     testpack_name: str
     hypothesis_id: str
     confirmed: bool
@@ -36,6 +38,7 @@ class TestExecutionResult(BaseModel):
 
 class TestPack(ABC):
     """Abstract base class for all security test packs."""
+    __test__ = False
 
     @property
     @abstractmethod

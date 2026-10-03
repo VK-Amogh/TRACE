@@ -30,7 +30,7 @@ const proc = spawn(pythonBin, cliArgs, {
   stdio: 'inherit',
   env: {
     ...process.env,
-    PYTHONPATH: projectRoot + (process.env.PYTHONPATH ? (isWin ? ';' : ':') + process.env.PYTHONPATH : ''),
+    PYTHONPATH: join(projectRoot, 'src') + (process.env.PYTHONPATH ? (isWin ? ';' : ':') + process.env.PYTHONPATH : ''),
     PYTHONIOENCODING: 'utf-8',
   },
 });

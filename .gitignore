@@ -38,6 +38,8 @@ env/
 .trace/
 *.db
 *.sqlite3
+labs/**/.trace/
+labs/**/.mcp.json
 artifacts/reports/
 artifacts/screenshots/
 artifacts/raw-tool-output/

@@ -50,9 +50,9 @@ class ScopedHttpClient:
                 # Check if redirect is safe
                 if resp.is_redirect and "location" in resp.headers:
                     redirect_target = resp.headers["location"]
-                    # If absolute URL, validate with scope guard
-                    if redirect_target.startswith("http://") or redirect_target.startswith("https://"):
-                        self.scope_guard.validate_url(redirect_target)
+                    import urllib.parse
+                    resolved_redirect = urllib.parse.urljoin(url, redirect_target)
+                    self.scope_guard.validate_url(resolved_redirect)
 
                 return RuntimeObservation(
                     request_method=method.upper(),

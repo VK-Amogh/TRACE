@@ -11,18 +11,27 @@ def generate_mcp_json(project_dir: Path, trace_cmd_path: Optional[str] = None) -
     project_dir = project_dir.resolve()
     mcp_file = project_dir / ".mcp.json"
 
-    # Command to run trace mcp
-    cmd = trace_cmd_path or (
-        str((Path(__file__).parent.parent.parent.parent / "trace.cmd").resolve())
-        if sys.platform == "win32"
-        else "trace"
-    )
+    import shutil
+
+    candidate_cmd = (Path(__file__).parent.parent.parent.parent / "trace.cmd").resolve()
+    if trace_cmd_path:
+        cmd = trace_cmd_path
+        args = ["mcp"]
+    elif sys.platform == "win32" and candidate_cmd.exists():
+        cmd = str(candidate_cmd)
+        args = ["mcp"]
+    elif shutil.which("trace"):
+        cmd = "trace"
+        args = ["mcp"]
+    else:
+        cmd = sys.executable
+        args = ["-m", "trace_engine.cli", "mcp"]
 
     config_data = {
         "mcpServers": {
             "trace": {
                 "command": cmd,
-                "args": ["mcp"],
+                "args": args,
             }
         }
     }

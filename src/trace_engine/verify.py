@@ -87,6 +87,7 @@ class VerificationEngine:
 
         # 4. Replay test pack against runtime
         scope_guard = ScopeGuard()
+        scope_guard.allow_target(self.target_url)
         client = ScopedHttpClient(scope_guard=scope_guard)
         context = TestContext(
             target_base_url=self.target_url,

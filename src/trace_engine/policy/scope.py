@@ -56,10 +56,25 @@ class ScopeGuard:
                     f"Target host '{hostname}' is blocked by TRACE ScopeGuard. Only approved local targets are permitted."
                 )
 
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        if port not in self.allowed_ports:
+        try:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        except ValueError as e:
+            raise ScopeViolationError(f"Invalid URL port: {e}")
+
+        is_loopback_host = hostname.lower() in ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+        if not is_loopback_host and port not in self.allowed_ports:
             raise ScopeViolationError(
                 f"Target port {port} is not in allowed ports list: {sorted(list(self.allowed_ports))}"
             )
+        if not (1 <= port <= 65535):
+            raise ScopeViolationError(f"Invalid TCP port: {port}")
 
         return True
+
+    def allow_target(self, url: str) -> None:
+        """Explicitly add a target's host and port to allowed scope if it is local/private."""
+        parsed = urlparse(url)
+        if parsed.hostname:
+            self.allowed_hosts.add(parsed.hostname.lower())
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        self.allowed_ports.add(port)

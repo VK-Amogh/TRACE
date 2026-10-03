@@ -1,5 +1,6 @@
 """Injection indicator test pack."""
 
+import re
 import urllib.parse
 from trace_engine.testpacks.base import TestPack, TestContext, TestExecutionResult
 from trace_engine.security.hypotheses import SecurityHypothesis
@@ -26,6 +27,7 @@ class InjectionTestPack(TestPack):
         method = parts[0] if len(parts) > 1 else "GET"
         raw_path = parts[1] if len(parts) > 1 else parts[0]
 
+        clean_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "1", raw_path)
         probes = ["' OR '1'='1", "''", "test'--"]
         observations = []
         confirmed = False
@@ -42,8 +44,8 @@ class InjectionTestPack(TestPack):
 
         for probe in probes:
             encoded_probe = urllib.parse.quote(probe)
-            sep = "&" if "?" in raw_path else "?"
-            probe_url = f"{base_url}{raw_path}{sep}q={encoded_probe}&query={encoded_probe}&search={encoded_probe}"
+            sep = "&" if "?" in clean_path else "?"
+            probe_url = f"{base_url}{clean_path}{sep}q={encoded_probe}&query={encoded_probe}&search={encoded_probe}"
 
             obs = client.execute(method=method, url=probe_url)
             observations.append(obs)

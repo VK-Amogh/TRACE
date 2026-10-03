@@ -26,7 +26,8 @@ class BflaTestPack(TestPack):
         method = parts[0] if len(parts) > 1 else "POST"
         raw_path = parts[1] if len(parts) > 1 else parts[0]
 
-        target_url = f"{base_url}{raw_path}"
+        clean_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "1", raw_path)
+        target_url = f"{base_url}{clean_path}"
         token_user = context.active_tokens.get("user-a") or context.active_tokens.get("user-b", "")
 
         observations = []

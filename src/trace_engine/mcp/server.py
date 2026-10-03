@@ -248,6 +248,7 @@ class TraceMCPServer:
             hypotheses = engine.derive_hypotheses(apm, discovered_endpoints)
 
             scope_guard = ScopeGuard()
+            scope_guard.allow_target(target_url)
             client = ScopedHttpClient(scope_guard=scope_guard)
             context = TestContext(
                 target_base_url=target_url,
@@ -289,13 +290,48 @@ class TraceMCPServer:
         return {"error": f"Unknown tool: {name}"}
 
     def run_stdio(self):
-        """Run the stdio JSON-RPC loop."""
-        for line in sys.stdin:
-            line = line.strip()
+        """Run the stdio JSON-RPC loop supporting both line-delimited JSON and Content-Length headers."""
+        while self.running:
+            line = sys.stdin.readline()
             if not line:
+                break
+            line_str = line.strip()
+            if not line_str:
                 continue
+
+            # Support Content-Length framing if sent by client
+            if line_str.lower().startswith("content-length:"):
+                try:
+                    content_length = int(line_str.split(":", 1)[1].strip())
+                    while True:
+                        hdr = sys.stdin.readline()
+                        if not hdr or hdr.strip() == "":
+                            break
+                    body = sys.stdin.read(content_length)
+                    req = json.loads(body)
+                except Exception as e:
+                    err_resp = {
+                        "jsonrpc": "2.0",
+                        "id": None,
+                        "error": {"code": -32700, "message": f"Parse error: {e}"},
+                    }
+                    sys.stdout.write(json.dumps(err_resp) + "\n")
+                    sys.stdout.flush()
+                    continue
+            else:
+                try:
+                    req = json.loads(line_str)
+                except Exception as e:
+                    err_resp = {
+                        "jsonrpc": "2.0",
+                        "id": None,
+                        "error": {"code": -32700, "message": f"Parse error: {e}"},
+                    }
+                    sys.stdout.write(json.dumps(err_resp) + "\n")
+                    sys.stdout.flush()
+                    continue
+
             try:
-                req = json.loads(line)
                 resp = self.handle_request(req)
                 if resp is not None:
                     sys.stdout.write(json.dumps(resp) + "\n")
@@ -303,8 +339,8 @@ class TraceMCPServer:
             except Exception as e:
                 err_resp = {
                     "jsonrpc": "2.0",
-                    "id": None,
-                    "error": {"code": -32700, "message": f"Parse error: {e}"},
+                    "id": req.get("id") if isinstance(req, dict) else None,
+                    "error": {"code": -32603, "message": f"Internal error: {e}"},
                 }
                 sys.stdout.write(json.dumps(err_resp) + "\n")
                 sys.stdout.flush()

@@ -129,13 +129,13 @@ def print_endpoints_table(endpoints: List[Endpoint]) -> None:
         header_style="bold green",
         border_style="dim",
     )
-    table.add_column("Method", style="bold white", width=8)
+    table.add_column("Method", style="bold white", no_wrap=True)
     table.add_column("Path", style="green")
-    table.add_column("Auth", justify="center", width=8)
-    table.add_column("Roles", style="dim")
-    table.add_column("Database", justify="center", width=10)
-    table.add_column("Outbound", justify="center", width=10)
-    table.add_column("Source", style="dim")
+    table.add_column("Auth", justify="center", no_wrap=True)
+    table.add_column("Roles", style="dim", no_wrap=True)
+    table.add_column("Database", justify="center", no_wrap=True)
+    table.add_column("Outbound", justify="center", no_wrap=True)
+    table.add_column("Source", style="dim", overflow="ellipsis", max_width=25)
 
     for ep in endpoints:
         auth_badge = "[bold green]YES[/bold green]" if ep.auth_required else "[dim red]NO[/dim red]"
@@ -164,11 +164,11 @@ def print_hypotheses_table(hypotheses: List[SecurityHypothesis]) -> None:
         header_style="bold green",
         border_style="dim",
     )
-    table.add_column("ID", style="bold green", width=14)
-    table.add_column("Category", style="bold white", width=16)
+    table.add_column("ID", style="bold green", no_wrap=True)
+    table.add_column("Category", style="bold white", no_wrap=True)
     table.add_column("Endpoint", style="white")
-    table.add_column("Test Pack", style="green", width=16)
-    table.add_column("Confidence Prior", justify="right", width=18)
+    table.add_column("Test Pack", style="green", no_wrap=True)
+    table.add_column("Confidence Prior", justify="right", no_wrap=True)
 
     for h in hypotheses:
         prior_str = f"{int(h.confidence_prior * 100)}%"
@@ -195,10 +195,10 @@ def print_findings_table(findings: List[Finding]) -> None:
         header_style="bold green",
         border_style="dim",
     )
-    table.add_column("ID", style="bold green", width=12)
-    table.add_column("Severity", width=10)
-    table.add_column("Confidence", width=12)
-    table.add_column("Category", style="bold white", width=16)
+    table.add_column("ID", style="bold green", no_wrap=True)
+    table.add_column("Severity", justify="center", no_wrap=True)
+    table.add_column("Confidence", justify="center", no_wrap=True)
+    table.add_column("Category", style="bold white", no_wrap=True)
     table.add_column("Endpoint", style="white")
     table.add_column("Title", style="dim white")
 
@@ -295,9 +295,9 @@ def print_doctor_report(report: DoctorReport) -> None:
         header_style="bold green",
         border_style="dim",
     )
-    table.add_column("Component", style="bold white", width=26)
-    table.add_column("Category", style="dim", width=24)
-    table.add_column("Status", justify="center", width=10)
+    table.add_column("Component", style="bold white", no_wrap=True)
+    table.add_column("Category", style="dim", no_wrap=True)
+    table.add_column("Status", justify="center", no_wrap=True)
     table.add_column("Details", style="dim white")
 
     for item in report.items:

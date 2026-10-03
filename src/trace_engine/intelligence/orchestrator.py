@@ -55,18 +55,19 @@ class IntelligenceOrchestrator:
 
         # 3. Model hierarchy reconciliation
         # If SecureBERT shows high probability for a specific category (e.g. BOLA > 0.4)
-        top_category = max(bert_scores, key=bert_scores.get)
+        top_category = max(bert_scores, key=bert_scores.get) if bert_scores else "UNKNOWN"
+        top_score = bert_scores.get(top_category, 0.0)
         chosen_pack = test_dec.primary_testpack
 
         decision_path = "deterministic"
         if self.laya.is_available():
             decision_path = "laya_system1"
-        elif bert_scores.get(top_category, 0) > 0.35:
+        elif top_score > 0.35:
             decision_path = "securebert_guided"
 
         rationale = (
             f"Evaluated via {decision_path}. "
-            f"Top vulnerability family: {top_category} ({int(bert_scores.get(top_category, 0) * 100)}%). "
+            f"Top vulnerability family: {top_category} ({int(top_score * 100)}%). "
             f"Assigned priority: {priority_dec.priority_level}."
         )
 

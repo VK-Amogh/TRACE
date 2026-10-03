@@ -245,33 +245,36 @@ class CodeParser:
                         )
                     )
 
-        # Extract Functions & Express routes
-        # e.g. function name(...) or const name = (...) => or router.get('/path', ...)
-        fn_pat = re.compile(
-            r"""(?:async\s+)?function\s+([a-zA-Z0-9_$]+)\s*\((.*?)\)"""
-        )
+        # Extract Functions (standard function, arrow functions, function expressions)
+        fn_patterns = [
+            re.compile(r"""(?:async\s+)?function\s+([a-zA-Z0-9_$]+)\s*\((.*?)\)"""),
+            re.compile(r"""(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?\((.*?)\)\s*=>"""),
+            re.compile(r"""(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?function\s*\((.*?)\)"""),
+        ]
         for idx, line in enumerate(lines, 1):
-            for match in fn_pat.finditer(line):
-                name = match.group(1)
-                args = [a.strip() for a in match.group(2).split(",") if a.strip()]
-                params = [
-                    ParameterSymbol(
-                        name=arg,
-                        location=SourceLocation(
-                            file=file_path, line_start=idx, line_end=idx
-                        ),
+            for pat in fn_patterns:
+                for match in pat.finditer(line):
+                    name = match.group(1)
+                    raw_args = match.group(2) or ""
+                    args = [a.strip() for a in raw_args.split(",") if a.strip()]
+                    params = [
+                        ParameterSymbol(
+                            name=arg.split(":")[0].strip(),
+                            location=SourceLocation(
+                                file=file_path, line_start=idx, line_end=idx
+                            ),
+                        )
+                        for arg in args
+                    ]
+                    parsed.functions.append(
+                        FunctionSymbol(
+                            name=name,
+                            qualified_name=name,
+                            parameters=params,
+                            location=SourceLocation(
+                                file=file_path, line_start=idx, line_end=idx
+                            ),
+                        )
                     )
-                    for arg in args
-                ]
-                parsed.functions.append(
-                    FunctionSymbol(
-                        name=name,
-                        qualified_name=name,
-                        parameters=params,
-                        location=SourceLocation(
-                            file=file_path, line_start=idx, line_end=idx
-                        ),
-                    )
-                )
 
         return parsed
