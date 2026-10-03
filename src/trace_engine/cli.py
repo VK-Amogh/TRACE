@@ -799,7 +799,7 @@ def benchmark(
     limit: int = typer.Option(50, "--limit", "-l", help="Number of benchmark test cases to evaluate")
 ):
     """Evaluate TRACE against the OWASP Benchmark Python ground truth (Section 12)."""
-    from benchmarks.runner import run_owasp_benchmark
+    from trace_engine.benchmark.owasp import run_owasp_benchmark
     run_owasp_benchmark(limit=limit)
 
 
