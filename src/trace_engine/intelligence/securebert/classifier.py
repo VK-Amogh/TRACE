@@ -102,7 +102,7 @@ class SecureBERTClassifier:
 
                         with torch.no_grad():
                             outputs = self._model(**inputs)
-                            raw_probs = torch.softmax(outputs.logits, dim=-1).detach().cpu().tolist()
+                            raw_probs = torch.sigmoid(outputs.logits).detach().cpu().tolist()
 
                         probs_list = [raw_probs] if len(c_texts) == 1 and isinstance(raw_probs[0], (int, float)) else raw_probs
 
@@ -150,7 +150,7 @@ class SecureBERTClassifier:
 
                 with torch.no_grad():
                     outputs = self._model(**inputs)
-                    probs = torch.softmax(outputs.logits, dim=-1).squeeze().tolist()
+                    probs = torch.sigmoid(outputs.logits).squeeze().tolist()
 
                 if isinstance(probs, list) and len(probs) == len(VULN_CATEGORIES):
                     scores = {cat: round(probs[idx], 4) for idx, cat in enumerate(VULN_CATEGORIES)}

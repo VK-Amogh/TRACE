@@ -30,7 +30,7 @@ class TrainingConfig(BaseModel):
     """Configuration hyperparameters for model fine-tuning."""
     model_name: str = "ehsanaghaei/SecureBERT"
     epochs: int = 5
-    batch_size: int = 16
+    batch_size: int = 32
     learning_rate: float = 3e-5
     weight_decay: float = 0.01
     max_length: int = 256
@@ -71,11 +71,11 @@ class SecureBERTTrainer:
             ignore_mismatched_sizes=True,
         ).to(self.device)
 
-        # 1. Dataset Generation from OWASP Benchmark, parquet CVEs, and API templates
-        raw_samples = generate_cybersecurity_training_corpus(multiplier=8)
+        # 1. Dataset Generation from Big-Vul, CVEfixes, OWASP Benchmark, parquet CVEs, and API templates
+        raw_samples = generate_cybersecurity_training_corpus(multiplier=4, include_external_cve=True)
         full_dataset = VulnerabilityDataset(raw_samples, tokenizer, max_length=self.config.max_length)
 
-        # Compute square-root dampened positive class weights to balance sparse categories without over-firing
+        # Compute dampened positive class weights to balance sparse categories without over-firing
         pos_weights = full_dataset.calculate_pos_weights().to(self.device)
 
         val_size = int(len(full_dataset) * self.config.val_split)
@@ -189,7 +189,22 @@ class SecureBERTTrainer:
 
             p = round(tp / (tp + fp), 3) if (tp + fp) > 0 else 0.0
             r = round(tp / (tp + fn), 3) if (tp + fn) > 0 else 0.0
-            f1 = round((2 * p * r / (p + r)), 3) if (p + r) > 0 else 0.0
+            micro_f1 = round((2 * p * r / (p + r)), 3) if (p + r) > 0 else 0.0
+
+            # Macro-F1 across all active categories in validation set
+            per_class_f1: List[float] = []
+            for c_idx in range(len(VULN_CATEGORIES)):
+                c_pred = preds[:, c_idx]
+                c_true = cat_labels[:, c_idx]
+                c_tp = ((c_pred == 1) & (c_true == 1)).sum().item()
+                c_fp = ((c_pred == 1) & (c_true == 0)).sum().item()
+                c_fn = ((c_pred == 0) & (c_true == 1)).sum().item()
+                c_p = c_tp / (c_tp + c_fp) if (c_tp + c_fp) > 0 else 0.0
+                c_r = c_tp / (c_tp + c_fn) if (c_tp + c_fn) > 0 else 0.0
+                c_f1 = (2 * c_p * c_r / (c_p + c_r)) if (c_p + c_r) > 0 else 0.0
+                if (c_true == 1).sum().item() > 0:
+                    per_class_f1.append(c_f1)
+            macro_f1 = round(sum(per_class_f1) / len(per_class_f1), 3) if per_class_f1 else 0.0
 
             # Hamming accuracy (overall multi-label decision accuracy across all labels)
             hamming_acc = round((preds == cat_labels).float().mean().item(), 4)
@@ -216,7 +231,8 @@ class SecureBERTTrainer:
                 f"Top-1: [bold white]{round(top1_acc * 100, 1)}%[/bold white] | "
                 f"Precision: [green]{int(p * 100)}%[/green] | "
                 f"Recall: [green]{int(r * 100)}%[/green] | "
-                f"F1: [bold green]{f1}[/bold green] [{duration}s]"
+                f"Micro F1: [bold green]{micro_f1}[/bold green] | "
+                f"Macro F1: [bold green]{macro_f1}[/bold green] [{duration}s]"
             )
 
             history.append({
@@ -228,21 +244,22 @@ class SecureBERTTrainer:
                 "top1_accuracy": top1_acc,
                 "precision": p,
                 "recall": r,
-                "f1": f1,
+                "micro_f1": micro_f1,
+                "macro_f1": macro_f1,
                 "threshold": standard_th,
             })
 
-            # Checkpoint save on improved F1
-            if f1 >= best_f1:
-                best_f1 = f1
+            # Checkpoint save on improved micro F1
+            if micro_f1 >= best_f1:
+                best_f1 = micro_f1
                 model.save_pretrained(out_path)
                 tokenizer.save_pretrained(out_path)
 
         total_time = round(time.perf_counter() - total_start, 2)
-        console.print(f"\n[bold green]✓ Training Complete in {total_time}s! Peak F1: {best_f1}[/bold green]")
+        console.print(f"\n[bold green][SUCCESS] Training Complete in {total_time}s! Peak Micro F1: {best_f1}[/bold green]")
 
         # 3. Final Summary Table
-        table = Table(title="SecureBERT 2.0 Calibrated Fine-Tuning Performance Summary", header_style="bold green")
+        table = Table(title="SecureBERT 2.0 Genuine Fine-Tuning Performance (Big-Vul + CVEfixes)", header_style="bold green")
         table.add_column("Epoch", style="cyan")
         table.add_column("Train Loss", justify="right")
         table.add_column("Val Loss", justify="right")
@@ -251,7 +268,8 @@ class SecureBERTTrainer:
         table.add_column("Top-1 Acc", justify="right")
         table.add_column("Precision", justify="right", style="green")
         table.add_column("Recall", justify="right", style="green")
-        table.add_column("F1 Score", justify="right", style="bold green")
+        table.add_column("Micro F1", justify="right", style="bold green")
+        table.add_column("Macro F1", justify="right", style="bold cyan")
 
         for h in history:
             table.add_row(
@@ -263,7 +281,8 @@ class SecureBERTTrainer:
                 f"{round(h['top1_accuracy'] * 100, 1)}%",
                 f"{int(h['precision'] * 100)}%",
                 f"{int(h['recall'] * 100)}%",
-                str(h["f1"]),
+                str(h["micro_f1"]),
+                str(h["macro_f1"]),
             )
         console.print(table)
 

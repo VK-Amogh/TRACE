@@ -191,19 +191,57 @@ def load_parquet_security_corpus() -> List[Tuple[str, List[str]]]:
     return samples
 
 
-def generate_cybersecurity_training_corpus(multiplier: int = 8) -> List[Tuple[str, List[str]]]:
-    """Builds a comprehensive unified training corpus fusing OWASP Benchmark, parquet CVEs, and multi-language templates."""
+def load_external_cve_datasets(limit_bigvul: int = 4000, limit_cvefixes: int = 3000) -> List[Tuple[str, List[str]]]:
+    """Ingests real-world functions with CVE ground truth from Big-Vul and CVEfixes."""
+    from trace_engine.intelligence.training.dataset_importers import BigVulImporter, CVEfixesImporter
+
     samples: List[Tuple[str, List[str]]] = []
 
-    # 1. Ingest real OWASP Benchmark Python files (1,230 samples)
+    # 1. Big-Vul Parquet
+    bv_paths = [
+        Path(".trace/datasets/bigvul/train.parquet"),
+        Path(".trace/datasets/bigvul/validation.parquet"),
+    ]
+    bv = BigVulImporter()
+    for bp in bv_paths:
+        if bp.exists():
+            bv_samples = bv.import_parquet(bp, limit=limit_bigvul, include_benign=True)
+            for code, labels in bv_samples:
+                samples.append((normalize_code_slice(code), labels))
+
+    # 2. CVEfixes CSV
+    cve_paths = [
+        Path(".trace/datasets/cvefixes/train.csv"),
+        Path(".trace/datasets/cvefixes/test.csv"),
+    ]
+    cve = CVEfixesImporter()
+    for cp in cve_paths:
+        if cp.exists():
+            cve_samples = cve.import_csv(cp, limit=limit_cvefixes, include_benign=True)
+            for code, labels in cve_samples:
+                samples.append((normalize_code_slice(code), labels))
+
+    return samples
+
+
+def generate_cybersecurity_training_corpus(multiplier: int = 4, include_external_cve: bool = True) -> List[Tuple[str, List[str]]]:
+    """Builds a comprehensive unified training corpus fusing Big-Vul, CVEfixes, OWASP Benchmark, parquet CVEs, and multi-language templates."""
+    samples: List[Tuple[str, List[str]]] = []
+
+    # 1. Ingest real external CVE datasets (Big-Vul and CVEfixes)
+    if include_external_cve:
+        ext_samples = load_external_cve_datasets(limit_bigvul=4000, limit_cvefixes=3000)
+        samples.extend(ext_samples)
+
+    # 2. Ingest real OWASP Benchmark Python files (1,230 samples)
     owasp_samples = load_owasp_benchmark_samples()
     samples.extend(owasp_samples)
 
-    # 2. Ingest real parquet vulnerability AST slices (500 samples)
+    # 3. Ingest real parquet vulnerability AST slices (500 samples)
     pq_samples = load_parquet_security_corpus()
     samples.extend(pq_samples)
 
-    # 3. Add base templates
+    # 4. Add multi-language API security templates
     var_aliases = ["item", "record", "payload", "entity", "resource", "target", "client", "doc", "asset"]
     for _ in range(multiplier):
         for code, labels in CORPUS_TEMPLATES:
@@ -240,8 +278,8 @@ class VulnerabilityDataset(Dataset):
 
         pos_counts = torch.clamp(pos_counts, min=1.0)
         neg_counts = total - pos_counts
-        # Square-root dampened weights bounded to [1.0, 3.5] avoids extreme recall bias
-        weights = torch.clamp(torch.sqrt(neg_counts / pos_counts), min=1.0, max=3.5)
+        # Square-root dampened weights bounded to [1.0, 2.5] avoids artificial recall inflation
+        weights = torch.clamp(torch.sqrt(neg_counts / pos_counts), min=1.0, max=2.5)
         return weights
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
