@@ -96,6 +96,34 @@ TRACE_TOOLS = [
             "required": ["finding_id"],
         },
     },
+    {
+        "name": "trace_harness_task",
+        "description": "Retrieve benchmark task specification (SWE-bench format) for a security finding to guide an autonomous agent harness.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "finding_id": {"type": "string", "description": "Finding identifier (e.g. TR-BOLA-001)"},
+                "repository": {"type": "string", "default": "."},
+            },
+            "required": ["finding_id"],
+        },
+    },
+    {
+        "name": "trace_eval_patch",
+        "description": "Evaluate an agent's proposed patch or diff against the TRACE verification oracle and exploit tests.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "finding_id": {"type": "string", "description": "Finding identifier"},
+                "patch_content": {"type": "string", "description": "Full new content for the target file"},
+                "target_file": {"type": "string", "description": "Relative path to target file in repository"},
+                "repository": {"type": "string", "default": "."},
+                "target": {"type": "string", "default": "http://127.0.0.1:18080"},
+                "rollback_after": {"type": "boolean", "default": False, "description": "Whether to rollback the patch after evaluation"},
+            },
+            "required": ["finding_id"],
+        },
+    },
 ]
 
 
@@ -286,6 +314,30 @@ class TraceMCPServer:
                 if endpoint_str.lower() in f.endpoint.lower():
                     return {"endpoint": f.endpoint, "attack_path": f.attack_path}
             return {"endpoint": endpoint_str, "attack_path": []}
+
+        elif name == "trace_harness_task":
+            finding_id = args.get("finding_id", "")
+            from trace_engine.plugin import TraceHarnessPlugin
+            plugin = TraceHarnessPlugin(repo_path=repo_path, target_url=target_url)
+            task = plugin.get_task(finding_id)
+            if not task:
+                return {"error": f"Harness task for finding '{finding_id}' not found."}
+            return task.model_dump()
+
+        elif name == "trace_eval_patch":
+            finding_id = args.get("finding_id", "")
+            patch_content = args.get("patch_content")
+            target_file = args.get("target_file")
+            rollback = args.get("rollback_after", False)
+            from trace_engine.plugin import TraceHarnessPlugin
+            plugin = TraceHarnessPlugin(repo_path=repo_path, target_url=target_url)
+            eval_res = plugin.evaluate_patch(
+                finding_id=finding_id,
+                patch_content=patch_content,
+                target_file=target_file,
+                rollback_after=rollback,
+            )
+            return eval_res.model_dump()
 
         return {"error": f"Unknown tool: {name}"}
 

@@ -51,6 +51,8 @@ from trace_engine.output.terminal import (
     print_doctor_report,
     print_test_all_report,
     print_model_intelligence_report,
+    print_harness_report,
+    print_benchmark_scorecard,
 )
 from trace_engine.output.markdown import generate_markdown_report
 from trace_engine.output.html import generate_html_report
@@ -793,6 +795,227 @@ def intelligence():
     console.print("  • Model Hierarchy: Deterministic -> SecureBERT -> Laya System 1 -> Local LLM\n")
 
 
+@app.command(name="heal")
+def heal(
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target base URL (e.g. http://127.0.0.1:18082)"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+):
+    """Execute autonomous Agent Harness self-healing loop: patch vulnerabilities and verify fixes."""
+    from trace_engine.harness.engine import AgentHarness
+
+    target_path = repo or path
+    _, resolved_dir = resolve_finding_store(target_path.resolve())
+    resolved_target = target or "http://127.0.0.1:18082"
+
+    console.print(f"\n[bold green]Starting TRACE Agent Harness (Self-Healing Loop)[/bold green] on [white]{resolved_dir.name}[/white]")
+    console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white]")
+    
+    with console.status("  [bold green]Harness Active:[/bold green] Synthesizing patches & running verification loop..."):
+        harness = AgentHarness(resolved_dir, target_url=resolved_target)
+        report = harness.run_self_healing_loop()
+
+    print_harness_report(report)
+
+
+@app.command(name="bench")
+def bench(
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
+    model: str = typer.Option("TRACE Autonomous Harness", "--model", "-m", help="AI Model or Agent Name"),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target base URL (e.g. http://127.0.0.1:18082)"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+):
+    """Run TRACE-Bench v1.0 AI model evaluation benchmark scorecard."""
+    from trace_engine.harness.benchmark import TRACEBench
+
+    target_path = repo or path
+    _, resolved_dir = resolve_finding_store(target_path.resolve())
+    resolved_target = target or "http://127.0.0.1:18082"
+
+    console.print(f"\n[bold green]Running TRACE-Bench v1.0 AI Security Evaluation[/bold green] on [white]{resolved_dir.name}[/white]")
+    with console.status(f"  [bold green]Evaluating Agent:[/bold green] {model}..."):
+        tb = TRACEBench(resolved_dir, target_url=resolved_target)
+        card = tb.evaluate(model_name=model)
+
+    print_benchmark_scorecard(card)
+
+
+@app.command(name="target")
+def target_cmd(
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
+    format: str = typer.Option("terminal", "--format", "-f", help="Output format: terminal or json"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+):
+    """Retrieve the next highest-priority remediation context packet for an AI coding agent."""
+    from trace_engine.harness.engine import AgentHarness
+    from rich.box import ROUNDED
+    from rich.panel import Panel
+
+    target_path = repo or path
+    _, resolved_dir = resolve_finding_store(target_path.resolve())
+
+    harness = AgentHarness(resolved_dir)
+    pkg = harness.get_next_target()
+
+    if not pkg:
+        console.print(f"\n[green]No unmitigated vulnerabilities found in {resolved_dir.name}. Posture is optimal![/green]\n")
+        return
+
+    if format == "json":
+        console.print_json(pkg.model_dump_json(indent=2))
+    else:
+        console.print(f"\n[bold green]Next High-Priority Target for Coding Agent:[/bold green] [{pkg.severity}] [white]{pkg.finding_id}[/white]")
+        console.print(f"  • Title: [bold white]{pkg.title}[/bold white]")
+        console.print(f"  • Category: [green]{pkg.category}[/green] | Priority: #{pkg.priority_rank}")
+        console.print(f"  • Location: [dim]{pkg.source_file}:{pkg.line_start}-{pkg.line_end}[/dim]")
+        console.print(f"  • Endpoint: [bold white]{pkg.endpoint}[/bold white]")
+        console.print(f"  • Remediation Rule: [green]{pkg.remediation_guidance}[/green]")
+        console.print("\n[bold green]Surrounding Code Slice:[/bold green]")
+        console.print(Panel(pkg.code_snippet, border_style="dim", box=ROUNDED))
+        console.print()
+
+
+plugin_app = typer.Typer(help="Manage TRACE Agent Harness Plugin installation, skills, and SWE-bench tasks")
+app.add_typer(plugin_app, name="plugin")
+
+
+@plugin_app.command(name="install")
+def plugin_install(
+    global_install: bool = typer.Option(False, "--global", "-g", help="Install into global user config (~/.gemini/config/plugins/)"),
+    workspace_install: bool = typer.Option(True, "--workspace", "-w", help="Install into workspace (.agents/plugins/)"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Target project root directory"),
+):
+    """Install the TRACE Agent Harness Plugin into Antigravity/Gemini agent customization roots."""
+    from trace_engine.plugin import TraceHarnessPlugin
+
+    target_dir = path.resolve()
+    plugin = TraceHarnessPlugin(repo_path=target_dir)
+
+    console.print(f"\n[bold green]Installing TRACE Agent Harness Plugin v{plugin.VERSION}...[/bold green]")
+    locations = plugin.install(workspace_mode=workspace_install, global_mode=global_install)
+
+    for scope, loc in locations.items():
+        console.print(f"  [bold green]✓[/bold green] [white]{scope.capitalize()}[/white] plugin registered: [dim]{loc}[/dim]")
+
+    console.print("\n[bold white]Capabilities enabled for coding agents:[/bold white]")
+    console.print("  • [cyan]MCP Tools:[/cyan] trace_scan, trace_findings, trace_explain, trace_verify, trace_harness_task, trace_eval_patch")
+    console.print("  • [cyan]Agent Skill:[/cyan] trace-security-harness (runbooks for BOLA, BFLA, SSRF, Auth Bypass)")
+    console.print("  • [cyan]Remediation Rules:[/cyan] Active zero-dummy-bypass security guardrails")
+    console.print("  • [cyan]Harness Hooks:[/cyan] Pre-commit security verification gate\n")
+
+
+@plugin_app.command(name="status")
+def plugin_status(
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Target project root directory"),
+):
+    """Check TRACE Agent Harness Plugin installation status."""
+    target_dir = path.resolve()
+    ws_plugin = target_dir / ".agents" / "plugins" / "trace-security"
+    global_plugin = Path.home() / ".gemini" / "config" / "plugins" / "trace-security"
+
+    console.print("\n[bold green]TRACE Agent Harness Plugin Status:[/bold green]")
+    ws_ok = ws_plugin.exists() and (ws_plugin / "plugin.json").exists()
+    glob_ok = global_plugin.exists() and (global_plugin / "plugin.json").exists()
+
+    console.print(f"  • Workspace (.agents/plugins/trace-security): {'[bold green]INSTALLED[/bold green]' if ws_ok else '[dim]Not installed[/dim]'}")
+    if ws_ok:
+        console.print(f"    Path: [dim]{ws_plugin}[/dim]")
+    console.print(f"  • Global (~/.gemini/config/plugins/trace-security): {'[bold green]INSTALLED[/bold green]' if glob_ok else '[dim]Not installed[/dim]'}")
+    if glob_ok:
+        console.print(f"    Path: [dim]{global_plugin}[/dim]")
+    console.print()
+
+
+@plugin_app.command(name="tasks")
+def plugin_tasks(
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+):
+    """List benchmark task instances generated from repository security findings."""
+    from trace_engine.plugin import TraceHarnessPlugin
+    from rich.table import Table
+
+    target_path = repo or path
+    _, resolved_dir = resolve_finding_store(target_path.resolve())
+
+    plugin = TraceHarnessPlugin(repo_path=resolved_dir)
+    tasks = plugin.list_tasks()
+
+    if not tasks:
+        console.print(f"\n[yellow]No benchmark tasks found. Run 'trace scan {resolved_dir.name}' first.[/yellow]\n")
+        return
+
+    table = Table(title=f"TRACE Agent Harness Benchmark Tasks ({len(tasks)} Available)", border_style="dim")
+    table.add_column("Task ID", style="bold cyan")
+    table.add_column("Category", style="green")
+    table.add_column("Severity", style="bold red")
+    table.add_column("Target Endpoint", style="white")
+    table.add_column("Source Location", style="dim")
+
+    for t in tasks:
+        table.add_row(t.instance_id, t.category, t.severity, t.endpoint, f"{t.source_file}:{t.line_start}")
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+@plugin_app.command(name="export")
+def plugin_export(
+    repo: Optional[Path] = typer.Argument(None, help="Path to project repository"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output JSONL dataset path"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+):
+    """Export security benchmark tasks in standard SWE-bench JSONL format for external agent harnesses."""
+    from trace_engine.plugin import TraceHarnessPlugin
+
+    target_path = repo or path
+    _, resolved_dir = resolve_finding_store(target_path.resolve())
+
+    plugin = TraceHarnessPlugin(repo_path=resolved_dir)
+    out_file = output or (resolved_dir / "trace_bench_tasks.jsonl")
+
+    count = len(plugin.list_tasks())
+    dest = plugin.export_dataset(out_file)
+
+    console.print(f"\n[bold green]SWE-bench Dataset Export Complete:[/bold green]")
+    console.print(f"  • Exported [bold white]{count}[/bold white] task instances to [cyan]{dest}[/cyan]")
+    console.print(f"  • Format: Standard SWE-bench JSONL (instance_id, problem_statement, hints_text, FAIL_TO_PASS)\n")
+
+
+@app.command(name="eval-patch")
+def eval_patch(
+    finding_id: str = typer.Argument(..., help="Finding identifier (e.g. TR-BOLA-001)"),
+    patch: Optional[Path] = typer.Option(None, "--patch", help="Path to patch file or new file content"),
+    target_file: Optional[str] = typer.Option(None, "--target-file", help="Relative path to target file in repo"),
+    rollback: bool = typer.Option(False, "--rollback", help="Roll back the patch after evaluation"),
+    target: Optional[str] = typer.Option(None, "--target", "-t", help="Target URL"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Target project root directory"),
+):
+    """Evaluate an agent's patch against the TRACE verification oracle and exploit tests."""
+    from trace_engine.plugin import TraceHarnessPlugin
+
+    target_path = path.resolve()
+    resolved_target = target or "http://127.0.0.1:18082"
+    plugin = TraceHarnessPlugin(repo_path=target_path, target_url=resolved_target)
+
+    patch_content = patch.read_text(encoding="utf-8") if patch and patch.is_file() else None
+
+    with console.status(f"  [bold green]Evaluating patch for {finding_id}...[/bold green]"):
+        result = plugin.evaluate_patch(
+            finding_id=finding_id,
+            patch_content=patch_content,
+            target_file=target_file,
+            rollback_after=rollback,
+        )
+
+    console.print(f"\n[bold green]Patch Evaluation Result:[/bold green] [bold white]{finding_id}[/bold white]")
+    console.print(f"  • Grade: {'[bold green]PASS (100%)[/bold green]' if result.passed else '[bold red]FAIL (0%)[/bold red]'}")
+    console.print(f"  • Exploit Blocked: {'[green]YES[/green]' if result.reproduced_exploit_blocked else '[red]NO[/red]'}")
+    console.print(f"  • Status: [dim]{result.output_message}[/dim]\n")
+
+
 if __name__ == "__main__":
     app()
+
 

@@ -1,0 +1,24 @@
+{
+  "trace-security-guard": {
+    "enabled": true,
+    "PostToolUse": [
+      {
+        "matcher": "replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "trace status",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "trace findings",
+        "timeout": 20
+      }
+    ]
+  }
+}

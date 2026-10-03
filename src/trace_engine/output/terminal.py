@@ -466,3 +466,98 @@ def print_model_intelligence_report(metrics: Dict[str, Any]) -> None:
 
     console.print(table)
 
+
+def print_harness_report(report: Any) -> None:
+    """Renders executive table and metrics for Agent Harness self-healing runs."""
+    table = Table(
+        title=f"[bold green]TRACE Agent Harness: Autonomous Remediation Results ({report.project_name})[/bold green]",
+        box=ROUNDED,
+        header_style="bold green",
+        border_style="dim",
+    )
+    table.add_column("Finding ID", style="bold white", width=14)
+    table.add_column("Vulnerability Title", style="white", width=34)
+    table.add_column("Target File", style="dim", width=30)
+    table.add_column("Remediation Status", justify="center", width=20)
+    table.add_column("Differential Proof", style="green", width=32)
+
+    for item in report.verified_patches:
+        table.add_row(
+            item["finding_id"],
+            item["title"][:32] + "...",
+            item["file"],
+            "[bold green]VERIFIED FIXED[/bold green]",
+            "Neutralized (403/Forbidden)",
+        )
+
+    for fid in report.unresolved_findings:
+        table.add_row(
+            fid,
+            "Manual review required",
+            "-",
+            "[bold yellow]PENDING MANUAL[/bold yellow]",
+            "Awaiting manual inspection",
+        )
+
+    console.print()
+    console.print(table)
+
+    summary_text = Text()
+    summary_text.append("Baseline Posture Score: ", style="bold green")
+    summary_text.append(f"{report.baseline_score}/100  ──►  ", style="bold white")
+    summary_text.append("Post-Remediation Posture Score: ", style="bold green")
+    score_style = "bold green" if report.final_score >= 80 else "bold yellow"
+    summary_text.append(f"{report.final_score}/100 (+{report.score_delta} pts)\n", style=score_style)
+    summary_text.append("Total Security Exploits: ", style="bold green")
+    summary_text.append(f"{report.total_findings}  |  ", style="bold white")
+    summary_text.append("Autonomous Patches Verified: ", style="bold green")
+    summary_text.append(f"{report.fixed_findings} / {report.total_findings} ({report.fix_rate_percent}%)\n", style="bold green")
+    summary_text.append("Harness Loop Duration: ", style="bold green")
+    summary_text.append(f"{report.execution_time_seconds:.2f}s  |  Transactional Rollbacks Available: YES", style="bold white")
+
+    console.print(
+        Panel(
+            summary_text,
+            title="[bold green]Agent Harness Executive Self-Healing Summary[/bold green]",
+            border_style="green",
+            box=ROUNDED,
+            padding=(1, 2),
+        )
+    )
+    console.print()
+
+
+def print_benchmark_scorecard(card: Any) -> None:
+    """Renders standardized AI model benchmark evaluation scorecard."""
+    status_badge = "[bold green]PASS[/bold green]" if card.pass_criteria_met else "[bold red]FAIL[/bold red]"
+
+    scorecard_text = Text()
+    scorecard_text.append(f"AI Model Evaluated: ", style="bold green")
+    scorecard_text.append(f"{card.model_name}\n", style="bold white")
+    scorecard_text.append(f"Target Benchmark Repository: ", style="bold green")
+    scorecard_text.append(f"{card.target_repository}\n", style="bold white")
+    scorecard_text.append(f"Baseline Posture Score: ", style="bold green")
+    scorecard_text.append(f"{card.baseline_posture_score}/100  ──►  ", style="bold white")
+    scorecard_text.append(f"Final Posture Score: ", style="bold green")
+    scorecard_text.append(f"{card.final_posture_score}/100 (Delta: +{card.score_delta})\n", style="bold green")
+    scorecard_text.append(f"Total Exploits Tested: ", style="bold green")
+    scorecard_text.append(f"{card.total_security_exploits}  |  ", style="bold white")
+    scorecard_text.append(f"Exploits Remediated: ", style="bold green")
+    scorecard_text.append(f"{card.exploits_remediated} ({card.remediation_success_rate}%)\n", style="bold green")
+    scorecard_text.append(f"Total Evaluation Time: ", style="bold green")
+    scorecard_text.append(f"{card.time_elapsed_seconds:.2f}s  |  ", style="bold white")
+    scorecard_text.append(f"Benchmark Verdict: ", style="bold green")
+    scorecard_text.append(f"{status_badge}\n", style="white")
+
+    console.print()
+    console.print(
+        Panel(
+            scorecard_text,
+            title=f"[bold green]TRACE-Bench v1.0 AI Security Evaluation Scorecard[/bold green]",
+            border_style="green",
+            box=ROUNDED,
+            padding=(1, 2),
+        )
+    )
+    console.print()
+

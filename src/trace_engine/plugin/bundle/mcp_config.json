@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "trace-security": {
+      "command": "python",
+      "args": ["-m", "trace_engine.mcp.server"],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
