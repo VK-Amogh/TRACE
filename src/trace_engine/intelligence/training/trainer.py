@@ -1,4 +1,4 @@
-"""PyTorch CUDA accelerated model fine-tuning engine for SecureBERT with dynamic calibration."""
+"""PyTorch CUDA accelerated model fine-tuning engine for SecureBERT with calibrated multi-label metrics."""
 
 import os
 import time
@@ -36,11 +36,12 @@ class TrainingConfig(BaseModel):
     max_length: int = 256
     val_split: float = 0.15
     fp16: bool = True
+    eval_threshold: float = 0.50
     output_dir: str = ".trace/models/securebert-finetuned"
 
 
 class SecureBERTTrainer:
-    """Trains and fine-tunes SecureBERT using PyTorch with NVIDIA GPU acceleration and calibrated thresholds."""
+    """Trains and fine-tunes SecureBERT using PyTorch with NVIDIA GPU acceleration and calibrated multi-label metrics."""
 
     def __init__(self, config: Optional[TrainingConfig] = None):
         self.config = config or TrainingConfig()
@@ -71,10 +72,10 @@ class SecureBERTTrainer:
         ).to(self.device)
 
         # 1. Dataset Generation from OWASP Benchmark, parquet CVEs, and API templates
-        raw_samples = generate_cybersecurity_training_corpus(multiplier=10)
+        raw_samples = generate_cybersecurity_training_corpus(multiplier=8)
         full_dataset = VulnerabilityDataset(raw_samples, tokenizer, max_length=self.config.max_length)
 
-        # Compute positive class weights to balance sparse vulnerability categories
+        # Compute square-root dampened positive class weights to balance sparse categories without over-firing
         pos_weights = full_dataset.calculate_pos_weights().to(self.device)
 
         val_size = int(len(full_dataset) * self.config.val_split)
@@ -95,7 +96,7 @@ class SecureBERTTrainer:
             f"({vuln_count} vulnerable, {safe_count} safe controls, {train_size} train, {val_size} val)"
         )
 
-        # 2. Optimization setup: AdamW with Cosine Annealing & Weighted BCE Loss
+        # 2. Optimization setup: AdamW with Cosine Annealing & Dampened Weighted BCE Loss
         optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=self.config.learning_rate,
@@ -107,9 +108,9 @@ class SecureBERTTrainer:
         total_start = time.perf_counter()
         history: List[Dict[str, float]] = []
         best_f1 = 0.0
-        best_threshold = 0.40
+        standard_th = self.config.eval_threshold
 
-        console.print(f"\n[bold green]Beginning GPU Fine-Tuning ({self.config.epochs} Epochs on {self.device})[/bold green]:")
+        console.print(f"\n[bold green]Beginning GPU Fine-Tuning ({self.config.epochs} Epochs on {self.device}, Evaluation Threshold: {standard_th})[/bold green]:")
 
         for epoch in range(1, self.config.epochs + 1):
             epoch_start = time.perf_counter()
@@ -180,38 +181,28 @@ class SecureBERTTrainer:
             cat_probs = torch.cat(all_probs, dim=0)
             cat_labels = torch.cat(all_labels, dim=0)
 
-            # Threshold Search: scan candidate thresholds for optimal F1
-            epoch_best_f1 = 0.0
-            epoch_best_p = 0.0
-            epoch_best_r = 0.0
-            epoch_best_th = 0.40
+            # Compute metrics at standard unskewed threshold (0.50)
+            preds = (cat_probs >= standard_th).float()
+            tp = ((preds == 1) & (cat_labels == 1)).sum().item()
+            fp = ((preds == 1) & (cat_labels == 0)).sum().item()
+            fn = ((preds == 0) & (cat_labels == 1)).sum().item()
 
-            for th in [0.25, 0.30, 0.35, 0.40, 0.45, 0.50]:
-                preds = (cat_probs >= th).float()
-                tp = ((preds == 1) & (cat_labels == 1)).sum().item()
-                fp = ((preds == 1) & (cat_labels == 0)).sum().item()
-                fn = ((preds == 0) & (cat_labels == 1)).sum().item()
-
-                p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-                r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-                f1 = (2 * p * r / (p + r)) if (p + r) > 0 else 0.0
-
-                if f1 > epoch_best_f1:
-                    epoch_best_f1 = f1
-                    epoch_best_p = p
-                    epoch_best_r = r
-                    epoch_best_th = th
+            p = round(tp / (tp + fp), 3) if (tp + fp) > 0 else 0.0
+            r = round(tp / (tp + fn), 3) if (tp + fn) > 0 else 0.0
+            f1 = round((2 * p * r / (p + r)), 3) if (p + r) > 0 else 0.0
 
             # Hamming accuracy (overall multi-label decision accuracy across all labels)
-            final_preds = (cat_probs >= epoch_best_th).float()
-            hamming_acc = (final_preds == cat_labels).float().mean().item()
+            hamming_acc = round((preds == cat_labels).float().mean().item(), 4)
+
+            # Exact-Match (Subset Accuracy): all 10 labels must match simultaneously
+            subset_acc = round((preds == cat_labels).all(dim=-1).float().mean().item(), 4)
 
             # Top-1 accuracy on vulnerable samples
             vuln_mask = cat_labels.sum(dim=-1) > 0
             if vuln_mask.sum() > 0:
                 top1_preds = cat_probs[vuln_mask].argmax(dim=-1)
                 top1_labels = cat_labels[vuln_mask].argmax(dim=-1)
-                top1_acc = (top1_preds == top1_labels).float().mean().item()
+                top1_acc = round((top1_preds == top1_labels).float().mean().item(), 4)
             else:
                 top1_acc = 1.0
 
@@ -220,42 +211,44 @@ class SecureBERTTrainer:
             console.print(
                 f"  Epoch {epoch}: Train Loss: [cyan]{avg_train_loss}[/cyan] | "
                 f"Val Loss: [yellow]{avg_val_loss}[/yellow] | "
-                f"Accuracy: [bold white]{round(hamming_acc * 100, 1)}%[/bold white] | "
+                f"Hamming Acc: [bold white]{round(hamming_acc * 100, 1)}%[/bold white] | "
+                f"Exact Match: [bold white]{round(subset_acc * 100, 1)}%[/bold white] | "
                 f"Top-1: [bold white]{round(top1_acc * 100, 1)}%[/bold white] | "
-                f"Precision: [green]{int(epoch_best_p * 100)}%[/green] | "
-                f"Recall: [green]{int(epoch_best_r * 100)}%[/green] | "
-                f"F1: [bold green]{round(epoch_best_f1, 3)}[/bold green] (th={epoch_best_th}) [{duration}s]"
+                f"Precision: [green]{int(p * 100)}%[/green] | "
+                f"Recall: [green]{int(r * 100)}%[/green] | "
+                f"F1: [bold green]{f1}[/bold green] [{duration}s]"
             )
 
             history.append({
                 "epoch": epoch,
                 "train_loss": avg_train_loss,
                 "val_loss": avg_val_loss,
-                "hamming_accuracy": round(hamming_acc, 4),
-                "top1_accuracy": round(top1_acc, 4),
-                "precision": round(epoch_best_p, 4),
-                "recall": round(epoch_best_r, 4),
-                "f1": round(epoch_best_f1, 4),
-                "optimal_threshold": epoch_best_th,
+                "hamming_accuracy": hamming_acc,
+                "exact_match_accuracy": subset_acc,
+                "top1_accuracy": top1_acc,
+                "precision": p,
+                "recall": r,
+                "f1": f1,
+                "threshold": standard_th,
             })
 
             # Checkpoint save on improved F1
-            if epoch_best_f1 >= best_f1:
-                best_f1 = epoch_best_f1
-                best_threshold = epoch_best_th
+            if f1 >= best_f1:
+                best_f1 = f1
                 model.save_pretrained(out_path)
                 tokenizer.save_pretrained(out_path)
 
         total_time = round(time.perf_counter() - total_start, 2)
-        console.print(f"\n[bold green]✓ Training Complete in {total_time}s! Peak F1: {round(best_f1, 3)}[/bold green]")
+        console.print(f"\n[bold green]✓ Training Complete in {total_time}s! Peak F1: {best_f1}[/bold green]")
 
         # 3. Final Summary Table
-        table = Table(title="SecureBERT 2.0 Fine-Tuning Performance Summary", header_style="bold green")
+        table = Table(title="SecureBERT 2.0 Calibrated Fine-Tuning Performance Summary", header_style="bold green")
         table.add_column("Epoch", style="cyan")
         table.add_column("Train Loss", justify="right")
         table.add_column("Val Loss", justify="right")
-        table.add_column("Hamming Acc", justify="right", style="bold white")
-        table.add_column("Top-1 Acc", justify="right", style="bold white")
+        table.add_column("Hamming Acc", justify="right")
+        table.add_column("Exact Match", justify="right", style="bold white")
+        table.add_column("Top-1 Acc", justify="right")
         table.add_column("Precision", justify="right", style="green")
         table.add_column("Recall", justify="right", style="green")
         table.add_column("F1 Score", justify="right", style="bold green")
@@ -266,6 +259,7 @@ class SecureBERTTrainer:
                 str(h["train_loss"]),
                 str(h["val_loss"]),
                 f"{round(h['hamming_accuracy'] * 100, 1)}%",
+                f"{round(h['exact_match_accuracy'] * 100, 1)}%",
                 f"{round(h['top1_accuracy'] * 100, 1)}%",
                 f"{int(h['precision'] * 100)}%",
                 f"{int(h['recall'] * 100)}%",
@@ -278,7 +272,7 @@ class SecureBERTTrainer:
             "categories": VULN_CATEGORIES,
             "epochs": self.config.epochs,
             "peak_f1": best_f1,
-            "optimal_threshold": best_threshold,
+            "eval_threshold": standard_th,
             "device": str(self.device),
             "training_time_seconds": total_time,
             "history": history,
@@ -286,5 +280,5 @@ class SecureBERTTrainer:
         with open(out_path / "training_metadata.json", "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
-        console.print(f"[bold green]Best model checkpoint deployed to {out_path} (threshold={best_threshold})![/bold green]\n")
+        console.print(f"[bold green]Best model checkpoint deployed to {out_path}![/bold green]\n")
         return metadata

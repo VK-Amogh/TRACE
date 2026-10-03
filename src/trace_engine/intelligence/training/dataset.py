@@ -13,22 +13,17 @@ from trace_engine.intelligence.securebert.classifier import VULN_CATEGORIES
 
 def normalize_code_slice(code: str) -> str:
     """Normalizes code AST slice by abstracting identifiers and highlighting security dataflow."""
-    # Strip comments
     code = re.sub(r"#.*$", "", code, flags=re.MULTILINE)
     code = re.sub(r"//.*$", "", code, flags=re.MULTILINE)
     code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
 
-    # Highlight source tokens
     code = re.sub(r"(request\.(args|params|query|body|json|headers|form))", r"[SOURCE] \1", code, flags=re.IGNORECASE)
-    # Highlight dangerous sink tokens
     code = re.sub(r"((execute|cursor|query|system|popen|eval|exec|open|readfile|render_template_string|pickle\.loads|yaml\.load)\b)", r"[SINK] \1", code, flags=re.IGNORECASE)
 
-    # Condense consecutive whitespaces
     code = re.sub(r"\s+", " ", code).strip()
     return code
 
 
-# High-signal multi-language templates for API & framework vulnerabilities
 CORPUS_TEMPLATES = [
     # BOLA / IDOR (CWE-639)
     ("def get_order(order_id): return db.query('SELECT * FROM orders WHERE id = :id', id=order_id).fetchone()", ["BOLA"]),
@@ -90,7 +85,7 @@ CORPUS_TEMPLATES = [
     ("def parse_config(yaml_str): return yaml.load(yaml_str, Loader=yaml.Loader)", ["DESERIALIZATION"]),
     ("def restore_state(payload): import pickle; return pickle.loads(payload)", ["DESERIALIZATION"]),
 
-    # Safe Negative Controls (Benign code slices across frameworks)
+    # Safe Negative Controls (Benign code slices)
     ("def get_order_safe(order_id, user=Depends(get_current_user)): return db.query(Order).filter(Order.id == order_id, Order.tenant_id == user.tenant_id).first()", []),
     ("def search_safe(term: str): return db.execute('SELECT * FROM items WHERE name ILIKE :term', {'term': f'%{term}%'})", []),
     ("def read_file_safe(filename: str): canonical = Path(filename).resolve(); if not str(canonical).startswith('/safe/root/'): raise Forbidden(); return canonical.read_text()", []),
@@ -152,7 +147,6 @@ def load_owasp_benchmark_samples() -> List[Tuple[str, List[str]]]:
                 if is_vuln and category_raw in cat_mapping:
                     samples.append((normalized, [cat_mapping[category_raw]]))
                 else:
-                    # Non-vulnerable safe control sample
                     samples.append((normalized, []))
     except Exception:
         pass
@@ -197,7 +191,7 @@ def load_parquet_security_corpus() -> List[Tuple[str, List[str]]]:
     return samples
 
 
-def generate_cybersecurity_training_corpus(multiplier: int = 12) -> List[Tuple[str, List[str]]]:
+def generate_cybersecurity_training_corpus(multiplier: int = 8) -> List[Tuple[str, List[str]]]:
     """Builds a comprehensive unified training corpus fusing OWASP Benchmark, parquet CVEs, and multi-language templates."""
     samples: List[Tuple[str, List[str]]] = []
 
@@ -209,7 +203,7 @@ def generate_cybersecurity_training_corpus(multiplier: int = 12) -> List[Tuple[s
     pq_samples = load_parquet_security_corpus()
     samples.extend(pq_samples)
 
-    # 3. Augment multi-language API templates to ensure balanced class distributions across all 10 categories
+    # 3. Add base templates
     var_aliases = ["item", "record", "payload", "entity", "resource", "target", "client", "doc", "asset"]
     for _ in range(multiplier):
         for code, labels in CORPUS_TEMPLATES:
@@ -236,7 +230,7 @@ class VulnerabilityDataset(Dataset):
         return len(self.samples)
 
     def calculate_pos_weights(self) -> torch.Tensor:
-        """Calculates positive class weights to balance sparse vulnerability categories."""
+        """Calculates positive class weights using square-root scaling to balance loss without skewing predictions."""
         pos_counts = torch.zeros(len(VULN_CATEGORIES), dtype=torch.float32)
         total = len(self.samples)
         for _, labels in self.samples:
@@ -246,8 +240,8 @@ class VulnerabilityDataset(Dataset):
 
         pos_counts = torch.clamp(pos_counts, min=1.0)
         neg_counts = total - pos_counts
-        # Pos weight = neg / pos (bounded to [1.0, 15.0] to prevent gradient explosion)
-        weights = torch.clamp(neg_counts / pos_counts, min=1.0, max=15.0)
+        # Square-root dampened weights bounded to [1.0, 3.5] avoids extreme recall bias
+        weights = torch.clamp(torch.sqrt(neg_counts / pos_counts), min=1.0, max=3.5)
         return weights
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
