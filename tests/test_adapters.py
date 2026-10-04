@@ -339,3 +339,142 @@ def test_csharp_aspnet_adapter():
     assert any("invoiceId" in e.path and e.method == "GET" for e in endpoints)
     assert any("refund" in e.path and e.method == "POST" for e in endpoints)
 
+
+def test_nextjs_rejects_client_react_components_and_build_configs():
+    """Verify React components, forms, layouts, headers, and configs are never treated as REST endpoints."""
+    parser = CodeParser()
+    adapter = NextJSFrameworkAdapter()
+
+    # Client-side component with 'use client'
+    react_form = """
+    'use client';
+    import Link from 'next/link';
+    import { useState } from 'react';
+
+    export default function RegisterForm() {
+        const [email, setEmail] = useState('');
+        const handleSubmit = () => {
+            fetch('/api/auth/register', { method: 'POST', body: JSON.stringify({ email }) });
+        };
+        return <form onSubmit={handleSubmit}><input value={email} /></form>;
+    }
+    """
+    pf_form = parser.parse("frontend/src/app/Register/RegisterForm.tsx", react_form, "typescript")
+    assert adapter.can_handle(pf_form) is False
+    assert adapter.extract_endpoints(pf_form, react_form) == []
+
+    # Build config: next.config.ts
+    next_cfg = """
+    import type { NextConfig } from "next";
+    const nextConfig: NextConfig = {};
+    export default nextConfig;
+    """
+    pf_cfg = parser.parse("frontend/next.config.ts", next_cfg, "typescript")
+    assert adapter.can_handle(pf_cfg) is False
+    assert adapter.extract_endpoints(pf_cfg, next_cfg) == []
+
+    # UI Header component
+    header_code = """
+    import Image from 'next/image';
+    export default function DashboardHeader() {
+        return <header>Dashboard</header>;
+    }
+    """
+    pf_header = parser.parse("frontend/src/components/DashboardHeader.tsx", header_code, "typescript")
+    assert adapter.can_handle(pf_header) is False
+    assert adapter.extract_endpoints(pf_header, header_code) == []
+
+
+def test_express_router_mount_prefix_resolution(tmp_path):
+    """Verify Express router endpoints inherit parent app.use('/api/...', router) mount prefix."""
+    from trace_engine.framework.express import ExpressFrameworkAdapter
+
+    server_js = tmp_path / "server.js"
+    server_js.write_text(
+        """
+        const express = require('express');
+        const discoveryRoutes = require('./routes/discoveryRoutes');
+        const orchestratorRoutes = require('./routes/orchestratorRoutes');
+        const app = express();
+
+        app.use('/api/discovery', discoveryRoutes);
+        app.use('/api/orchestrator', orchestratorRoutes);
+        """,
+        encoding="utf-8"
+    )
+
+    routes_dir = tmp_path / "routes"
+    routes_dir.mkdir()
+
+    discovery_js = routes_dir / "discoveryRoutes.js"
+    discovery_code = """
+    const express = require('express');
+    const router = express.Router();
+
+    router.post('/analyze', (req, res) => {
+        res.json({ status: 'analyzed' });
+    });
+
+    router.post('/generate-workspace', (req, res) => {
+        res.json({ workspace: 'created' });
+    });
+
+    module.exports = router;
+    """
+    discovery_js.write_text(discovery_code, encoding="utf-8")
+
+    orchestrator_js = routes_dir / "orchestratorRoutes.js"
+    orchestrator_code = """
+    const express = require('express');
+    const router = express.Router();
+
+    router.post('/run', (req, res) => {
+        res.json({ runId: 123 });
+    });
+
+    router.patch('/deliverable/:planId/:deliverableId', (req, res) => {
+        res.json({ updated: true });
+    });
+
+    module.exports = router;
+    """
+    orchestrator_js.write_text(orchestrator_code, encoding="utf-8")
+
+    parser = CodeParser()
+    adapter = ExpressFrameworkAdapter()
+
+    # Parse and extract discoveryRoutes
+    pf_disc = parser.parse("routes/discoveryRoutes.js", discovery_code, "javascript", absolute_path=str(discovery_js))
+    eps_disc = adapter.extract_endpoints(pf_disc, discovery_code)
+
+    assert len(eps_disc) == 2
+    paths_disc = [e.path for e in eps_disc]
+    assert "/api/discovery/analyze" in paths_disc
+    assert "/api/discovery/generate-workspace" in paths_disc
+
+    # Parse and extract orchestratorRoutes
+    pf_orch = parser.parse("routes/orchestratorRoutes.js", orchestrator_code, "javascript", absolute_path=str(orchestrator_js))
+    eps_orch = adapter.extract_endpoints(pf_orch, orchestrator_code)
+
+    assert len(eps_orch) == 2
+    paths_orch = [e.path for e in eps_orch]
+    assert "/api/orchestrator/run" in paths_orch
+    assert "/api/orchestrator/deliverable/{planId}/{deliverableId}" in paths_orch
+
+
+def test_language_tailored_remediation():
+    """Verify remediation messages use appropriate language/framework idioms."""
+    from trace_engine.findings.recommendations import get_remediation_for_category
+
+    # Node.js / Express
+    node_rem = get_remediation_for_category("AUTHENTICATION", filepath="backend/routes/discoveryRoutes.js")
+    assert "verifyToken" in node_rem or "router.use" in node_rem
+    assert "Depends(get_current_user)" not in node_rem
+
+    node_bola = get_remediation_for_category("BOLA", filepath="backend/routes/orchestratorRoutes.js")
+    assert "req.user" in node_bola
+
+    # Python / FastAPI
+    py_rem = get_remediation_for_category("AUTHENTICATION", filepath="backend/api/auth.py")
+    assert "Depends(get_current_user)" in py_rem
+

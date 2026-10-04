@@ -89,7 +89,13 @@ class HypothesisEngine:
 
             # 3. Authentication Bypass / Missing Auth: State-changing endpoint without auth
             if not ep.auth_required and (ep.state_changing or ep.sensitive_data):
-                if not ep.path.endswith("/login") and not ep.path.endswith("/register"):
+                path_segs = [s.lower() for s in ep.path.strip("/").split("/")]
+                is_public_by_design = any(
+                    s in ("login", "signin", "register", "signup", "forgot-password", "reset-password", "callback", "oauth", "health", "ping", "status", "public", "docs", "openapi")
+                    or s.startswith("auth-callback") or s.endswith("-callback")
+                    for s in path_segs
+                )
+                if not is_public_by_design:
                     hypotheses.append(
                         SecurityHypothesis(
                             id=f"HYP-AUTH-{hypo_idx:03d}",
@@ -109,8 +115,17 @@ class HypothesisEngine:
                     )
                     hypo_idx += 1
 
-            # 4. SSRF Hypothesis: Endpoint takes URL or makes external network calls
-            if ep.external_network or any("url" in p.name.lower() for p in ep.parameters):
+            # 4. SSRF Hypothesis: Endpoint takes user-supplied URL/target AND makes outbound HTTP calls
+            url_params = [
+                p.name for p in ep.parameters
+                if any(
+                    term == p.name.lower()
+                    or p.name.lower().endswith(f"_{term}")
+                    or p.name.lower().endswith(term.capitalize())
+                    for term in ("url", "uri", "target", "webhook", "callback", "dest", "destination", "endpoint", "feed", "proxy", "redirect_uri")
+                )
+            ]
+            if ep.external_network and url_params:
                 hypotheses.append(
                     SecurityHypothesis(
                         id=f"HYP-SSRF-{hypo_idx:03d}",
@@ -118,12 +133,12 @@ class HypothesisEngine:
                         endpoint_id=ep.id,
                         endpoint_display=ep_disp,
                         title=f"Potential SSRF on {ep_disp}",
-                        description="Endpoint handles URL parameter and communicates with outbound HTTP client.",
+                        description="Endpoint accepts user-controlled destination URL and dispatches outbound HTTP requests.",
                         recommended_test_pack="ssrf",
                         confidence_prior=0.85,
                         static_evidence=[
                             "Outbound HTTP client calls detected in handler body",
-                            f"URL parameter detected: {[p.name for p in ep.parameters if 'url' in p.name.lower()]}",
+                            f"User-controlled URL parameters: {url_params}",
                         ],
                     )
                 )
@@ -169,9 +184,22 @@ class HypothesisEngine:
                 )
                 hypo_idx += 1
 
-            # 7. Path Traversal Hypothesis: Endpoints accepting file or path parameters
-            file_param_names = [p.name for p in ep.parameters if any(term in p.name.lower() for term in ("file", "path", "doc", "dir", "download", "name", "asset", "key"))]
-            if file_param_names or any(term in ep.path.lower() for term in ("file", "doc", "download", "asset", "static")):
+            # 7. Path Traversal Hypothesis: Endpoints accepting genuine file or directory path parameters
+            file_param_names = [
+                p.name for p in ep.parameters
+                if p.name.lower() in (
+                    "file", "path", "filename", "file_name", "filepath", "file_path",
+                    "doc_path", "document", "attachment", "dir_path", "download_path"
+                ) or any(
+                    p.name.lower().endswith(f"_{term}")
+                    for term in ("file", "path", "filename", "filepath")
+                )
+            ]
+            path_segments = [seg.lower() for seg in ep.path.strip("/").split("/")]
+            has_file_route = any(seg in ("file", "files", "download", "downloads", "static", "assets", "document", "documents") for seg in path_segments)
+
+            # Must have actual file parameter or file route with parameters
+            if file_param_names or (has_file_route and ep.parameters):
                 hypotheses.append(
                     SecurityHypothesis(
                         id=f"HYP-TRAV-{hypo_idx:03d}",

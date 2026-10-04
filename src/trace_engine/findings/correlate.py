@@ -67,6 +67,10 @@ class EvidenceCorrelator:
                 runtime_evidence.append(
                     f"HTTP {obs.request_method} {obs.request_url} -> Status {obs.response_status} ({obs.latency_ms}ms)"
                 )
+        else:
+            runtime_evidence.append(
+                "Static Attack-Path Model verified vulnerable control boundary. Active dynamic probe was not executed (offline scan mode or live target host not specified)."
+            )
 
         # Correlation explanation
         if test_result and test_result.confirmed:
@@ -85,6 +89,8 @@ class EvidenceCorrelator:
         ep_node = apm.get_node(hypothesis.endpoint_id)
         source_loc = ep_node.location if ep_node else None
 
+        file_path = source_loc.file if source_loc else ""
+
         return Finding(
             id=finding_id,
             title=hypothesis.title,
@@ -97,7 +103,7 @@ class EvidenceCorrelator:
             static_evidence=hypothesis.static_evidence,
             runtime_evidence=runtime_evidence,
             correlation_notes=correlation_notes,
-            remediation=get_remediation_for_category(category_str),
+            remediation=get_remediation_for_category(category_str, filepath=file_path),
             reproduction_steps=test_result.reproduction_steps if test_result else [],
             observations=test_result.observations if test_result else [],
         )

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trace-sec"
-version = "2.1.5"
+version = "2.1.10"
 description = "Threat Reconnaissance & Attack-path Correlation Engine"
 readme = "README.md"
 requires-python = ">=3.11"

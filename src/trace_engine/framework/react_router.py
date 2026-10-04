@@ -108,11 +108,30 @@ class ReactRouterFrameworkAdapter(FrameworkAdapter):
         if parsed_file.language not in ("javascript", "typescript"):
             return False
 
-        norm_path = parsed_file.file_path.replace("\\", "/")
+        norm_path = parsed_file.file_path.replace("\\", "/").lower()
         basename = norm_path.split("/")[-1]
 
-        # Ignore configuration files and hidden/dot files
-        if "config" in basename.lower() or basename.startswith("."):
+        # Ignore configuration files, test files, and hidden/dot files
+        if "config" in basename or basename.startswith(".") or ".test." in basename or ".spec." in basename:
+            return False
+
+        # Reject Express / Koa / Fastify backend route files
+        for imp in parsed_file.imports:
+            imp_low = imp.module.lower()
+            if imp_low in ("express", "koa", "fastify", "hapi", "@nestjs/common"):
+                return False
+
+        # Reject backend directories (Express / Node.js backend controllers are not React Router)
+        if any(norm_path.startswith(d) or f"/{d}" in norm_path for d in ("backend/", "server/", "api/", "controllers/", "srv/")):
+            return False
+
+        # Reject UI component directories and non-route code
+        non_route_dirs = (
+            "/components/", "/ui/", "/layouts/", "/widgets/",
+            "/hooks/", "/context/", "/styles/", "/types/",
+            "/lib/", "/utils/", "/helpers/", "/assets/", "/icons/"
+        )
+        if any(d in norm_path for d in non_route_dirs) or any(norm_path.startswith(d.lstrip("/")) for d in non_route_dirs):
             return False
 
         # If it's the routes configuration file itself
@@ -127,10 +146,9 @@ class ReactRouterFrameworkAdapter(FrameworkAdapter):
         if key in self._route_cache:
             return True
 
-        # Check if file is within a routes directory (Remix / React Router convention)
-        if "/routes/" in norm_path or norm_path.startswith("routes/"):
-            # Exclude non-route subdirectories like styles, assets, or types
-            if any(f"/{d}/" in norm_path for d in ("styles", "assets", "types", "+types")):
+        # Only match files strictly in frontend routes directory (app/routes/ or src/routes/)
+        if re.search(r'(?:^|/)(?:src/|app/)?routes/.+\.[a-zA-Z0-9]+$', norm_path):
+            if any(f"/{d}/" in norm_path for d in ("styles", "assets", "types", "+types", "components")):
                 return False
             return True
 
@@ -303,29 +321,6 @@ class ReactRouterFrameworkAdapter(FrameworkAdapter):
                 )
             )
 
-        # If file is a route file (e.g. in routes/ or mapped) but defines neither loader nor action nor verbs,
-        # it is a page component serving GET
-        if not endpoints:
-            default_match = re.search(r'''export\s+default\s+(?:function|const|class)?\s*([a-zA-Z0-9_$]+)?''', content)
-            handler_name = default_match.group(1) if (default_match and default_match.group(1)) else "default"
-            line_no = content[:default_match.start()].count("\n") + 1 if default_match else 1
-            ep_id = f"ep_rr_page_{norm_file_path}_{line_no}".replace("/", "_").replace(".", "_")
-            endpoints.append(
-                Endpoint(
-                    id=ep_id,
-                    method="GET",
-                    path=url_path,
-                    handler_name=handler_name,
-                    auth_required=auth_required,
-                    roles=roles,
-                    parameters=parameters,
-                    database_access=has_db_sink,
-                    object_identifier=bool(path_params),
-                    state_changing=False,
-                    external_network=has_ext_sink,
-                    sensitive_data=sensitive_data,
-                    source=SourceLocation(file=parsed_file.file_path, line_start=line_no, line_end=line_no),
-                )
-            )
-
+        # If file defines neither loader nor action nor explicit HTTP verbs, it is a pure UI component
+        # and has no backend server attack surface
         return endpoints

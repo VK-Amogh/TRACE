@@ -58,20 +58,44 @@ class NextJSFrameworkAdapter(FrameworkAdapter):
         if parsed_file.language not in ("javascript", "typescript"):
             return False
 
-        norm_path = parsed_file.file_path.replace("\\", "/")
+        norm_path = parsed_file.file_path.replace("\\", "/").lower()
 
-        # App Router route/page
-        if re.search(r'(?:^|/)(?:src/)?app/.+/(?:route|page)\.[a-zA-Z0-9]+$', norm_path):
+        # 1. Reject build & tool configurations (e.g. next.config.ts, tailwind.config.js, etc.)
+        if re.search(r'(?:^|/)[a-zA-Z0-9_\.-]*\.config\.[a-zA-Z0-9]+$', norm_path):
+            return False
+
+        # 2. Reject UI component directories and non-API code
+        non_endpoint_dirs = (
+            "/components/", "/ui/", "/layouts/", "/widgets/",
+            "/hooks/", "/context/", "/styles/", "/types/",
+            "/lib/", "/utils/", "/helpers/", "/assets/", "/icons/"
+        )
+        if any(d in norm_path for d in non_endpoint_dirs) or any(norm_path.startswith(d.lstrip("/")) for d in non_endpoint_dirs):
+            return False
+
+        # 3. Reject client-side UI component suffixes (e.g. RegisterForm.tsx, DashboardHeader.tsx)
+        ui_suffixes = (
+            "form.tsx", "form.jsx", "header.tsx", "header.jsx",
+            "bar.tsx", "bar.jsx", "modal.tsx", "modal.jsx",
+            "card.tsx", "card.jsx", "layout.tsx", "layout.jsx",
+            "button.tsx", "button.jsx", "table.tsx", "table.jsx",
+            "view.tsx", "view.jsx", "provider.tsx", "provider.jsx"
+        )
+        if any(norm_path.endswith(s) for s in ui_suffixes):
+            return False
+
+        # 4. App Router: HTTP endpoints are strictly route.ts or route.js
+        if re.search(r'(?:^|/)(?:src/)?app/.+/route\.[a-zA-Z0-9]+$', norm_path):
             return True
 
-        # Pages Router api or page
-        if re.search(r'(?:^|/)(?:src/)?pages/(?:api/)?.+\.[a-zA-Z0-9]+$', norm_path):
+        # 5. Pages Router: HTTP endpoints are strictly inside pages/api/
+        if re.search(r'(?:^|/)(?:src/)?pages/api/.+\.[a-zA-Z0-9]+$', norm_path):
             return True
 
-        # Imports from next
+        # 6. Only handle if explicitly importing next/server (e.g. NextRequest, NextResponse)
         for imp in parsed_file.imports:
             mod_low = imp.module.lower()
-            if mod_low == "next" or mod_low.startswith("next/"):
+            if mod_low == "next/server":
                 return True
 
         return False
@@ -79,16 +103,27 @@ class NextJSFrameworkAdapter(FrameworkAdapter):
     def extract_endpoints(self, parsed_file: ParsedFile, content: str) -> List[Endpoint]:
         endpoints: List[Endpoint] = []
         norm_file_path = parsed_file.file_path.replace("\\", "/")
+        norm_lower = norm_file_path.lower()
 
-        is_app_router = bool(re.search(r'(?:^|/)(?:src/)?app/', norm_file_path))
-        is_pages_router = bool(re.search(r'(?:^|/)(?:src/)?pages/', norm_file_path))
+        # Reject client-side components with 'use client'
+        if "'use client'" in content or '"use client"' in content:
+            return []
+
+        # Reject build configurations
+        if ".config." in norm_lower:
+            return []
+
+        is_app_router = bool(re.search(r'(?:^|/)(?:src/)?app/.+/route\.[a-zA-Z0-9]+$', norm_lower))
+        is_pages_router = bool(re.search(r'(?:^|/)(?:src/)?pages/api/.+\.[a-zA-Z0-9]+$', norm_lower))
+
+        # In Next.js, only App Router route handlers and Pages Router API files are REST endpoints
+        if not is_app_router and not is_pages_router:
+            return []
 
         if is_app_router:
             url_path = self._infer_app_router_path(norm_file_path)
-        elif is_pages_router:
-            url_path = self._infer_pages_router_path(norm_file_path)
         else:
-            url_path = "/" + norm_file_path.split("/")[-1].split(".")[0]
+            url_path = self._infer_pages_router_path(norm_file_path)
 
         path_params = re.findall(r'\{([a-zA-Z0-9_]+)\}', url_path)
 
@@ -164,14 +199,18 @@ class NextJSFrameworkAdapter(FrameworkAdapter):
                 )
             )
 
-        # Pages Router or App Router default export
-        if not endpoints:
+        # Pages Router default export handler (strictly pages/api/*)
+        if not endpoints and is_pages_router:
             # Check for checked HTTP methods in handler body
             checked_methods = []
             for m in re.finditer(r'''req\.method\s*===?\s*["'](GET|POST|PUT|DELETE|PATCH)["']''', content):
                 checked_methods.append(m.group(1).upper())
 
-            methods_to_add = set(checked_methods) if checked_methods else (["GET"] if "page." in norm_file_path else ["GET", "POST"])
+            default_match = re.search(r'''export\s+default\s+(?:async\s+)?(?:function|const|class)?\s*([a-zA-Z0-9_$]+)?''', content)
+            if not default_match:
+                return endpoints
+
+            methods_to_add = set(checked_methods) if checked_methods else ["GET", "POST"]
 
             default_match = re.search(r'''export\s+default\s+(?:async\s+)?(?:function|const|class)?\s*([a-zA-Z0-9_$]+)?''', content)
             handler_name = default_match.group(1) if (default_match and default_match.group(1)) else "handler"
