@@ -83,11 +83,24 @@ if (args[0] === 'install-skill' || args[0] === 'setup-agent' || args[0] === 'ins
 
 // Find virtual environment python or system python
 const isWin = process.platform === 'win32';
-const venvPython = isWin
-  ? join(projectRoot, '.venv', 'Scripts', 'python.exe')
-  : join(projectRoot, '.venv', 'bin', 'python');
+const userHome = process.env.USERPROFILE || process.env.HOME || '';
+const candidatePythons = [
+  process.env.TRACE_PYTHON,
+  join(process.cwd(), '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
+  join(projectRoot, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
+  isWin ? 'D:\\Startup\\TRACE\\.venv\\Scripts\\python.exe' : null,
+  join(userHome, '.trace', 'venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
+  join(userHome, '.trace', 'models', 'venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
+  isWin ? 'python' : 'python3',
+];
 
-const pythonBin = existsSync(venvPython) ? venvPython : (isWin ? 'python' : 'python3');
+let pythonBin = isWin ? 'python' : 'python3';
+for (const cand of candidatePythons) {
+  if (cand && existsSync(cand)) {
+    pythonBin = cand;
+    break;
+  }
+}
 
 const cliArgs = ['-m', 'trace_engine.cli', ...args];
 
