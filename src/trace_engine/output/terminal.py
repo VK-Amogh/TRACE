@@ -25,71 +25,55 @@ from trace_engine.doctor import DoctorReport
 
 console = Console(force_terminal=True, legacy_windows=False)
 
-# Daytona-inspired geometric ASCII emblem from Image 2
+# Big Pixel / ASCII Block Logo
 LOGO_ASCII = """\
-        -#####=
-       -######-
-  +###= -######:
-  #####* -#####%-.. .. .. .
-  ##########: =#############-
-  #####* =%#- =#############-
- :*%=  #####*       ....:*#:.....
- =#####%==+++-           +#####*.
- :*#####%=               =%####+.
- .*#####%=               =%####+.
- .*#####*.             .####-=%#####*.
- :::::=%+:::::     .   .####:   =%##%-
- #############   .*#%-.####:     +-
- %%%%%%%%%%%%%%%%*#####%=####:
- .*#####%= .####:
- .*#####%=  .####:
- +%##%=      ****:\
+  ████████╗ ██████╗   █████╗   ██████╗ ███████╗
+  ╚══██╔══╝ ██╔══██╗ ██╔══██╗ ██╔════╝ ██╔════╝
+     ██║    ██████╔╝ ███████║ ██║      █████╗  
+     ██║    ██╔══██╗ ██╔══██║ ██║      ██╔══╝  
+     ██║    ██║  ██║ ██║  ██║ ╚██████╗ ███████╗
+     ╚═╝    ╚═╝  ╚═╝ ╚═╝  ╚═╝  ╚═════╝ ╚══════╝\
 """
 
 
 def print_banner() -> None:
-    """Renders the Daytona-inspired split banner with ASCII emblem and green highlights."""
-    grid = Table.grid(padding=(0, 4))
-    grid.add_column("logo", justify="left")
-    grid.add_column("info", justify="left")
+    """Renders the big pixel TRACE banner in bold white with green highlights."""
+    panel_text = Text()
+    panel_text.append(LOGO_ASCII, style="bold white")
+    panel_text.append("\n\n")
+    panel_text.append("  Threat Reconnaissance & Attack-path Correlation Engine  ", style="bold white")
+    panel_text.append("v2.1.0\n", style="bold green")
+    panel_text.append("  Local-First Autonomous Security Intelligence & Runtime Verification\n", style="dim white")
+    panel_text.append("  ─────────────────────────────────────────────────────────────────────────────\n\n", style="dim green")
 
-    logo_text = Text(LOGO_ASCII, style="bold white")
+    panel_text.append("  Quick Start Commands:\n", style="bold white")
 
-    info_text = Text()
-    info_text.append("TRACE\n", style="bold green")
-    info_text.append("Threat Reconnaissance & Attack-path Correlation Engine\n", style="bold white")
-    info_text.append("v1.0.0-poc", style="dim")
-    info_text.append("  |  ", style="green")
-    info_text.append("local-first application security platform\n", style="dim white")
-    info_text.append("-" * 52 + "\n\n", style="dim")
-
-    info_text.append("Get started\n", style="bold white")
-    
     commands = [
-        ("trace init <repo>", "initialize .trace directory"),
-        ("trace index <repo>", "ingest files & build AST symbol index"),
-        ("trace endpoints <repo>", "discover HTTP routes & auth gates"),
-        ("trace apm <repo>", "generate Attack-Path Model graph"),
-        ("trace analyze <repo>", "evaluate static security hypotheses"),
-        ("trace scan <repo> --target <url>", "end-to-end static + runtime validation"),
-        ("trace findings", "view confirmed security vulnerabilities"),
-        ("trace explain <ID>", "deep-dive with root cause analysis"),
+        ("trace", "launch interactive story mode (guided audit wizard)"),
+        ("trace scan <repo> -t <url>", "end-to-end static + runtime validation"),
+        ("trace test-all <repo>", "priority-ranked full vulnerability audit"),
+        ("trace remediate --apply", "autonomous AST self-healing with rollback"),
+        ("trace train --early-stopping", "fine-tune SecureBERT 2.0 with early stopping"),
         ("trace doctor", "inspect local environment & security tools"),
-        ("trace lab start", "launch vulnerable vending-api lab target"),
     ]
 
     for cmd, desc in commands:
-        info_text.append(" > ", style="bold green")
-        info_text.append(f"{cmd:<34}", style="green")
-        info_text.append(f"({desc})\n", style="dim")
+        panel_text.append("   > ", style="bold green")
+        panel_text.append(f"{cmd:<32}", style="bold white")
+        panel_text.append(f"  ({desc})\n", style="dim white")
 
-    info_text.append("\nview all commands: ", style="dim")
-    info_text.append("trace --help\n", style="bold green")
-
-    grid.add_row(logo_text, info_text)
+    panel_text.append("\n  Run interactive audit: ", style="dim white")
+    panel_text.append("trace\n", style="bold green")
 
     console.print()
-    console.print(grid)
+    console.print(
+        Panel(
+            panel_text,
+            border_style="green",
+            box=ROUNDED,
+            padding=(1, 2),
+        )
+    )
     console.print()
 
 

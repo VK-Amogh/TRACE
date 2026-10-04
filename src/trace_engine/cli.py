@@ -69,10 +69,22 @@ console = Console()
 
 @app.callback()
 def main(ctx: typer.Context):
-    """If no command is provided, display the Daytona/Claude welcome screen."""
+    """If no command is provided, launch interactive story mode (or show banner if non-interactive)."""
     if ctx.invoked_subcommand is None:
-        print_banner()
-        print_security_notes()
+        if sys.stdin.isatty():
+            from trace_engine.interactive import run_interactive_story
+            run_interactive_story()
+        else:
+            print_banner()
+            print_security_notes()
+
+
+@app.command(name="interactive")
+@app.command(name="story")
+def interactive_cmd():
+    """Launch the interactive, step-by-step security audit wizard."""
+    from trace_engine.interactive import run_interactive_story
+    run_interactive_story()
 
 
 @app.command()
