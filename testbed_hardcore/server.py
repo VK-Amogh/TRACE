@@ -39,6 +39,16 @@ class HardcoreServerHandler(BaseHTTPRequestHandler):
                 "leak": "Cross-tenant unauthorized data access"
             })
 
+        # Go BOLA: /api/v1/go/vault/{id}
+        if re.search(r"^/api/v1/go/vault/[^/]+", url):
+            return self._send_json(200, {
+                "id": "vault-go-88",
+                "secret": "go-vault-encrypted-master-key",
+                "tenant_id": "tenant-corp-99",
+                "user-a": "go-sec-lead",
+                "leak": "Go Gin cross-tenant unauthorized data access",
+            })
+
         # Kotlin BOLA: /api/v3/patients/{patientId}/records/export
         if re.search(r"^/api/v3/patients/[^/]+/records/export", url):
             return self._send_json(200, {
@@ -76,6 +86,14 @@ class HardcoreServerHandler(BaseHTTPRequestHandler):
                 time.sleep(0.75)  # Intentional blind delay
                 return self._send_json(200, {"status": "delayed", "records": 42, "injection_triggered": True})
             return self._send_json(200, {"status": "executed", "records": 42})
+
+        # Go Blind SQLi with Statistical Timing Delay: /api/v1/go/query
+        if "/api/v1/go/query" in url:
+            raw_check = (body_raw + " " + url).upper()
+            if any(k in raw_check for k in ["SLEEP", "WAITFOR", "OR '1'='1", "1' OR '1'='1", "BENCHMARK"]):
+                time.sleep(0.75)
+                return self._send_json(200, {"status": "delayed", "injection_triggered": True})
+            return self._send_json(200, {"status": "executed", "records": 10})
 
         # SSRF: /api/v1/integrations/webhook/dispatch
         if "/api/v1/integrations/webhook/dispatch" in url:

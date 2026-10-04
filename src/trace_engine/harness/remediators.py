@@ -225,4 +225,83 @@ class AutonomousRemediator:
                         replacement = line.replace("'*'", "'https://app.verified-domain.com'").replace('"*"', '"https://app.verified-domain.com"')
                         return target, replacement
 
+        # 14. Go SQL Injection Remediation
+        if category == "INJECTION" and ("db.Raw(" in code or "db.Exec(" in code or "fmt.Sprintf(" in code):
+            lines = code.splitlines()
+            for line in lines:
+                if "fmt.Sprintf(" in line and ("db.Raw" in line or "db.Exec" in line or "query" in line.lower()):
+                    target = line
+                    # Parameterize Go query:
+                    # - db.Raw(fmt.Sprintf("SELECT * FROM users WHERE id = %s", id))
+                    # + db.Raw("SELECT * FROM users WHERE id = ?", id)
+                    replacement = re.sub(
+                        r"""fmt\.Sprintf\s*\(\s*["'](.*?)%[sdv]["']\s*,\s*([a-zA-Z0-9_\.]+)\s*\)""",
+                        r'''/* [TRACE HARNESS FIX: Parameterized SQL] */ "\1?", \2''',
+                        line,
+                    )
+                    if replacement != target:
+                        return target, replacement
+
+        # 15. Go BOLA / IDOR Tenant Isolation Remediation
+        if category == "BOLA" and ("c.Param(" in code or "c.JSON(" in code or "http.StatusOK" in code):
+            lines = code.splitlines()
+            for line in lines:
+                if "c.JSON(http.StatusOK" in line or "c.JSON(200" in line:
+                    target = line
+                    indent = " " * (len(line) - len(line.lstrip()))
+                    tenant_check = (
+                        f"{indent}// [TRACE HARNESS FIX: Assert tenant ownership boundary]\n"
+                        f"{indent}if record.TenantID != currentTenantID {{\n"
+                        f"{indent}\tc.JSON(http.StatusForbidden, gin.H{{\"error\": \"Tenant boundary violation\"}})\n"
+                        f"{indent}\treturn\n"
+                        f"{indent}}}\n"
+                        f"{line}"
+                    )
+                    return target, tenant_check
+
+        # 16. Go SSRF ScopeGuard Remediation
+        if category == "SSRF" and ("http.Get(" in code or "http.Post(" in code or "client.Do(" in code):
+            lines = code.splitlines()
+            for line in lines:
+                if "http.Get(" in line or "http.Post(" in line or "client.Do(" in line:
+                    target = line
+                    indent = " " * (len(line) - len(line.lstrip()))
+                    guard_check = (
+                        f"{indent}// [TRACE HARNESS FIX: Egress network validation against SSRF]\n"
+                        f"{indent}if strings.Contains(targetURL, \"localhost\") || strings.Contains(targetURL, \"127.0.0.1\") || strings.Contains(targetURL, \"169.254\") {{\n"
+                        f"{indent}\tc.JSON(http.StatusForbidden, gin.H{{\"error\": \"SSRF blocked: internal destination rejected\"}})\n"
+                        f"{indent}\treturn\n"
+                        f"{indent}}}\n"
+                        f"{line}"
+                    )
+                    return target, guard_check
+
+        # 17. Ruby on Rails SQL Injection & BOLA Remediation
+        if category == "INJECTION" and ("connection.execute(" in code or "find_by_sql(" in code):
+            lines = code.splitlines()
+            for line in lines:
+                if '#{' in line and ("execute(" in line or "find_by_sql(" in line):
+                    target = line
+                    replacement = re.sub(r"""#\{([a-zA-Z0-9_]+)\}""", r"?", line)
+                    return target, f"# [TRACE FIX: Parameterized SQL query]\n{replacement}"
+
+        # 18. C# ASP.NET Core SQL Injection & BOLA Remediation
+        if category == "INJECTION" and ("FromSqlRaw(" in code or "ExecuteSqlRaw(" in code):
+            lines = code.splitlines()
+            for line in lines:
+                if "FromSqlRaw($" in line or "ExecuteSqlRaw($" in line:
+                    target = line
+                    # Converts interpolated raw SQL string to parameterized query
+                    replacement = line.replace("FromSqlRaw($", "FromSqlInterpolated($").replace("ExecuteSqlRaw($", "ExecuteSqlInterpolated($")
+                    return target, f"// [TRACE FIX: Safe Interpolated SQL Query]\n{replacement}"
+
+        # 19. Rust Actix / Axum SQL Injection Remediation
+        if category == "INJECTION" and ("sqlx::query(" in code or "format!(" in code):
+            lines = code.splitlines()
+            for line in lines:
+                if "format!(" in line and "sqlx::query" in line:
+                    target = line
+                    replacement = re.sub(r"""format!\s*\(\s*["'](.*?)["'].*?\)""", r'''/* [TRACE FIX: Parameterized Query] */ "\1"''', line)
+                    return target, replacement
+
         return None

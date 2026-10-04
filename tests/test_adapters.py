@@ -260,3 +260,82 @@ def test_go_gin_adapter():
     assert any(e.path == "/api/v1/users/{userId}" and e.method == "GET" for e in endpoints)
     assert any(e.path == "/api/v1/users/{userId}/role" and e.method == "POST" for e in endpoints)
 
+
+def test_ruby_rails_adapter():
+    from trace_engine.framework.ruby import RubyFrameworkAdapter
+
+    code = """
+    Rails.application.routes.draw do
+      get '/api/v1/customers/:id', to: 'customers#show'
+      post '/api/v1/customers', to: 'customers#create'
+    end
+    """
+    parser = CodeParser()
+    pf = parser.parse("config/routes.rb", code, "ruby")
+
+    adapter = RubyFrameworkAdapter()
+    assert adapter.can_handle(pf) is True
+
+    endpoints = adapter.extract_endpoints(pf, code)
+    assert len(endpoints) == 2
+    assert any(e.path == "/api/v1/customers/{id}" and e.method == "GET" for e in endpoints)
+    assert any(e.path == "/api/v1/customers" and e.method == "POST" for e in endpoints)
+
+
+def test_rust_actix_and_axum_adapter():
+    from trace_engine.framework.rust import RustFrameworkAdapter
+
+    code = """
+    #[get("/api/v1/items/{item_id}")]
+    pub async fn get_item(path: web::Path<String>) -> impl Responder {
+        HttpResponse::Ok().body("item")
+    }
+
+    fn app() -> Router {
+        Router::new().route("/api/v1/orders", post(create_order))
+    }
+    """
+    parser = CodeParser()
+    pf = parser.parse("src/main.rs", code, "rust")
+
+    adapter = RustFrameworkAdapter()
+    assert adapter.can_handle(pf) is True
+
+    endpoints = adapter.extract_endpoints(pf, code)
+    assert len(endpoints) == 2
+    assert any(e.path == "/api/v1/items/{item_id}" and e.method == "GET" for e in endpoints)
+    assert any(e.path == "/api/v1/orders" and e.method == "POST" for e in endpoints)
+
+
+def test_csharp_aspnet_adapter():
+    from trace_engine.framework.csharp import CSharpFrameworkAdapter
+
+    code = """
+    [Route("api/[controller]")]
+    [ApiController]
+    public class InvoicesController : ControllerBase
+    {
+        [HttpGet("{invoiceId}")]
+        public async Task<IActionResult> GetInvoice(string invoiceId)
+        {
+            return Ok();
+        }
+
+        [HttpPost("refund")]
+        public async Task<IActionResult> Refund()
+        {
+            return Ok();
+        }
+    }
+    """
+    parser = CodeParser()
+    pf = parser.parse("Controllers/InvoicesController.cs", code, "csharp")
+
+    adapter = CSharpFrameworkAdapter()
+    assert adapter.can_handle(pf) is True
+
+    endpoints = adapter.extract_endpoints(pf, code)
+    assert len(endpoints) == 2
+    assert any("invoiceId" in e.path and e.method == "GET" for e in endpoints)
+    assert any("refund" in e.path and e.method == "POST" for e in endpoints)
+

@@ -4,14 +4,17 @@ from typing import List
 from trace_engine.framework.base import FrameworkAdapter, Endpoint, EndpointParameter
 from trace_engine.framework.fastapi import FastAPIFrameworkAdapter
 from trace_engine.framework.flask import FlaskFrameworkAdapter
+from trace_engine.framework.django import DjangoFrameworkAdapter
 from trace_engine.framework.express import ExpressFrameworkAdapter
 from trace_engine.framework.react_router import ReactRouterFrameworkAdapter
 from trace_engine.framework.nextjs import NextJSFrameworkAdapter
 from trace_engine.framework.dart import DartFrameworkAdapter
 from trace_engine.framework.springboot import SpringBootFrameworkAdapter
 from trace_engine.framework.go import GoFrameworkAdapter
-from trace_engine.framework.django import DjangoFrameworkAdapter
 from trace_engine.framework.php import PHPFrameworkAdapter
+from trace_engine.framework.ruby import RubyFrameworkAdapter
+from trace_engine.framework.rust import RustFrameworkAdapter
+from trace_engine.framework.csharp import CSharpFrameworkAdapter
 
 _ADAPTERS: List[FrameworkAdapter] = [
     FastAPIFrameworkAdapter(),
@@ -24,6 +27,9 @@ _ADAPTERS: List[FrameworkAdapter] = [
     SpringBootFrameworkAdapter(),
     GoFrameworkAdapter(),
     PHPFrameworkAdapter(),
+    RubyFrameworkAdapter(),
+    RustFrameworkAdapter(),
+    CSharpFrameworkAdapter(),
 ]
 
 
@@ -45,5 +51,8 @@ __all__ = [
     "SpringBootFrameworkAdapter",
     "GoFrameworkAdapter",
     "PHPFrameworkAdapter",
+    "RubyFrameworkAdapter",
+    "RustFrameworkAdapter",
+    "CSharpFrameworkAdapter",
     "get_adapters",
 ]
