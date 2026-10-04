@@ -60,6 +60,9 @@ BOLD_WHITE = "bold white"
 DIM_WHITE = "dim white"
 GREEN = "bold #10B981"
 DIM_GREEN = "dim #10B981"
+RED = "bold #EF4444"
+DIM_RED = "dim #EF4444"
+PURPLE = "bold #A855F7"
 
 # Clean ASCII Logo (Mint Green body/middle with Crisp White shadow)
 BIG_TRACE_LOGO = """\
