@@ -48,12 +48,18 @@ class AuthenticationTestPack(TestPack):
                 f"Send unauthenticated {method} request to {target_url}",
                 f"Received HTTP {obs.response_status} rather than expected 401/403",
             ]
+        elif obs.response_status == 0:
+            confirmed = False
+            summary = f"Target host unreachable ({obs.response_body}). Live probe inconclusive."
+        else:
+            confirmed = False
+            summary = f"Authentication enforced (server responded with HTTP {obs.response_status})."
 
         return TestExecutionResult(
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.90 if confirmed else 0.15,
+            confidence=0.90 if confirmed else (None if obs.response_status == 0 else 0.15),
             summary=summary,
             observations=observations,
             reproduction_steps=steps,

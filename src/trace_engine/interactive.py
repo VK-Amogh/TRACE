@@ -438,13 +438,14 @@ def run_interactive_story() -> None:
         display_story_header(4, 4, "Attack Vector Selection", "Select specific vulnerability testpacks to deploy")
 
         pack_mapping = {
-            "1": ("BOLA / IDOR", "bola", "Multi-tenant object access & IDOR cross-account authorization leak"),
-            "2": ("SQL & Command Injection", "injection", "Statistical timing oracle (p < 0.01) & error extraction"),
-            "3": ("SSRF ScopeGuard", "ssrf", "Egress network validation against RFC 1918 loopback & metadata IPs"),
-            "4": ("BFLA / RBAC Elevation", "bfla", "Broken function-level authorization & administrative privilege check"),
-            "5": ("Path Traversal", "path_traversal", "Canonical directory escape & arbitrary file disclosure probes"),
-            "6": ("CORS Misconfiguration", "cors", "Wildcard Access-Control-Allow-Origin & credential reflection"),
-            "7": ("Mass Assignment", "mass_assignment", "Unbounded payload parameter binding to persistent entities"),
+            "1": ("Authentication & Auth Gates", "authentication", "Missing token validation & unauthenticated state-changing routes"),
+            "2": ("BOLA / IDOR", "bola", "Multi-tenant object access & IDOR cross-account authorization leak"),
+            "3": ("SQL & Command Injection", "injection", "Statistical timing oracle (p < 0.01) & error extraction"),
+            "4": ("SSRF ScopeGuard", "ssrf", "Egress network validation against RFC 1918 loopback & metadata IPs"),
+            "5": ("BFLA / RBAC Elevation", "bfla", "Broken function-level authorization & administrative privilege check"),
+            "6": ("Path Traversal", "path_traversal", "Canonical directory escape & arbitrary file disclosure probes"),
+            "7": ("CORS Misconfiguration", "cors", "Wildcard Access-Control-Allow-Origin & credential reflection"),
+            "8": ("Mass Assignment", "mass_assignment", "Unbounded payload parameter binding to persistent entities"),
         }
 
         console.print(f"  [{BOLD_WHITE}]Available Testpacks:[/{BOLD_WHITE}]")
@@ -518,6 +519,15 @@ def run_interactive_story() -> None:
 
         if selected_packs:
             hypotheses = [h for h in all_hypotheses if h.recommended_test_pack in selected_packs]
+            if not hypotheses and all_hypotheses:
+                avail_cats = list({h.category.value for h in all_hypotheses})
+                console.print(
+                    f"\n  [{ORANGE}]Notice:[/{ORANGE}] [{WHITE}]No endpoints matched the selected testpack filter ({', '.join(selected_packs)}).[/{WHITE}]"
+                )
+                console.print(
+                    f"  [{DIM_WHITE}]Codebase contains attack vectors for: {', '.join(avail_cats)}. Auditing all codebase attack paths to prevent false negatives...[/{DIM_WHITE}]\n"
+                )
+                hypotheses = all_hypotheses
         else:
             hypotheses = all_hypotheses
 

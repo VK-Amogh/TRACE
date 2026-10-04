@@ -289,22 +289,69 @@ def test(
         active_tokens={"user-a": "user-a", "user-b": "user-b", "admin": "admin"},
     )
 
-    console.print(f"\n[bold green]Executing Controlled Runtime Tests[/bold green] against [white]{target}[/white]...")
+    # Check target connectivity
+    target_online = False
+    try:
+        import httpx
+        with httpx.Client(timeout=1.0) as chk:
+            chk.get(target)
+            target_online = True
+    except Exception:
+        target_online = False
+
+    if target_online:
+        console.print(f"\n[bold green]Executing Controlled Runtime Tests[/bold green] against [white]{target}[/white]...")
+    else:
+        console.print(f"\n[yellow]Notice:[/yellow] Target runtime [white]{target}[/white] is offline or unreachable.")
+        console.print(f"  [dim]• Active HTTP exploit probes require a running service (e.g. localhost or lab testbed).[/dim]")
+        console.print(f"  [dim]• Auditing codebase via Neuro-Symbolic Attack-Path Model (Safe Offline Mode)...[/dim]\n")
+
     executed = 0
     confirmed = 0
+    correlator = EvidenceCorrelator()
+    findings: List[Finding] = []
 
     for hyp in hypotheses:
-        pack = default_registry.get(hyp.recommended_test_pack)
-        if pack:
-            executed += 1
-            res = pack.execute(hyp, client, context)
-            if res.confirmed:
-                confirmed += 1
-                console.print(f"  [bold red]CONFIRMED:[/bold red] [{hyp.id}] {res.summary}")
-            else:
-                console.print(f"  [dim]Passed / Inconclusive:[/dim] [{hyp.id}] {res.summary}")
+        test_res = None
+        if target_online:
+            pack = default_registry.get(hyp.recommended_test_pack)
+            if pack:
+                executed += 1
+                try:
+                    test_res = pack.execute(hyp, client, context)
+                    if test_res and test_res.confirmed:
+                        confirmed += 1
+                        console.print(f"  [bold red]CONFIRMED:[/bold red] [{hyp.id}] {test_res.summary}")
+                    else:
+                        console.print(f"  [dim]Passed / Inconclusive:[/dim] [{hyp.id}] {test_res.summary}")
+                except Exception:
+                    test_res = None
 
-    console.print(f"\n[dim]Executed {executed} test packs. {confirmed} attack paths confirmed.[/dim]\n")
+        finding = correlator.correlate(hyp, test_res, graph_model)
+        if finding:
+            findings.append(finding)
+
+    # Persist findings & APM
+    trace_dir = init_trace_dir(project_dir)
+    save_apm_sqlite(graph_model, trace_dir / "graph.db")
+    store = FindingStore(trace_dir)
+    store.save_findings(findings)
+
+    try:
+        root_trace = Path(".trace")
+        root_trace.mkdir(parents=True, exist_ok=True)
+        (root_trace / "last_scan_repo.txt").write_text(str(project_dir), encoding="utf-8")
+        if project_dir != Path(".").resolve():
+            root_store = FindingStore(root_trace)
+            root_store.save_findings(findings)
+    except Exception:
+        pass
+
+    if target_online:
+        console.print(f"\n[dim]Executed {executed} test packs. {confirmed} attack paths confirmed at runtime.[/dim]\n")
+
+    print_findings_table(findings)
+    console.print(f"[dim]Total findings identified: {len(findings)} (Saved to {trace_dir / 'findings.json'})[/dim]\n")
 
 
 @app.command()

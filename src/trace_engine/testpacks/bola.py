@@ -83,11 +83,15 @@ class BolaTestPack(TestPack):
                     ]
                     break
 
+        any_reachable = any(obs.response_status != 0 for obs in observations)
+        if not confirmed and not any_reachable:
+            summary = "Target host unreachable. Dynamic probe inconclusive."
+
         return TestExecutionResult(
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.98 if confirmed else 0.20,
+            confidence=0.98 if confirmed else (None if not any_reachable else 0.20),
             summary=summary,
             observations=observations,
             reproduction_steps=steps,

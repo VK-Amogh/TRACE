@@ -58,12 +58,18 @@ class BflaTestPack(TestPack):
                 f"Invoke privileged endpoint {method} {target_url}",
                 f"Received HTTP {obs.response_status} indicating unauthorized function execution",
             ]
+        elif obs.response_status == 0:
+            confirmed = False
+            summary = f"Target host unreachable ({obs.response_body}). Live probe inconclusive."
+        else:
+            confirmed = False
+            summary = f"Function-level authorization enforced (received HTTP {obs.response_status})."
 
         return TestExecutionResult(
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.92 if confirmed else 0.20,
+            confidence=0.92 if confirmed else (None if obs.response_status == 0 else 0.20),
             summary=summary,
             observations=observations,
             reproduction_steps=steps,
