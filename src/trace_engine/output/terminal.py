@@ -51,9 +51,11 @@ def get_styled_logo() -> Text:
 
 def print_banner() -> None:
     """Renders the sleek minimalist TRACE banner in Mint Green and Crisp White with Orange options."""
+    import trace_engine
+    curr_ver = getattr(trace_engine, "__version__", "2.1.15")
     console.print()
     console.print(get_styled_logo())
-    console.print(f"  [bold white]Threat Reconnaissance & Attack-path Correlation Engine[/bold white]  [bold #10B981]v2.1.0[/bold #10B981]")
+    console.print(f"  [bold white]Threat Reconnaissance & Attack-path Correlation Engine[/bold white]  [bold #10B981]v{curr_ver}[/bold #10B981]")
     console.print(f"  [dim white]Autonomous Neuro-Symbolic Security Intelligence & Live Verification[/dim white]")
     console.print(f"  [bold #10B981]● 100% Offline[/bold #10B981]  [white]•[/white]  [bold #10B981]● Zero External Telemetry[/bold #10B981]  [white]•[/white]  [bold #10B981]● SecureBERT & Laya AI Active[/bold #10B981]")
     console.print(f"  [dim #10B981]{'─' * 76}[/dim #10B981]\n")

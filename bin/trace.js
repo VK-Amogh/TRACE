@@ -6,7 +6,7 @@
  */
 
 import { spawn, execSync } from 'child_process';
-import { existsSync, mkdirSync, cpSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, writeFileSync, readFileSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -14,6 +14,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..');
 const args = process.argv.slice(2);
+
+// Handle --version / -v directly in Node.js for instant response
+if (args[0] === '--version' || args[0] === '-v' || args[0] === '-V' || args[0] === 'version') {
+  try {
+    const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8'));
+    console.log(`TRACE v${pkg.version}`);
+  } catch {
+    console.log('TRACE');
+  }
+  process.exit(0);
+}
 
 // Handle install-skill directly in Node.js for instant zero-dependency agent skill setup
 if (args[0] === 'install-skill' || args[0] === 'setup-agent' || args[0] === 'install-agent') {

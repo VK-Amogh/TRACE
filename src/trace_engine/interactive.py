@@ -90,12 +90,14 @@ def render_big_logo() -> Text:
 
 def render_big_banner(animated: bool = False) -> None:
     """Renders the sleek minimalist TRACE banner in Mint Green and Crisp White."""
+    import trace_engine
     from trace_engine.intelligence.downloader import is_environment_ready
     models_ready = is_environment_ready()
 
+    curr_ver = getattr(trace_engine, "__version__", "2.1.15")
     console.print()
     console.print(render_big_logo())
-    console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine[/{BOLD_WHITE}]  [{GREEN}]v2.1.8[/{GREEN}]")
+    console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine[/{BOLD_WHITE}]  [{GREEN}]v{curr_ver}[/{GREEN}]")
     console.print(f"  [{DIM_WHITE}]Autonomous Neuro-Symbolic Security Intelligence & Live Verification[/{DIM_WHITE}]")
     ai_status = f"[{GREEN}]● SecureBERT & Laya AI Active[/{GREEN}]" if models_ready else f"[{ORANGE}]● Neural Weights: Optional (AST Semantic Engine Active)[/{ORANGE}]"
     console.print(f"  [{GREEN}]● 100% Offline[/{GREEN}]  [{WHITE}]•[/{WHITE}]  [{GREEN}]● Zero External Telemetry[/{GREEN}]  [{WHITE}]•[/{WHITE}]  {ai_status}")
@@ -184,8 +186,9 @@ def run_architecture_guide() -> None:
         console.print(f"  [{DIM_GREEN}]{'─' * 76}[/{DIM_GREEN}]")
 
         if q_choice == "1":
+            curr_ver = getattr(trace_engine, "__version__", "2.1.15")
             console.print(f"  [{GREEN}]Q1: What actually is TRACE?[/{GREEN}]\n")
-            console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine (TRACE v2.1.0)[/{BOLD_WHITE}]")
+            console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine (TRACE v{curr_ver})[/{BOLD_WHITE}]")
             console.print(
                 f"  [{WHITE}]TRACE is an autonomous, neuro-symbolic application security platform designed to operate\n"
                 f"  as a verifiable guardrail for AI coding agents (Claude Code, Antigravity, Cursor) and engineers.[/{WHITE}]\n"
@@ -293,7 +296,12 @@ def run_interactive_story() -> None:
     render_big_banner(animated=True)
 
     from trace_engine.intelligence.downloader import is_environment_ready, ensure_all_models
+    from trace_engine.updater import check_for_updates, render_update_banner, perform_update
+
     models_ready = is_environment_ready()
+    update_info = check_for_updates()
+    if update_info and update_info.get("update_available"):
+        render_update_banner(update_info)
 
     console.print(f"  [{WHITE}]Welcome, Security Operator. TRACE stands ready to audit, verify, and heal codebases.[/{WHITE}]")
     console.print(f"  [{DIM_WHITE}]Navigate using the options below (type 'exit' or 'q' at any prompt to quit).[/{DIM_WHITE}]\n")
@@ -310,11 +318,18 @@ def run_interactive_story() -> None:
     console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Environment Diagnostics (Doctor)[/{BOLD_WHITE}] [{DIM_WHITE}]─ Inspect local security tools and dependencies[/{DIM_WHITE}]")
     if not models_ready:
         console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Download Neural Weights[/{BOLD_WHITE}] [{DIM_WHITE}]─ Provision ~1 GB SecureBERT 2.0 & Laya AI into ~/.trace/models[/{DIM_WHITE}]")
-        console.print(f"    [{ORANGE}][8][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
+        console.print(f"    [{ORANGE}][8][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]")
         valid_choices = ["1", "2", "3", "4", "5", "6", "7", "8"]
     else:
-        console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
+        console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]")
         valid_choices = ["1", "2", "3", "4", "5", "6", "7"]
+
+    if update_info and update_info.get("update_available"):
+        latest_ver = update_info["latest_version"]
+        console.print(f"    [{ORANGE}][U][/{ORANGE}] [{BOLD_WHITE}]Update TRACE Now[/{BOLD_WHITE}] [{GREEN}]★ v{latest_ver} AVAILABLE[/{GREEN}] [{DIM_WHITE}]─ One-click instant upgrade[/{DIM_WHITE}]\n")
+        valid_choices.extend(["u", "U", "update"])
+    else:
+        console.print()
 
     choice = ask_input(
         f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Choose option[/{BOLD_WHITE}]",
@@ -322,6 +337,13 @@ def run_interactive_story() -> None:
         default="1",
         show_default=True,
     )
+
+    if choice.lower() in ("u", "update"):
+        target_ver = update_info.get("latest_version") if update_info else None
+        perform_update(target_version=target_ver)
+        ask_input(f"\n  [{DIM_WHITE}]Press Enter to return to main menu...[/{DIM_WHITE}]", default="")
+        run_interactive_story()
+        return
 
     if (not models_ready and choice == "8") or (models_ready and choice == "7"):
         console.print(f"\n  [{GREEN}]✓ TRACE session closed. Happy hacking![/{GREEN}]\n")
@@ -631,18 +653,34 @@ def run_interactive_story() -> None:
     console.print(f"    [{WHITE}]TRACE has generated precise root causes and concrete remediation plans for all {len(findings)} findings.[/{WHITE}]")
     console.print(f"    [{DIM_WHITE}]Executive report automatically saved to:[/{DIM_WHITE}] [{BOLD_WHITE}]{project_dir / 'findings.md'}[/{BOLD_WHITE}]\n")
 
+    end_update = check_for_updates()
+    if end_update and end_update.get("update_available"):
+        render_update_banner(end_update)
+
     console.print(f"  [{BOLD_WHITE}]Next Action / Integration Options:[/{BOLD_WHITE}]")
     console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Inspect Detailed Root Cause & Exploit Mechanics in Terminal[/{BOLD_WHITE}]")
     console.print(f"    [{ORANGE}][2][/{ORANGE}] [{BOLD_WHITE}]Launch TRACE MCP Server[/{BOLD_WHITE}] [{DIM_WHITE}](Connect Claude Code / Cursor as skill)[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Export OASIS SARIF v2.1.0[/{BOLD_WHITE}] [{DIM_WHITE}](GitHub Code Scanning / CI)[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]Finish Session[/{BOLD_WHITE}]\n")
+    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]Finish Session[/{BOLD_WHITE}]")
+
+    handoff_choices = ["1", "2", "3", "4"]
+    if end_update and end_update.get("update_available"):
+        latest_ver = end_update["latest_version"]
+        console.print(f"    [{ORANGE}][U][/{ORANGE}] [{BOLD_WHITE}]Update TRACE to v{latest_ver}[/{BOLD_WHITE}] [{GREEN}]★ UPDATE AVAILABLE[/{GREEN}] [{DIM_WHITE}]─ Instant upgrade to latest version[/{DIM_WHITE}]\n")
+        handoff_choices.extend(["u", "U", "update"])
+    else:
+        console.print()
 
     handoff_choice = ask_input(
         f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Select action[/{BOLD_WHITE}]",
-        choices=["1", "2", "3", "4"],
+        choices=handoff_choices,
         default="4",
         show_default=True,
     )
+
+    if handoff_choice.lower() in ("u", "update"):
+        target_ver = end_update.get("latest_version") if end_update else None
+        perform_update(target_version=target_ver)
 
     if handoff_choice == "1":
         while True:

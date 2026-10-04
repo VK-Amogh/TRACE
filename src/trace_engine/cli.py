@@ -68,11 +68,50 @@ console = Console()
 
 
 @app.callback()
-def main(ctx: typer.Context):
+def main(
+    ctx: typer.Context,
+    version: Optional[bool] = typer.Option(
+        None, "--version", "-v", "-V", help="Show TRACE version and exit."
+    ),
+):
     """If no command is provided, launch the interactive TRACE security terminal."""
+    if version:
+        import trace_engine
+        curr_ver = getattr(trace_engine, "__version__", "2.1.15")
+        console.print(f"[bold white]TRACE[/bold white] [bold #10B981]v{curr_ver}[/bold #10B981]")
+        raise typer.Exit()
+
+    try:
+        from trace_engine.updater import start_background_check
+        start_background_check()
+    except Exception:
+        pass
+
     if ctx.invoked_subcommand is None:
         from trace_engine.interactive import run_interactive_story
         run_interactive_story()
+
+
+@app.command(name="update")
+@app.command(name="upgrade")
+def update_cmd(
+    force: bool = typer.Option(False, "--force", "-f", help="Force check and reinstall even if up to date."),
+):
+    """Check for updates and automatically upgrade TRACE to the newest release."""
+    from trace_engine.updater import check_for_updates, perform_update, get_current_version
+    curr_ver = get_current_version()
+    console.print(f"\n[bold #10B981]Checking for TRACE updates...[/bold #10B981] [dim](current: v{curr_ver})[/dim]")
+    info = check_for_updates(force=True)
+    if info and info.get("update_available"):
+        latest = info["latest_version"]
+        console.print(f"[bold green]New update found:[/bold green] [bold white]v{latest}[/bold white]")
+        perform_update(target_version=latest)
+    else:
+        if force:
+            console.print("[dim white]Forcing reinstallation of latest package...[/dim white]")
+            perform_update()
+        else:
+            console.print(f"[bold #10B981]✓ TRACE is already up to date[/bold #10B981] [dim](v{curr_ver})[/dim]\n")
 
 
 @app.command(name="interactive")
@@ -470,6 +509,14 @@ def scan(
     else:
         print_findings_table(findings)
 
+    try:
+        from trace_engine.updater import check_for_updates, render_update_banner
+        update_info = check_for_updates()
+        if update_info and update_info.get("update_available"):
+            render_update_banner(update_info)
+    except Exception:
+        pass
+
 
 @app.command(name="test-all")
 @app.command(name="audit")
@@ -665,6 +712,18 @@ def test_all(
             confirmed_count=confirmed_count,
             model_metrics=model_metrics,
         )
+
+    try:
+        from trace_engine.updater import check_for_updates, render_update_banner, perform_update
+        update_info = check_for_updates()
+        if update_info and update_info.get("update_available"):
+            render_update_banner(update_info)
+            latest_ver = update_info.get("latest_version")
+            from rich.prompt import Confirm
+            if Confirm.ask(f"  [bold #10B981]?[/bold #10B981] [bold white]Would you like to update TRACE to v{latest_ver} now?[/bold white]", default=True):
+                perform_update(target_version=latest_ver)
+    except Exception:
+        pass
 
 
 
