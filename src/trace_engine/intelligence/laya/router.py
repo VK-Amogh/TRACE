@@ -31,7 +31,35 @@ class LayaDecisionEngine:
         self.thresholds = thresholds or LayaThresholds()
         self.telemetry = LayaTelemetry()
         self._agent = None
-        self._load_agent()
+        self._finetuned_model = None
+        self._finetuned_tokenizer = None
+        self._finetuned_device = "cpu"
+        self._load_finetuned_model()
+        if not self._finetuned_model:
+            self._load_agent()
+
+    def _load_finetuned_model(self) -> None:
+        """Attempt to load fine-tuned Laya dual-head model from .trace/models/laya-finetuned."""
+        from pathlib import Path
+        model_dir = Path(".trace/models/laya-finetuned")
+        weights_path = model_dir / "laya_dual_head.pt"
+        if weights_path.exists():
+            try:
+                import torch
+                from transformers import AutoTokenizer
+                from trace_engine.intelligence.training.laya_trainer import LayaDualHeadModel
+
+                self._finetuned_device = "cuda:0" if torch.cuda.is_available() else "cpu"
+                self._finetuned_tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
+                self._finetuned_model = LayaDualHeadModel().to(self._finetuned_device)
+                self._finetuned_model.load_state_dict(
+                    torch.load(weights_path, map_location=self._finetuned_device, weights_only=True)
+                )
+                self._finetuned_model.eval()
+                logger.info("Fine-tuned Laya System 1 dual-head model loaded successfully")
+            except Exception as e:
+                logger.debug(f"Failed to load fine-tuned Laya model: {e}")
+                self._finetuned_model = None
 
     def _load_agent(self) -> None:
         """Attempt to load Laya in-process model."""
@@ -44,12 +72,30 @@ class LayaDecisionEngine:
             self._agent = None
 
     def is_available(self) -> bool:
-        return self._agent is not None
+        return self._finetuned_model is not None or self._agent is not None
 
     def decide_priority(self, endpoint: Endpoint, apm: AttackPathModel) -> EndpointPriorityDecision:
-        """Assigns test priority to an endpoint using Laya or calibrated APM signals."""
+        """Assigns test priority to an endpoint using fine-tuned Laya, base Laya, or calibrated APM signals."""
         start_time = time.perf_counter()
         state = format_endpoint_state(endpoint, apm)
+
+        if self._finetuned_model and self._finetuned_tokenizer:
+            try:
+                import torch
+                from trace_engine.intelligence.training.laya_trainer import PRIORITY_LABELS
+                enc = self._finetuned_tokenizer(state, max_length=128, padding="max_length", truncation=True, return_tensors="pt")
+                input_ids = enc["input_ids"].to(self._finetuned_device)
+                attention_mask = enc["attention_mask"].to(self._finetuned_device)
+                with torch.no_grad():
+                    prio_logits, _ = self._finetuned_model(input_ids, attention_mask)
+                    prio_idx = torch.argmax(prio_logits, dim=-1).item()
+                    prio_level = PRIORITY_LABELS[prio_idx]
+                latency = (time.perf_counter() - start_time) * 1000
+                decision = EndpointPriorityDecision(priority_level=prio_level, should_test=(prio_level != "low"))
+                self.telemetry.record("priority", endpoint.display_name(), decision.model_dump(), latency)
+                return decision
+            except Exception as e:
+                logger.debug(f"Finetuned Laya priority inference failed: {e}")
 
         if self._agent:
             try:
@@ -82,6 +128,26 @@ class LayaDecisionEngine:
         """Selects the highest-information security test pack for this attack path."""
         start_time = time.perf_counter()
         state = format_endpoint_state(endpoint, apm)
+
+        if self._finetuned_model and self._finetuned_tokenizer:
+            try:
+                import torch
+                from trace_engine.intelligence.training.laya_trainer import TESTPACK_LABELS
+                enc = self._finetuned_tokenizer(state, max_length=128, padding="max_length", truncation=True, return_tensors="pt")
+                input_ids = enc["input_ids"].to(self._finetuned_device)
+                attention_mask = enc["attention_mask"].to(self._finetuned_device)
+                with torch.no_grad():
+                    _, pack_logits = self._finetuned_model(input_ids, attention_mask)
+                    probs = torch.softmax(pack_logits, dim=-1)
+                    pack_idx = torch.argmax(pack_logits, dim=-1).item()
+                    conf = probs[0, pack_idx].item()
+                    pack_name = TESTPACK_LABELS[pack_idx]
+                latency = (time.perf_counter() - start_time) * 1000
+                decision = TestSelectionDecision(primary_testpack=pack_name, confidence=float(conf))
+                self.telemetry.record("test_selection", endpoint.display_name(), decision.model_dump(), latency)
+                return decision
+            except Exception as e:
+                logger.debug(f"Finetuned Laya testpack inference failed: {e}")
 
         if self._agent:
             try:

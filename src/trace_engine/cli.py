@@ -1089,6 +1089,7 @@ def eval_patch(
 
 @app.command()
 def train(
+    engine: str = typer.Option("securebert", "--engine", help="Target model to train: 'securebert', 'laya', or 'both'"),
     epochs: int = typer.Option(5, "--epochs", "-e", help="Number of training epochs"),
     batch_size: int = typer.Option(32, "--batch-size", "-b", help="Training batch size"),
     lr: float = typer.Option(3e-5, "--lr", help="Learning rate"),
@@ -1097,20 +1098,45 @@ def train(
     model_name: str = typer.Option("ehsanaghaei/SecureBERT", "--model", "-m", help="Base transformer checkpoint"),
     output_dir: str = typer.Option(".trace/models/securebert-finetuned", "--output", "-o", help="Checkpoint output directory"),
 ):
-    """Fine-tune SecureBERT 2.0 vulnerability classifier using local GPU (CUDA acceleration) with Early Stopping."""
-    from trace_engine.intelligence.training.trainer import SecureBERTTrainer, TrainingConfig
+    """Fine-tune SecureBERT 2.0 and/or Laya System 1 models with CUDA GPU acceleration and early stopping."""
+    engine_choice = engine.lower().strip()
 
-    config = TrainingConfig(
-        model_name=model_name,
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=lr,
-        early_stopping=early_stopping,
-        patience=patience,
-        output_dir=output_dir,
-    )
-    trainer = SecureBERTTrainer(config)
-    trainer.train()
+    if engine_choice in ("securebert", "both"):
+        from trace_engine.intelligence.training.trainer import SecureBERTTrainer, TrainingConfig
+
+        config = TrainingConfig(
+            model_name=model_name,
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=lr,
+            early_stopping=early_stopping,
+            patience=patience,
+            output_dir=output_dir,
+        )
+        trainer = SecureBERTTrainer(config)
+        trainer.train()
+
+    if engine_choice in ("laya", "both"):
+        from trace_engine.intelligence.training.laya_trainer import LayaTrainer
+
+        laya_out = ".trace/models/laya-finetuned" if output_dir == ".trace/models/securebert-finetuned" else output_dir
+        laya_trainer = LayaTrainer(
+            epochs=epochs,
+            batch_size=batch_size if batch_size <= 16 else 16,
+            learning_rate=lr if lr > 1e-5 else 5e-5,
+            early_stopping=early_stopping,
+            patience=patience,
+            output_dir=laya_out,
+        )
+        laya_trainer.train()
+
+
+@app.command(name="bench-intelligence")
+@app.command(name="benchmark-models")
+def bench_intelligence():
+    """Run empirical head-to-head benchmark comparing Laya System 1 vs SecureBERT 2.0 vs Dual-Engine Ensemble."""
+    from trace_engine.intelligence.evaluation import run_intelligence_benchmark
+    run_intelligence_benchmark()
 
 
 if __name__ == "__main__":

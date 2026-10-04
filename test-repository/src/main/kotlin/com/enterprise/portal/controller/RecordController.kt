@@ -32,6 +32,10 @@ class RecordController(private val auditService: AuditService) {
     @PostMapping("/export/dispatch")
     fun dispatchAuditExport(@RequestBody payload: Map<String, String>): ResponseEntity<Any> {
         val callbackUrl = payload["callbackUrl"] ?: return ResponseEntity.badRequest().body(mapOf("error" to "Missing callbackUrl"))
+        // [TRACE HARNESS FIX: Egress filtering against SSRF]
+        if (callbackUrl.contains("localhost") || callbackUrl.contains("127.0.0.1") || callbackUrl.contains("internal") || callbackUrl.contains("169.254")) {
+            return ResponseEntity.status(403).body(mapOf("error" to "SSRF blocked: outbound internal destination rejected"))
+        }
         val result = auditService.dispatchOutboundAudit(callbackUrl)
         return ResponseEntity.ok(result)
     }
