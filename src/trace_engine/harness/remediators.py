@@ -148,17 +148,27 @@ class AutonomousRemediator:
 
         # 9. Python BOLA / IDOR Remediation
         if category == "BOLA":
-            if "query(Order)" in code or "db.query(" in code or "find_one(" in code:
-                lines = code.splitlines()
-                for line in lines:
-                    if ".filter(" in line and "tenant_id" not in line:
-                        target = line
-                        replacement = line.replace(".filter(", ".filter(tenant_id=current_user.tenant_id, ")
-                        return target, replacement
-                    if "find_one({" in line and "tenant_id" not in line:
-                        target = line
-                        replacement = line.replace("find_one({", "find_one({'tenant_id': current_user.tenant_id, ")
-                        return target, replacement
+            lines = code.splitlines()
+            for line in lines:
+                if ".filter_by(" in line and "tenant_id" not in line:
+                    target = line
+                    # Injects tenant_id=current_user.tenant_id into filter_by:
+                    # - Order.query.filter_by(id=order_id).first()
+                    # + Order.query.filter_by(id=order_id, tenant_id=current_user.tenant_id).first()
+                    replacement = re.sub(
+                        r"""\.filter_by\s*\((.*?)\)""",
+                        r""".filter_by(\1, tenant_id=current_user.tenant_id)""",
+                        line,
+                    )
+                    return target, replacement
+                if ".filter(" in line and "tenant_id" not in line:
+                    target = line
+                    replacement = line.replace(".filter(", ".filter(tenant_id=current_user.tenant_id, ")
+                    return target, replacement
+                if "find_one({" in line and "tenant_id" not in line:
+                    target = line
+                    replacement = line.replace("find_one({", "find_one({'tenant_id': current_user.tenant_id, ")
+                    return target, replacement
 
         # 10. Python BFLA Administrative RBAC Remediation
         if category == "BFLA":

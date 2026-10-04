@@ -59,7 +59,11 @@ class CodeParser:
         try:
             tree = ast.parse(content, filename=file_path)
         except Exception:
-            return parsed
+            try:
+                import textwrap
+                tree = ast.parse(textwrap.dedent(content), filename=file_path)
+            except Exception:
+                return parsed
 
         lines = content.splitlines()
 

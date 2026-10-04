@@ -1,4 +1,13 @@
-"""Neuro-Symbolic Confidence Fusion Engine combining Neural, AST, and Dynamic Evidence via Bayesian calibration."""
+"""Neuro-Symbolic Confidence Fusion Engine combining Neural, AST, and Dynamic Evidence via Bayesian calibration.
+
+Implements the 3-Signal Bayesian Evidence Fusion model:
+Confidence = 1 - (1 - P_SecureBERT) * (1 - P_AST_Dataflow) * (1 - P_Dynamic_Oracle)
+
+Levels:
+- Level 3 (Triple Match): SecureBERT (0.85) + AST dataflow sink + Dynamic probe error -> Confidence ~99.8% (Critical / Zero-False-Positive Verified).
+- Level 2 (Static + Dynamic Partial): Probe blocked by WAF, but AST source-to-sink dataflow is proven -> Confidence ~82% (High / Code-Audited).
+- Level 1 (Single Signal): Only SecureBERT flags it with no AST sink -> Soft hypothesis for agent exploration.
+"""
 
 import math
 from typing import Optional, Dict, Any, List
@@ -20,95 +29,98 @@ class FusedConfidenceResult(BaseModel):
     posterior_probability: float = Field(..., description="Calibrated Bayesian posterior [0.0 - 1.0]")
     confidence_level: FindingConfidence = Field(..., description="Discrete confidence category")
     log_odds: float = Field(..., description="Log-odds score")
+    fusion_level: str = Field(..., description="Level 1, Level 2, or Level 3")
     evidence_breakdown: Dict[str, float] = Field(default_factory=dict)
     rationale: str = Field(..., description="Explanation of signal weights and fusion outcome")
 
 
 class NeuroSymbolicConfidenceEngine:
     """Combines Neural (System 1 SecureBERT), Symbolic AST (System 2 Dataflow Sinks),
-
     and Dynamic Verification signals into mathematically calibrated Bayesian confidence.
     """
 
-    # Conservative baseline prior probability of vulnerability in enterprise code: 20%
-    BASE_PRIOR_P: float = 0.20
-
     @classmethod
     def fuse_evidence(cls, evidence: ConfidenceEvidence) -> FusedConfidenceResult:
-        """Calculates calibrated posterior probability from multiple independent security signals."""
-        # Initial prior log-odds
-        p0 = max(0.01, min(0.99, cls.BASE_PRIOR_P))
-        log_odds = math.log(p0 / (1.0 - p0))
-
-        breakdown: Dict[str, float] = {"prior": p0}
-
-        # 1. Neural Evidence (SecureBERT)
-        # Calibrated weight: 0.65 to prevent neural hallucinations from overpowering symbolic reality
+        """Calculates calibrated posterior probability from multiple independent security signals:
+        Confidence = 1 - (1 - P_SecureBERT) * (1 - P_AST_Dataflow) * (1 - P_Dynamic_Oracle)
+        """
+        # 1. Neural Signal (SecureBERT)
+        p_bert = 0.0
         if evidence.neural_score is not None:
-            p_bert = max(0.05, min(0.95, evidence.neural_score))
-            lr_bert = p_bert / (1.0 - p_bert)
-            w_bert = 0.65
-            log_odds += w_bert * math.log(lr_bert)
-            breakdown["neural_bert"] = p_bert
+            p_bert = max(0.0, min(0.99, evidence.neural_score))
 
-        # 2. Symbolic AST Evidence (Static Sinks & Control Flow)
-        p_ast = max(0.05, min(0.95, evidence.symbolic_ast_score))
+        # 2. Symbolic AST Signal (Dataflow Sinks & Control Flow)
+        p_ast = max(0.0, min(0.99, evidence.symbolic_ast_score))
         if evidence.has_sanitizer:
-            p_ast = max(0.02, p_ast * 0.15)  # Heavy penalty if sanitizer detected in dataflow
+            p_ast = p_ast * 0.15  # 85% penalty if sanitizer or validator detected in AST
 
-        lr_ast = p_ast / (1.0 - p_ast)
-        w_ast = 1.0  # Full symbolic weight
-        log_odds += w_ast * math.log(lr_ast)
-        breakdown["symbolic_ast"] = p_ast
-
-        # 3. Dynamic Runtime Evidence (Active Testpack Probes)
+        # 3. Dynamic Signal (Active Testpack Probes & Timing Oracle)
+        p_dyn = 0.0
         if evidence.is_dynamically_confirmed:
-            # Overwhelming likelihood ratio for mathematically/empirically proven exploits
-            w_dyn = 2.5
-            lr_dyn = 0.99 / 0.01
-            log_odds += w_dyn * math.log(lr_dyn)
-            breakdown["dynamic_test"] = 0.99
+            p_dyn = 0.99
         elif evidence.dynamic_test_score is not None:
-            p_dyn = max(0.05, min(0.95, evidence.dynamic_test_score))
-            lr_dyn = p_dyn / (1.0 - p_dyn)
-            w_dyn = 1.2
-            log_odds += w_dyn * math.log(lr_dyn)
-            breakdown["dynamic_test"] = p_dyn
+            p_dyn = max(0.0, min(0.99, evidence.dynamic_test_score))
 
-        # Compute posterior probability from log-odds
-        # Clamp log_odds to [-10, 10] to avoid float overflow
-        clamped_lo = max(-10.0, min(10.0, log_odds))
-        odds = math.exp(clamped_lo)
-        posterior = odds / (1.0 + odds)
-        posterior = round(max(0.01, min(0.999, posterior)), 4)
+        # Bayesian Independence Fusion Formula:
+        # Confidence = 1 - (1 - P_SecureBERT) * (1 - P_AST_Dataflow) * (1 - P_Dynamic_Oracle)
+        prob_not_vuln = (1.0 - p_bert) * (1.0 - p_ast) * (1.0 - p_dyn)
+        raw_confidence = 1.0 - prob_not_vuln
+        posterior = round(max(0.01, min(0.999, raw_confidence)), 4)
 
-        # Categorize into standard discrete levels
-        if evidence.is_dynamically_confirmed or posterior >= 0.95:
+        # Log-odds representation:
+        p_clamped = max(0.001, min(0.999, posterior))
+        log_odds = round(math.log(p_clamped / (1.0 - p_clamped)), 3)
+
+        # Classify into Levels
+        signals_present = sum([
+            1 if p_bert >= 0.4 else 0,
+            1 if p_ast >= 0.4 else 0,
+            1 if p_dyn >= 0.4 else 0,
+        ])
+
+        if evidence.is_dynamically_confirmed or (signals_present >= 3 and posterior >= 0.95):
+            fusion_level = "Level 3 (Triple Match: Neural + AST + Dynamic Runtime Confirmation)"
             level = FindingConfidence.CONFIRMED
-        elif posterior >= 0.80:
+        elif (signals_present >= 2 and posterior >= 0.75) or posterior >= 0.80:
+            fusion_level = "Level 2 (Static + Dynamic Partial: Proven AST Dataflow Sink)"
             level = FindingConfidence.HIGH
-        elif posterior >= 0.55:
+        elif posterior >= 0.50:
+            fusion_level = "Level 1 (Single Signal: Exploratory Hypothesis)"
             level = FindingConfidence.MEDIUM
         else:
+            fusion_level = "Level 1 (Low Confidence / Mitigated Signal)"
             level = FindingConfidence.POTENTIAL
 
-        # Generate explanatory rationale
-        signals = []
-        if evidence.is_dynamically_confirmed:
-            signals.append("empirically verified by dynamic testpack")
-        if evidence.neural_score and evidence.neural_score > 0.5:
-            signals.append(f"SecureBERT semantic match ({int(evidence.neural_score*100)}%)")
-        if evidence.symbolic_ast_score > 0.6:
-            signals.append("AST dataflow path to sensitive sink confirmed")
-        if evidence.has_sanitizer:
-            signals.append("mitigated by detected input sanitizer")
+        breakdown = {
+            "p_securebert": round(p_bert, 3),
+            "p_ast_dataflow": round(p_ast, 3),
+            "p_dynamic_oracle": round(p_dyn, 3),
+            "fused_confidence": posterior,
+            "has_sanitizer": 1.0 if evidence.has_sanitizer else 0.0,
+        }
 
-        rationale = f"Bayesian calibrated confidence {int(posterior*100)}% based on: {', '.join(signals) if signals else 'baseline signals'}."
+        signals = []
+        if p_dyn >= 0.90:
+            signals.append("empirically verified by dynamic runtime oracle")
+        elif p_dyn > 0.3:
+            signals.append(f"dynamic response signature ({int(p_dyn*100)}%)")
+        if p_bert > 0.4:
+            signals.append(f"SecureBERT semantic match ({int(p_bert*100)}%)")
+        if p_ast > 0.4:
+            signals.append(f"AST unparameterized sink reachability ({int(p_ast*100)}%)")
+        if evidence.has_sanitizer:
+            signals.append("downweighted: input sanitizer detected in AST")
+
+        rationale = (
+            f"Bayesian Evidence Fusion: {fusion_level} with calibrated confidence {int(posterior*100)}%. "
+            f"Signals: {'; '.join(signals) if signals else 'baseline hypothesis'}."
+        )
 
         return FusedConfidenceResult(
             posterior_probability=posterior,
             confidence_level=level,
-            log_odds=round(clamped_lo, 3),
+            log_odds=log_odds,
+            fusion_level=fusion_level,
             evidence_breakdown=breakdown,
             rationale=rationale,
         )

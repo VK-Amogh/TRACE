@@ -84,24 +84,24 @@ class StatisticalTimingOracle:
         p_val = cls._approximate_p_value(t_stat, df)
 
         # Requirements for confirmation:
-        # 1. Statistically significant difference (p < alpha_threshold)
-        # 2. Positive direction (t > 0)
-        # 3. Magnitude matches at least 70% of nominal programmed sleep time
+        # 1. Statistically significant difference (p < alpha_threshold, default 0.01)
+        # 2. Positive direction (t > 2.5)
+        # 3. Magnitude matches at least 85% of nominal programmed sleep time (Delta t >= 0.85 * delay)
         shift_ratio = delta / max(expected_delay_sec, 0.1)
-        confirmed = (t_stat > 2.5) and (p_val < alpha_threshold) and (shift_ratio >= 0.70)
+        confirmed = (t_stat > 2.5) and (p_val < alpha_threshold) and (shift_ratio >= 0.85)
 
         confidence = 0.99 if confirmed else (0.40 if t_stat > 2.0 and delta > 0 else 0.10)
 
         if confirmed:
             summary = (
                 f"Statistical Timing Oracle CONFIRMED blind injection: Mean latency shifted by +{delta:.2f}s "
-                f"(nominal {expected_delay_sec:.1f}s) with Welch's t={t_stat:.2f} (df={df:.1f}, p={p_val:.2e} < {alpha_threshold}). "
+                f"(nominal {expected_delay_sec:.1f}s, ratio={shift_ratio:.1%}) with Welch's t={t_stat:.2f} (df={df:.1f}, p={p_val:.2e} < {alpha_threshold}). "
                 f"Null hypothesis (network jitter) rejected with >99% confidence."
             )
         else:
             summary = (
                 f"Statistical Timing Oracle INCONCLUSIVE: Observed latency shift +{delta:.2f}s "
-                f"(t={t_stat:.2f}, p={p_val:.4f}). Did not satisfy 70% expected delay shift ({expected_delay_sec:.1f}s) "
+                f"(t={t_stat:.2f}, p={p_val:.4f}). Did not satisfy 85% expected delay shift ({expected_delay_sec:.1f}s) "
                 f"or significance threshold ({alpha_threshold})."
             )
 

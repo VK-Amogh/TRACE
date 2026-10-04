@@ -11,6 +11,7 @@ from trace_engine.framework.dart import DartFrameworkAdapter
 from trace_engine.framework.springboot import SpringBootFrameworkAdapter
 from trace_engine.framework.go import GoFrameworkAdapter
 from trace_engine.framework.django import DjangoFrameworkAdapter
+from trace_engine.framework.php import PHPFrameworkAdapter
 
 _ADAPTERS: List[FrameworkAdapter] = [
     FastAPIFrameworkAdapter(),
@@ -22,6 +23,7 @@ _ADAPTERS: List[FrameworkAdapter] = [
     DartFrameworkAdapter(),
     SpringBootFrameworkAdapter(),
     GoFrameworkAdapter(),
+    PHPFrameworkAdapter(),
 ]
 
 
@@ -42,5 +44,6 @@ __all__ = [
     "DartFrameworkAdapter",
     "SpringBootFrameworkAdapter",
     "GoFrameworkAdapter",
+    "PHPFrameworkAdapter",
     "get_adapters",
 ]

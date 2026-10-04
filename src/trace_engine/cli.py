@@ -294,6 +294,8 @@ def test(
 def scan(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
     target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
+    format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
     project_dir = path.resolve()
@@ -376,7 +378,29 @@ def scan(
         pass
 
     console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings\n")
-    print_findings_table(findings)
+    
+    if format.lower() == "sarif" or (output and str(output).endswith(".sarif")):
+        sarif_payload = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
+        out_path = output or (trace_dir / "reports/trace_results.sarif")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        import json
+        out_path.write_text(json.dumps(sarif_payload, indent=2), encoding="utf-8")
+        console.print(f"[bold green]OASIS SARIF v2.1.0 report exported:[/bold green] [white]{out_path}[/white]\n")
+    elif format.lower() == "json" or (output and str(output).endswith(".json")):
+        import json
+        payload = [f.model_dump() for f in findings]
+        out_path = output or (trace_dir / "reports/trace_results.json")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        console.print(f"[bold green]JSON findings exported:[/bold green] [white]{out_path}[/white]\n")
+    elif format.lower() == "markdown" or (output and str(output).endswith(".md")):
+        md = generate_markdown_report(findings, project_name=project_dir.name)
+        out_path = output or (trace_dir / "reports/trace_report.md")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(md, encoding="utf-8")
+        console.print(f"[bold green]Markdown report exported:[/bold green] [white]{out_path}[/white]\n")
+    else:
+        print_findings_table(findings)
 
 
 @app.command(name="test-all")
@@ -828,21 +852,24 @@ def intelligence():
     console.print("  • Model Hierarchy: Deterministic -> SecureBERT -> Laya System 1 -> Local LLM\n")
 
 
+@app.command(name="remediate")
 @app.command(name="heal")
-def heal(
+def remediate(
     repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
+    apply: bool = typer.Option(True, "--apply", "-a", help="Automatically apply and verify AST patches with rollback protection"),
     target: Optional[str] = typer.Option(None, "--target", "-t", help="Target base URL (e.g. http://127.0.0.1:18082)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
-    """Execute autonomous Agent Harness self-healing loop: patch vulnerabilities and verify fixes."""
+    """Execute autonomous Agent Harness self-healing and remediation loop: patch vulnerabilities and verify fixes."""
     from trace_engine.harness.engine import AgentHarness
 
     target_path = repo or path
     _, resolved_dir = resolve_finding_store(target_path.resolve())
     resolved_target = target or "http://127.0.0.1:18082"
 
-    console.print(f"\n[bold green]Starting TRACE Agent Harness (Self-Healing Loop)[/bold green] on [white]{resolved_dir.name}[/white]")
+    console.print(f"\n[bold green]Starting TRACE Autonomous Remediation Loop[/bold green] on [white]{resolved_dir.name}[/white]")
     console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white]")
+    console.print(f"  [dim]Auto-Apply & Verify Mode:[/dim] [white]{apply}[/white]")
     
     with console.status("  [bold green]Harness Active:[/bold green] Synthesizing patches & running verification loop..."):
         harness = AgentHarness(resolved_dir, target_url=resolved_target)

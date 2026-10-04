@@ -145,7 +145,7 @@ class AgentHarness:
                 unresolved.append(finding.id)
                 continue
 
-            # Verify differential impact
+            # Verify differential impact with verification oracle
             v_res = self.verify_patch(finding.id)
             if v_res.status == VerificationStatus.FIXED:
                 verified_patches.append({
@@ -156,14 +156,10 @@ class AgentHarness:
                     "verification": v_res.model_dump(),
                 })
             else:
-                # If inconclusive or still present, retain patch if syntax valid or mark unresolved
-                verified_patches.append({
-                    "finding_id": finding.id,
-                    "title": finding.title,
-                    "file": finding.source_location.file,
-                    "diff": patch_res.diff,
-                    "verification": v_res.model_dump(),
-                })
+                # Verification failed or broke runtime tests: cleanly roll back patch
+                if patch_res.backup_file:
+                    self.patcher.rollback(finding.source_location.file, Path(patch_res.backup_file))
+                unresolved.append(finding.id)
 
         remaining_count = len(unresolved)
         fixed_count = len(verified_patches)

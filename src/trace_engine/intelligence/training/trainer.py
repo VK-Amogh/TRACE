@@ -110,6 +110,7 @@ class SecureBERTTrainer:
 
         total_start = time.perf_counter()
         history: List[Dict[str, float]] = []
+        best_val_loss = float("inf")
         best_f1 = 0.0
         patience_counter = 0
         standard_th = self.config.eval_threshold
@@ -253,9 +254,12 @@ class SecureBERTTrainer:
                 "threshold": standard_th,
             })
 
-            # Checkpoint save on improved micro F1
-            if micro_f1 > (best_f1 + self.config.min_delta):
-                best_f1 = micro_f1
+            # Checkpoint save on improved val_loss or peak micro F1
+            val_improved = avg_val_loss < (best_val_loss - self.config.min_delta)
+            if val_improved or (micro_f1 > (best_f1 + self.config.min_delta)):
+                if val_improved:
+                    best_val_loss = avg_val_loss
+                best_f1 = max(best_f1, micro_f1)
                 patience_counter = 0
                 model.save_pretrained(out_path)
                 tokenizer.save_pretrained(out_path)
@@ -263,8 +267,9 @@ class SecureBERTTrainer:
                 patience_counter += 1
                 if self.config.early_stopping and patience_counter >= self.config.patience:
                     console.print(
-                        f"\n[bold yellow][EARLY STOPPING TRIGGERED][/bold yellow] Validation micro F1 did not improve for {patience_counter} consecutive epochs "
-                        f"(Patience threshold: {self.config.patience}). Halting training to prevent overfitting and preserving best checkpoint (F1: {best_f1})."
+                        f"\n[bold yellow][EARLY STOPPING TRIGGERED][/bold yellow] Validation loss did not improve for {patience_counter} consecutive epochs "
+                        f"(Patience threshold: {self.config.patience}, Best Val Loss: {best_val_loss:.4f}, Optimal Checkpoint F1: {best_f1}). "
+                        f"Gracefully halting training and generating final scorecard."
                     )
                     break
 

@@ -124,16 +124,16 @@ class InjectionTestPack(TestPack):
         if not confirmed:
             from trace_engine.security.timing import StatisticalTimingOracle
 
-            # Measure baseline latencies (2 baseline samples)
+            # Measure baseline latencies (N=3 baseline samples)
             base_latencies: List[float] = []
-            for _ in range(2):
+            for _ in range(3):
                 sep = "&" if "?" in clean_path else "?"
                 b_url = f"{base_url}{clean_path}{sep}q=trace_baseline_test"
                 b_obs = client.execute(method=method, url=b_url, headers=headers)
                 observations.append(b_obs)
                 base_latencies.append(b_obs.latency_ms / 1000.0)
 
-            # Test blind sleep payloads with Welch's t-test
+            # Test blind sleep payloads with Welch's t-test (N=3 delay samples)
             timing_probes = [
                 "'; SELECT pg_sleep(1.5)--",
                 "' OR SLEEP(1.5)--",
@@ -147,7 +147,7 @@ class InjectionTestPack(TestPack):
                 t_url = f"{base_url}{clean_path}{sep}q={encoded_t}"
 
                 delay_latencies: List[float] = []
-                for _ in range(2):
+                for _ in range(3):
                     t_obs = client.execute(method=method, url=t_url, headers=headers)
                     observations.append(t_obs)
                     delay_latencies.append(t_obs.latency_ms / 1000.0)

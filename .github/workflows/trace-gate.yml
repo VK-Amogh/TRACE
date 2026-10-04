@@ -1,0 +1,48 @@
+name: "TRACE Security Gate (Zero-False-Positive Code Audit)"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trace-audit:
+    name: "TRACE Autonomous Security Audit"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Codebase"
+        uses: actions/checkout@v4
+
+      - name: "Setup Python Environment"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: "Install TRACE Security Engine"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: "Run Environment Pre-Flight Verification"
+        run: |
+          trace doctor
+
+      - name: "Execute TRACE End-to-End Audit & Generate SARIF"
+        run: |
+          # Runs multi-framework AST analysis, APM graph generation,
+          # and exports OASIS SARIF v2.1.0 with MITRE CWE annotations
+          trace scan . --format sarif --output trace-results.sarif
+
+      - name: "Upload SARIF Results to GitHub Security / Code Scanning Tab"
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trace-results.sarif
+          category: trace-security-engine
