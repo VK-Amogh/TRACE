@@ -69,14 +69,10 @@ console = Console()
 
 @app.callback()
 def main(ctx: typer.Context):
-    """If no command is provided, launch interactive story mode (or show banner if non-interactive)."""
+    """If no command is provided, launch the interactive TRACE security terminal."""
     if ctx.invoked_subcommand is None:
-        if sys.stdin.isatty():
-            from trace_engine.interactive import run_interactive_story
-            run_interactive_story()
-        else:
-            print_banner()
-            print_security_notes()
+        from trace_engine.interactive import run_interactive_story
+        run_interactive_story()
 
 
 @app.command(name="interactive")

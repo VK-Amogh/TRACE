@@ -87,11 +87,15 @@ def render_big_logo() -> Text:
 
 def render_big_banner(animated: bool = False) -> None:
     """Renders the sleek minimalist TRACE banner in Mint Green and Crisp White."""
+    from trace_engine.intelligence.downloader import is_environment_ready
+    models_ready = is_environment_ready()
+
     console.print()
     console.print(render_big_logo())
-    console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine[/{BOLD_WHITE}]  [{GREEN}]v2.1.0[/{GREEN}]")
+    console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine[/{BOLD_WHITE}]  [{GREEN}]v2.1.8[/{GREEN}]")
     console.print(f"  [{DIM_WHITE}]Autonomous Neuro-Symbolic Security Intelligence & Live Verification[/{DIM_WHITE}]")
-    console.print(f"  [{GREEN}]● 100% Offline[/{GREEN}]  [{WHITE}]•[/{WHITE}]  [{GREEN}]● Zero External Telemetry[/{GREEN}]  [{WHITE}]•[/{WHITE}]  [{GREEN}]● SecureBERT & Laya AI Active[/{GREEN}]")
+    ai_status = f"[{GREEN}]● SecureBERT & Laya AI Active[/{GREEN}]" if models_ready else f"[{ORANGE}]● Neural Weights: Optional (AST Semantic Engine Active)[/{ORANGE}]"
+    console.print(f"  [{GREEN}]● 100% Offline[/{GREEN}]  [{WHITE}]•[/{WHITE}]  [{GREEN}]● Zero External Telemetry[/{GREEN}]  [{WHITE}]•[/{WHITE}]  {ai_status}")
     console.print(f"  [{DIM_GREEN}]{'─' * 76}[/{DIM_GREEN}]\n")
     if animated:
         time.sleep(0.08)
@@ -123,12 +127,19 @@ def ask_input(
           "QUIT",
           "Q",
       ]
-    val = Prompt.ask(
-        prompt_str,
-        choices=allowed_choices,
-        default=default,
-        show_default=show_default,
-    )
+    try:
+        val = Prompt.ask(
+            prompt_str,
+            choices=allowed_choices,
+            default=default,
+            show_default=show_default,
+        )
+    except (EOFError, KeyboardInterrupt):
+        if default is not None:
+            return default
+        console.print(f"\n  [{GREEN}]✓ TRACE session closed. Happy hacking![/{GREEN}]\n")
+        sys.exit(0)
+
     if str(val).strip().lower() in ("exit", "quit", "q", ":q"):
       console.print(
           f"\n  [{GREEN}]✓ TRACE session closed. Happy hacking![/{GREEN}]\n"
@@ -278,9 +289,8 @@ def run_interactive_story() -> None:
     """Executes the complete interactive, step-by-step security audit story."""
     render_big_banner(animated=True)
 
-    from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
-    if not prompt_and_bootstrap_models(interactive=True):
-        return
+    from trace_engine.intelligence.downloader import is_environment_ready, ensure_all_models
+    models_ready = is_environment_ready()
 
     console.print(f"  [{WHITE}]Welcome, Security Operator. TRACE stands ready to audit, verify, and heal codebases.[/{WHITE}]")
     console.print(f"  [{DIM_WHITE}]Navigate using the options below (type 'exit' or 'q' at any prompt to quit).[/{DIM_WHITE}]\n")
@@ -289,23 +299,40 @@ def run_interactive_story() -> None:
     # STEP 1: Mission Selection
     # =========================================================================
     console.print(f"  [{BOLD_WHITE}]Select Audit Mission:[/{BOLD_WHITE}]")
-    console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Full Security Audit[/{BOLD_WHITE}] [{GREEN}]★ RECOMMENDED[/{GREEN}] [{DIM_WHITE}]─ Multi-language AST, APM graph, & Neural AI[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Full Security Audit[/{BOLD_WHITE}] [{GREEN}]★ RECOMMENDED[/{GREEN}] [{DIM_WHITE}]─ Multi-language AST, APM graph, & Security Hypotheses[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][2][/{ORANGE}] [{BOLD_WHITE}]Targeted Vulnerability Probes[/{BOLD_WHITE}] [{DIM_WHITE}]─ Select specific testpacks (BOLA, SQLi, SSRF, BFLA)[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Autonomous AST Self-Healing[/{BOLD_WHITE}] [{DIM_WHITE}]─ Surgical refactoring with live rollback verification[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]Start Claude Code Local MCP Server[/{BOLD_WHITE}] [{GREEN}]★ LOCAL MCP[/{GREEN}] [{DIM_WHITE}]─ Run HTTP/SSE bridge for Claude Code chat[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][5][/{ORANGE}] [{BOLD_WHITE}]How TRACE Works & Architecture Guide[/{BOLD_WHITE}] [{DIM_WHITE}]─ Interactive architectural diagram & neural models[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][5][/{ORANGE}] [{BOLD_WHITE}]How TRACE Works & Architecture Guide[/{BOLD_WHITE}] [{DIM_WHITE}]─ Interactive architectural diagram & operational FAQ[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Environment Diagnostics (Doctor)[/{BOLD_WHITE}] [{DIM_WHITE}]─ Inspect local security tools and dependencies[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
+    if not models_ready:
+        console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Download Neural Weights[/{BOLD_WHITE}] [{DIM_WHITE}]─ Provision ~1 GB SecureBERT 2.0 & Laya AI into ~/.trace/models[/{DIM_WHITE}]")
+        console.print(f"    [{ORANGE}][8][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
+        valid_choices = ["1", "2", "3", "4", "5", "6", "7", "8"]
+    else:
+        console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
+        valid_choices = ["1", "2", "3", "4", "5", "6", "7"]
 
     choice = ask_input(
         f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Choose option[/{BOLD_WHITE}]",
-        choices=["1", "2", "3", "4", "5", "6", "7"],
+        choices=valid_choices,
         default="1",
         show_default=True,
     )
 
-    if choice == "7":
+    if (not models_ready and choice == "8") or (models_ready and choice == "7"):
         console.print(f"\n  [{GREEN}]✓ TRACE session closed. Happy hacking![/{GREEN}]\n")
+        return
+
+    if not models_ready and choice == "7":
+        display_story_header(2, 2, "Neural Model Provisioning", "Downloading fine-tuned SecureBERT 2.0 & Laya AI from GitHub LFS Hub")
+        console.print(f"  [{WHITE}]Downloading fine-tuned neural models into ~/.trace/models/...[/{WHITE}]")
+        try:
+            ensure_all_models()
+            console.print(f"\n  [{GREEN}]✓ Neural models provisioned successfully. SecureBERT & Laya are now online![/{GREEN}]\n")
+        except Exception as e:
+            console.print(f"\n  [{ORANGE}][!] Download could not complete:[/{ORANGE}] [{WHITE}]{e}[/{WHITE}]")
+            console.print(f"  [{DIM_WHITE}]You can continue using TRACE with the built-in deterministic AST & semantic engine.[/{DIM_WHITE}]\n")
         return
 
     if choice == "4":
@@ -484,7 +511,8 @@ def run_interactive_story() -> None:
 
     # Phase 3: Neuro-Symbolic Bayesian Hypotheses with Real Models
     model_metrics: Dict[str, Any] = {}
-    with console.status(f"  [{GREEN}]Act III:[/{GREEN}] [{WHITE}]Evaluating SecureBERT 2.0 & Laya System 1 Neural Models on GPU...[/{WHITE}]", spinner="dots"):
+    act3_status = "Evaluating SecureBERT 2.0 & Laya System 1 Neural Models..." if models_ready else "Evaluating Security Hypotheses with AST Semantic Engine..."
+    with console.status(f"  [{GREEN}]Act III:[/{GREEN}] [{WHITE}]{act3_status}[/{WHITE}]", spinner="dots"):
         engine = HypothesisEngine()
         all_hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
 
@@ -518,8 +546,9 @@ def run_interactive_story() -> None:
                 "laya": {"inferences": len(discovered_endpoints), "avg_latency_ms": 0.5, "breakdown": "Evaluated across P0/P1/P2/P3", "available": True},
             }
 
+    engine_label = "via SecureBERT & Laya" if models_ready else "via AST Semantic Engine"
     console.print(
-        f"  [{GREEN}]✓ Act III (Neural AI & Hypotheses):[/{GREEN}] [{BOLD_WHITE}]Derived {len(hypotheses)} threat hypotheses[/{BOLD_WHITE}] [{DIM_WHITE}]via SecureBERT & Laya[/{DIM_WHITE}]"
+        f"  [{GREEN}]✓ Act III (Security Hypotheses):[/{GREEN}] [{BOLD_WHITE}]Derived {len(hypotheses)} threat hypotheses[/{BOLD_WHITE}] [{DIM_WHITE}]{engine_label}[/{DIM_WHITE}]"
     )
 
     # Phase 4: Dynamic Exploit Probes

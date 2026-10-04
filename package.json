@@ -1,6 +1,6 @@
 {
   "name": "trace-sec",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "description": "Threat Reconnaissance & Attack-path Correlation Engine — Security Verification Layer for Coding Agents with Fine-Tuned SecureBERT 2.0 & Laya AI",
   "type": "module",
   "main": "bin/trace.js",
