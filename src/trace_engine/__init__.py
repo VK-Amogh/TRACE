@@ -3,6 +3,6 @@
 Local-first application security analysis and runtime validation engine.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.1.13"
 __app_name__ = "TRACE"
 __description__ = "Threat Reconnaissance & Attack-path Correlation Engine"

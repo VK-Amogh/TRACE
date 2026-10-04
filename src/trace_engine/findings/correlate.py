@@ -11,11 +11,11 @@ from trace_engine.apm.model import AttackPathModel
 SEVERITY_BY_CATEGORY = {
     "BOLA": Severity.HIGH,
     "BFLA": Severity.HIGH,
-    "AUTHENTICATION": Severity.CRITICAL,
+    "AUTHENTICATION": Severity.HIGH,
     "SSRF": Severity.HIGH,
     "INJECTION": Severity.CRITICAL,
     "MASS_ASSIGNMENT": Severity.MEDIUM,
-    "PATH_TRAVERSAL": Severity.HIGH,
+    "PATH_TRAVERSAL": Severity.MEDIUM,
     "SSTI": Severity.CRITICAL,
     "CORS": Severity.MEDIUM,
     "DESERIALIZATION": Severity.CRITICAL,
@@ -84,7 +84,7 @@ class EvidenceCorrelator:
             )
 
         finding_id = hypothesis.id.replace("HYP-", "TR-")
-        severity = SEVERITY_BY_CATEGORY.get(category_str, Severity.MEDIUM)
+        severity = hypothesis.severity or SEVERITY_BY_CATEGORY.get(category_str, Severity.MEDIUM)
 
         ep_node = apm.get_node(hypothesis.endpoint_id)
         source_loc = ep_node.location if ep_node else None
