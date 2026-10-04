@@ -17,7 +17,7 @@ from trace_engine.updater import (
 def test_get_current_version():
     ver = get_current_version()
     assert ver == trace_engine.__version__
-    assert ver == "2.1.16"
+    assert ver == "2.1.17"
 
 
 def test_check_for_updates_when_newer_available(tmp_path):
@@ -26,11 +26,11 @@ def test_check_for_updates_when_newer_available(tmp_path):
         assert info is not None
         assert info["update_available"] is True
         assert info["latest_version"] == "2.2.0"
-        assert info["current_version"] == "2.1.16"
+        assert info["current_version"] == "2.1.17"
 
 
 def test_check_for_updates_when_up_to_date(tmp_path):
-    with patch("trace_engine.updater.fetch_latest_version", return_value="2.1.16"):
+    with patch("trace_engine.updater.fetch_latest_version", return_value="2.1.17"):
         info = check_for_updates(force=True)
         assert info is None
 
