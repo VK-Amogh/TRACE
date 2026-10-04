@@ -51,8 +51,8 @@ if (args[0] === 'install-skill' || args[0] === 'setup-agent' || args[0] === 'ins
         trace: {
           command: isWin ? 'cmd.exe' : 'npx',
           args: isWin
-            ? ['/c', 'npx', '-y', 'github:VK-Amogh/TRACE', 'mcp']
-            : ['-y', 'github:VK-Amogh/TRACE', 'mcp'],
+            ? ['/c', 'npx', '-y', 'trace-sec', 'mcp']
+            : ['-y', 'trace-sec', 'mcp'],
           env: {
             PYTHONUNBUFFERED: '1',
           },
@@ -73,7 +73,7 @@ if (args[0] === 'install-skill' || args[0] === 'setup-agent' || args[0] === 'ins
     console.log('  • \x1b[32mAntigravity & Agentic IDEs:\x1b[0m .agents/plugins/trace-security active');
     console.log('  • \x1b[32mVerification Tools:\x1b[0m trace_scan, trace_findings, trace_verify, trace_harness_task');
     console.log('\n\x1b[90mTo register in Claude Code CLI directly:\x1b[0m');
-    console.log('  \x1b[37mclaude mcp add trace -- npx github:VK-Amogh/TRACE mcp\x1b[0m\n');
+    console.log('  \x1b[37mclaude mcp add trace -- npx trace-sec mcp\x1b[0m\n');
     process.exit(0);
   } else {
     console.error(`[TRACE] Bundle directory not found at ${bundleDir}`);

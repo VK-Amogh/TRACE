@@ -1178,6 +1178,82 @@ def bench_intelligence():
     run_intelligence_benchmark()
 
 
+@app.command(name="setup-models")
+@app.command(name="download-models")
+def setup_models():
+    """Download and provision fine-tuned SecureBERT 2.0 and Laya System 1 weights into ~/.trace/models."""
+    from trace_engine.intelligence.downloader import ensure_all_models
+    console.print("\n[bold green]TRACE Neural Model Provisioner[/bold green]")
+    console.print("[dim]Fetching fine-tuned weights from TRACE Git LFS Hub into ~/.trace/models...[/dim]\n")
+    ensure_all_models()
+    console.print("[bold green]✓ All fine-tuned models are installed, verified, and ready.[/bold green]\n")
+
+
+@app.command(name="install-skill")
+@app.command(name="setup-agent")
+def install_skill(
+    target_dir: Path = typer.Option(Path("."), "--target", "-t", help="Target repository directory to install skills and MCP"),
+):
+    """Install TRACE autonomous agent skill & MCP configurations for Claude Code, Antigravity, and Cursor."""
+    import shutil
+    project_root = Path(__file__).resolve().parents[2]
+    bundle_dir = project_root / "src" / "trace_engine" / "plugin" / "bundle"
+    target = target_dir.resolve()
+
+    console.print("\n[bold green]Installing TRACE Autonomous Security Agent Skill & MCP Tools...[/bold green]")
+
+    if bundle_dir.exists():
+        # 1. Antigravity plugin (.agents/plugins/trace-security)
+        agent_plugin_dir = target / ".agents" / "plugins" / "trace-security"
+        agent_plugin_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(bundle_dir, agent_plugin_dir, dirs_exist_ok=True)
+        console.print(f"  [bold green]✓[/bold green] Antigravity Plugin : [white]{agent_plugin_dir}[/white]")
+
+        # 2. Agent Skill & Claude Code Skill
+        skill_src = bundle_dir / "skills" / "trace-security-harness"
+        if skill_src.exists():
+            agent_skill_dir = target / ".agents" / "skills" / "trace-security-harness"
+            agent_skill_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(skill_src, agent_skill_dir, dirs_exist_ok=True)
+            console.print(f"  [bold green]✓[/bold green] Agent Skill        : [white]{agent_skill_dir}[/white]")
+
+            claude_skill_dir = target / ".claude" / "skills" / "trace-security"
+            claude_skill_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(skill_src, claude_skill_dir, dirs_exist_ok=True)
+            console.print(f"  [bold green]✓[/bold green] Claude Code Skill  : [white]{claude_skill_dir}[/white]")
+
+        # 3. MCP Configuration
+        import json
+        is_win = sys.platform == "win32"
+        mcp_config = {
+            "mcpServers": {
+                "trace": {
+                    "command": "cmd.exe" if is_win else "npx",
+                    "args": ["/c", "npx", "-y", "trace-sec", "mcp"] if is_win else ["-y", "trace-sec", "mcp"],
+                    "env": {
+                        "PYTHONUNBUFFERED": "1"
+                    }
+                }
+            }
+        }
+        mcp_json = target / ".mcp.json"
+        mcp_json.write_text(json.dumps(mcp_config, indent=2), encoding="utf-8")
+        console.print(f"  [bold green]✓[/bold green] Claude Code MCP    : [white]{mcp_json}[/white]")
+
+        cursor_dir = target / ".cursor"
+        cursor_dir.mkdir(parents=True, exist_ok=True)
+        (cursor_dir / "mcp.json").write_text(json.dumps(mcp_config, indent=2), encoding="utf-8")
+        console.print(f"  [bold green]✓[/bold green] Cursor IDE MCP     : [white]{cursor_dir / 'mcp.json'}[/white]")
+
+        console.print("\n[bold]Capabilities Enabled for AI Coding Agents:[/bold]")
+        console.print("  • [bold green]Claude Code Integration:[/bold green] Skills + MCP server configured")
+        console.print("  • [bold green]Antigravity & Agentic IDEs:[/bold green] .agents/plugins/trace-security active")
+        console.print("  • [bold green]Verification Tools:[/bold green] trace_scan, trace_findings, trace_verify, trace_harness_task\n")
+    else:
+        console.print(f"[bold red]Error:[/bold red] Plugin bundle not found at {bundle_dir}")
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()
 

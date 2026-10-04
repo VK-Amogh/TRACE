@@ -34,12 +34,14 @@ class SecureBERTClassifier:
         cache_path: Optional[Path] = None,
     ):
         candidates = [
+            Path.home() / ".trace/models/securebert-finetuned",
             Path(".trace/models/securebert-finetuned"),
             Path(__file__).resolve().parents[4] / ".trace/models/securebert-finetuned",
             Path(__file__).resolve().parents[2] / "models/securebert-finetuned",
-            Path.home() / ".trace/models/securebert-finetuned",
+            Path("D:/Startup/TRACE/.trace/models/securebert-finetuned"),
         ]
-        default_model = "ehsanaghaei/SecureBERT"
+        default_model = None
+        repo_root = Path(__file__).resolve().parents[4]
         for cand in candidates:
             weight_file = cand / "model.safetensors"
             if weight_file.exists():
@@ -52,6 +54,15 @@ class SecureBERTClassifier:
                 if weight_file.exists() and weight_file.stat().st_size >= 10000:
                     default_model = str(cand.resolve())
                     break
+
+        if not default_model:
+            try:
+                from trace_engine.intelligence.downloader import ensure_model
+                model_dir = ensure_model("securebert-finetuned")
+                default_model = str(model_dir.resolve())
+            except Exception as e:
+                logger.debug(f"Automatic model download deferred: {e}")
+                default_model = "ehsanaghaei/SecureBERT"
 
         self.model_name = model_name or default_model
         cache_file = cache_path or Path(".trace/cache/securebert_cache.json")
@@ -68,6 +79,8 @@ class SecureBERTClassifier:
         self._initialized = True
         try:
             import torch
+            import transformers
+            transformers.logging.set_verbosity_error()
             from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
             self._device = "cuda" if torch.cuda.is_available() else "cpu"

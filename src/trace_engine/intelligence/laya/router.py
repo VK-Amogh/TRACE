@@ -57,10 +57,11 @@ class LayaDecisionEngine:
     def _resolve_laya_dir(self) -> Optional[Path]:
         """Resolves Laya model directory across project root, package dir, and home."""
         candidates = [
+            Path.home() / ".trace/models/laya-finetuned",
             Path(".trace/models/laya-finetuned"),
             Path(__file__).resolve().parents[4] / ".trace/models/laya-finetuned",
             Path(__file__).resolve().parents[2] / "models/laya-finetuned",
-            Path.home() / ".trace/models/laya-finetuned",
+            Path("D:/Startup/TRACE/.trace/models/laya-finetuned"),
         ]
         repo_root = Path(__file__).resolve().parents[4]
         for p in candidates:
@@ -76,6 +77,13 @@ class LayaDecisionEngine:
                 return p.resolve()
             if onnx_file.exists() and onnx_file.stat().st_size >= 10000:
                 return p.resolve()
+
+        try:
+            from trace_engine.intelligence.downloader import ensure_model
+            return ensure_model("laya-finetuned")
+        except Exception as e:
+            logger.debug(f"Automatic Laya download deferred: {e}")
+
         return None
 
     def _load_onnx_model(self) -> None:
@@ -125,8 +133,11 @@ class LayaDecisionEngine:
     def _load_agent(self) -> None:
         """Attempt to load Laya in-process model."""
         try:
-            import laya
-            self._agent = laya.load(self.model_id)
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                import laya
+                self._agent = laya.load(self.model_id)
             logger.info(f"Laya agent loaded: {self.model_id}")
         except Exception as e:
             logger.debug(f"Laya in-process loading: {e}. Using calibrated fallback.")
