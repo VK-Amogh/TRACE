@@ -3,7 +3,7 @@
 from trace_engine.findings.model import Finding, Severity, FindingConfidence
 from trace_engine.findings.correlate import EvidenceCorrelator
 from trace_engine.findings.store import FindingStore
-from trace_engine.findings.recommendations import get_remediation_for_category
+from trace_engine.findings.recommendations import get_remediation_for_category, get_detailed_remediation_and_root_cause
 
 __all__ = [
     "Finding",
@@ -12,4 +12,5 @@ __all__ = [
     "EvidenceCorrelator",
     "FindingStore",
     "get_remediation_for_category",
+    "get_detailed_remediation_and_root_cause",
 ]

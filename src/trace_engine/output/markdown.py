@@ -10,16 +10,18 @@ def generate_markdown_report(findings: List[Finding], project_name: str = "Appli
         f"# TRACE Security Assessment Report — {project_name}",
         "Threat Reconnaissance & Attack-path Correlation Engine",
         "",
-        "## Summary",
-        f"- Total Correlated Findings: **{len(findings)}**",
+        "## Executive Summary",
+        f"- **Target Application:** `{project_name}`",
+        f"- **Total Correlated Findings:** **{len(findings)}**",
         "",
-        "| ID | Severity | Confidence | Category | Endpoint | Title |",
+        "| ID | Severity | Confidence | Category | Endpoint | Remediation Action |",
         "|---|---|---|---|---|---|",
     ]
 
     for f in findings:
+        action_summary = f.short_action or f.title
         lines.append(
-            f"| {f.id} | {f.severity.value} | {f.confidence.value} | {f.category} | `{f.endpoint}` | {f.title} |"
+            f"| `{f.id}` | **{f.severity.value}** | {f.confidence.value} | {f.category} | `{f.endpoint}` | {action_summary} |"
         )
 
     lines.extend(["", "---", "", "## Finding Details", ""])
@@ -33,9 +35,13 @@ def generate_markdown_report(findings: List[Finding], project_name: str = "Appli
         if f.source_location:
             lines.append(f"- **Source:** `{f.source_location}`")
         lines.append("")
-        
+
+        if f.root_cause:
+            lines.append("#### Root Cause & Exploit Mechanics")
+            lines.append(f"{f.root_cause}\n")
+
         if f.attack_path:
-            lines.append("#### Attack Path Hops")
+            lines.append("#### Attack Path Hops (APM Traversal)")
             for hop in f.attack_path:
                 lines.append(f"1. `{hop}`")
             lines.append("")
@@ -58,7 +64,8 @@ def generate_markdown_report(findings: List[Finding], project_name: str = "Appli
                 lines.append(f"{idx}. {step}")
             lines.append("")
 
-        lines.append(f"#### Remediation Guidance\n{f.remediation}\n")
+        lines.append("#### Concrete Remediation Plan")
+        lines.append(f"{f.remediation}\n")
         lines.append("---")
         lines.append("")
 

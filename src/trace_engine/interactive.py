@@ -624,53 +624,57 @@ def run_interactive_story() -> None:
     )
 
     # =========================================================================
-    # STEP 7: Autonomous AST Self-Healing Opportunity
+    # STEP 7: AI Coding Agent Handoff & Export Options
     # =========================================================================
-    if findings:
-        console.print(f"\n  [{DIM_GREEN}]{'─' * 76}[/{DIM_GREEN}]")
-        console.print(f"  [{GREEN}]◆ AUTONOMOUS AST SELF-HEALING OPPORTUNITY:[/{GREEN}]")
-        console.print(f"    [{WHITE}]TRACE can synthesize surgical AST patches for detected flaws in {project_dir.name}.[/{WHITE}]")
-        console.print(f"    [{DIM_WHITE}]Includes transactional rollback protection and verification oracle testing.[/{DIM_WHITE}]\n")
+    console.print(f"\n  [{DIM_GREEN}]{'─' * 76}[/{DIM_GREEN}]")
+    console.print(f"  [{GREEN}]◆ TRACE AUDIT COMPLETE — AI AGENT & REMEDIATION HANDOFF:[/{GREEN}]")
+    console.print(f"    [{WHITE}]TRACE has generated precise root causes and concrete remediation plans for all {len(findings)} findings.[/{WHITE}]")
+    console.print(f"    [{DIM_WHITE}]Executive report automatically saved to:[/{DIM_WHITE}] [{BOLD_WHITE}]{project_dir / 'findings.md'}[/{BOLD_WHITE}]\n")
 
-        heal_ans = ask_input(
-            f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Autonomously remediate verified vulnerabilities now? (y/n)[/{BOLD_WHITE}]",
-            choices=["y", "n", "yes", "no"],
-            default="n",
-        )
-        should_heal = heal_ans.lower() in ("y", "yes")
+    console.print(f"  [{BOLD_WHITE}]Next Action / Integration Options:[/{BOLD_WHITE}]")
+    console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Inspect Detailed Root Cause & Exploit Mechanics in Terminal[/{BOLD_WHITE}]")
+    console.print(f"    [{ORANGE}][2][/{ORANGE}] [{BOLD_WHITE}]Launch TRACE MCP Server[/{BOLD_WHITE}] [{DIM_WHITE}](Connect Claude Code / Cursor as skill)[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Export OASIS SARIF v2.1.0[/{BOLD_WHITE}] [{DIM_WHITE}](GitHub Code Scanning / CI)[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]Finish Session[/{BOLD_WHITE}]\n")
 
-        if should_heal:
-            from trace_engine.harness.engine import AgentHarness
-            with console.status(f"  [{GREEN}]Autonomous Harness:[/{GREEN}] [{WHITE}]Refactoring AST nodes & running verification...[/{WHITE}]", spinner="dots"):
-                harness = AgentHarness(project_dir, target_url=target_url)
-                report = harness.run_self_healing_loop()
-            print_harness_report(report)
-
-    # =========================================================================
-    # STEP 8: Post-Audit Export
-    # =========================================================================
-    console.print(f"\n  [{BOLD_WHITE}]Export Options:[/{BOLD_WHITE}]")
-    console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Export OASIS SARIF v2.1.0[/{BOLD_WHITE}] [{DIM_WHITE}](GitHub Code Scanning / CI Integration)[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][2][/{ORANGE}] [{BOLD_WHITE}]Export Markdown Report[/{BOLD_WHITE}] [{DIM_WHITE}](Executive summary document)[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Finish Session[/{BOLD_WHITE}]\n")
-
-    post_choice = ask_input(
-        f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Select export option[/{BOLD_WHITE}]",
-        choices=["1", "2", "3"],
-        default="1",
+    handoff_choice = ask_input(
+        f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Select action[/{BOLD_WHITE}]",
+        choices=["1", "2", "3", "4"],
+        default="4",
         show_default=True,
     )
 
-    if post_choice == "1":
+    if handoff_choice == "1":
+        while True:
+            console.print(f"\n  [{BOLD_WHITE}]Available Findings to Inspect:[/{BOLD_WHITE}]")
+            for f in findings:
+                action_text = f.short_action or f.title
+                console.print(f"    [{GREEN}]• {f.id:<14}[/{GREEN}] [{WHITE}]{f.endpoint:<28}[/{WHITE}] [{DIM_WHITE}]{action_text}[/{DIM_WHITE}]")
+            f_id = ask_input(f"\n  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Enter Finding ID to inspect (or 'back')[/{BOLD_WHITE}]", default="back")
+            if f_id.lower() in ("back", "exit", "q"):
+                break
+            matched = next((f for f in findings if f.id.lower() == f_id.lower()), None)
+            if matched:
+                console.print()
+                print_finding_detail(matched)
+            else:
+                console.print(f"  [{ORANGE}]Finding '{f_id}' not found.[/{ORANGE}]")
+
+    elif handoff_choice == "2":
+        console.print(f"\n  [{GREEN}]Starting TRACE MCP Server on port 8765...[/{GREEN}]")
+        console.print(f"  [{DIM_WHITE}]Connect Claude Code or Cursor to: [bold white]http://127.0.0.1:8765/sse[/bold white][/{DIM_WHITE}]")
+        console.print(f"  [{DIM_WHITE}]Press Ctrl+C to stop the MCP server when finished.[/{DIM_WHITE}]\n")
+        from trace_engine.mcp.server import run_server
+        try:
+            run_server(host="127.0.0.1", port=8765)
+        except KeyboardInterrupt:
+            console.print(f"\n  [{GREEN}]✓ TRACE MCP Server stopped.[/{GREEN}]")
+
+    elif handoff_choice == "3":
         sarif_file = project_dir / "trace-results.sarif"
         sarif_data = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
         import json
         sarif_file.write_text(json.dumps(sarif_data, indent=2), encoding="utf-8")
         console.print(f"  [{GREEN}]✓ Exported SARIF v2.1.0:[/{GREEN}] [{WHITE}]{sarif_file}[/{WHITE}]\n")
-    elif post_choice == "2":
-        md_file = project_dir / "TRACE_SECURITY_REPORT.md"
-        md_content = generate_markdown_report(findings, project_name=project_dir.name)
-        md_file.write_text(md_content, encoding="utf-8")
-        console.print(f"  [{GREEN}]✓ Exported Markdown Report:[/{GREEN}] [{WHITE}]{md_file}[/{WHITE}]\n")
 
     console.print(f"  [{GREEN}]✓ TRACE Audit Session Complete. System Verified.[/{GREEN}]\n")

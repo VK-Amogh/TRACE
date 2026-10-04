@@ -220,6 +220,10 @@ def print_finding_detail(f: Finding) -> None:
             prefix = "  +- "
             content.append(f"{prefix}{hop}\n", style="dim white")
 
+    if f.root_cause:
+        content.append("\nRoot Cause & Exploit Mechanics:\n", style="bold green")
+        content.append(f"  {f.root_cause}\n", style="bright_white")
+
     if f.static_evidence:
         content.append("\nStatic Code Evidence:\n", style="bold green")
         for ev in f.static_evidence:
@@ -235,8 +239,10 @@ def print_finding_detail(f: Finding) -> None:
         for idx, step in enumerate(f.reproduction_steps, 1):
             content.append(f"  {idx}. {step}\n", style="white")
 
-    content.append("\nRemediation Guidance:\n", style="bold green")
-    content.append(f"  {f.remediation}\n", style="dim white")
+    content.append("\nConcrete Remediation Action Plan:\n", style="bold green")
+    for line in f.remediation.split("\n"):
+        if line.strip():
+            content.append(f"  {line}\n", style="white")
 
     console.print(
         Panel(
@@ -351,7 +357,7 @@ def print_test_all_report(
     for idx, f in enumerate(sorted_findings, 1):
         prio = priority_labels.get(f.severity, str(f.severity.value))
         loc_str = str(f.source_location) if f.source_location else "-"
-        remediation_snippet = f.remediation.strip().split(".")[0] + "." if f.remediation else "Apply strict authorization check."
+        remediation_snippet = f.short_action or (f.remediation.strip().split(".")[0] + "." if f.remediation else "Apply strict authorization check.")
 
         table.add_row(
             f"#{idx}",

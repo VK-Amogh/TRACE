@@ -4,7 +4,7 @@ from typing import List, Optional
 from trace_engine.security.hypotheses import SecurityHypothesis
 from trace_engine.testpacks.base import TestExecutionResult
 from trace_engine.findings.model import Finding, Severity, FindingConfidence
-from trace_engine.findings.recommendations import get_remediation_for_category
+from trace_engine.findings.recommendations import get_detailed_remediation_and_root_cause, get_remediation_for_category
 from trace_engine.apm.model import AttackPathModel
 
 
@@ -91,6 +91,14 @@ class EvidenceCorrelator:
 
         file_path = source_loc.file if source_loc else ""
 
+        root_cause, remediation, short_action = get_detailed_remediation_and_root_cause(
+            title=hypothesis.title,
+            category=category_str,
+            endpoint=hypothesis.endpoint_display,
+            static_evidence=hypothesis.static_evidence,
+            filepath=file_path,
+        )
+
         return Finding(
             id=finding_id,
             title=hypothesis.title,
@@ -103,7 +111,9 @@ class EvidenceCorrelator:
             static_evidence=hypothesis.static_evidence,
             runtime_evidence=runtime_evidence,
             correlation_notes=correlation_notes,
-            remediation=get_remediation_for_category(category_str, filepath=file_path),
+            remediation=remediation,
+            root_cause=root_cause,
+            short_action=short_action,
             reproduction_steps=test_result.reproduction_steps if test_result else [],
             observations=test_result.observations if test_result else [],
         )

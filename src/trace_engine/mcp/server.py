@@ -218,6 +218,8 @@ class TraceMCPServer:
                     "severity": f.severity.value,
                     "confidence": f.confidence.value,
                     "endpoint": f.endpoint,
+                    "root_cause": f.root_cause,
+                    "short_action": f.short_action,
                     "remediation": f.remediation,
                     "source": str(f.source_location) if f.source_location else None,
                 }
@@ -239,6 +241,8 @@ class TraceMCPServer:
                 "endpoint": finding.endpoint,
                 "source": str(finding.source_location),
                 "attack_path": finding.attack_path,
+                "root_cause": finding.root_cause,
+                "short_action": finding.short_action,
                 "static_evidence": finding.static_evidence,
                 "runtime_evidence": finding.runtime_evidence,
                 "correlation_notes": finding.correlation_notes,

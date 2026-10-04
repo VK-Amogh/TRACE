@@ -38,3 +38,5 @@ class Finding(BaseModel):
     remediation: str
     reproduction_steps: List[str] = Field(default_factory=list)
     observations: List[RuntimeObservation] = Field(default_factory=list)
+    root_cause: Optional[str] = None
+    short_action: Optional[str] = None
