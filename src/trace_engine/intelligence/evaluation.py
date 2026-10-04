@@ -646,7 +646,7 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
                     id=ext_id,
                     node_type=NodeType.EXTERNAL_SERVICE,
                     label="OutboundHTTPClient",
-                    properties={"risk": "SSRF"},
+                    properties={"operation": "dispatch"},
                 )
             )
             apm.add_edge(APMEdge(source_id=ep.id, target_id=ext_id, edge_type=EdgeType.CALLS))
@@ -657,7 +657,7 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
                     id=priv_id,
                     node_type=NodeType.SINK,
                     label="PrivilegedOperation",
-                    properties={"risk": "BFLA"},
+                    properties={"operation": "admin_action"},
                 )
             )
             apm.add_edge(APMEdge(source_id=ep.id, target_id=priv_id, edge_type=EdgeType.CALLS))
@@ -668,7 +668,7 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
                     id=state_id,
                     node_type=NodeType.SINK,
                     label="StateModification",
-                    properties={"risk": "AUTH"},
+                    properties={"operation": "state_write"},
                 )
             )
             apm.add_edge(APMEdge(source_id=ep.id, target_id=state_id, edge_type=EdgeType.CALLS))
@@ -679,7 +679,7 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
                     id=cmd_id,
                     node_type=NodeType.SINK,
                     label="CommandExecution",
-                    properties={"risk": "INJECTION"},
+                    properties={"operation": "system_exec"},
                 )
             )
             apm.add_edge(APMEdge(source_id=ep.id, target_id=cmd_id, edge_type=EdgeType.CALLS))

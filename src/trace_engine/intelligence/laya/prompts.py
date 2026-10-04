@@ -14,8 +14,7 @@ def format_endpoint_state(endpoint: Endpoint, apm: AttackPathModel) -> str:
             if p and p[-1] in apm.nodes_data:
                 node = apm.nodes_data[p[-1]]
                 op = node.properties.get("operation", "")
-                risk = node.properties.get("risk", "")
-                detail = f"{node.label} {op or risk}".strip()
+                detail = f"{node.label} {op}".strip()
                 sink_labels.append(detail)
         # Prioritize architectural security sinks (Privileged, StateModification, OutboundHTTP) over generic DB sinks
         def sink_sort_key(s: str) -> int:
@@ -44,7 +43,7 @@ def format_endpoint_state(endpoint: Endpoint, apm: AttackPathModel) -> str:
             op = "query"
         sink_summary = f"Sinks: 1 detected (DatabaseAccess {op})"
     elif endpoint.external_network:
-        sink_summary = "Sinks: 1 detected (OutboundHTTPClient SSRF)"
+        sink_summary = "Sinks: 1 detected (OutboundHTTPClient)"
     else:
         sink_summary = "No direct sensitive sink"
 

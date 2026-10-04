@@ -30,25 +30,25 @@ Evaluated across 35 multi-language endpoints spanning Python (FastAPI/Django), G
 
 | Engine / Model | Architecture | Inference Latency | Identification Accuracy | Primary Superpower / Role |
 | :--- | :--- | :---: | :---: | :--- |
-| **Laya System 1** | Dual-Head Encoder (`DistilBERT` + Linear Heads) | **4.63 ms** (GPU) / **20.18 ms** (ONNX CPU) | **77.1% Top-1** (**91.4% Compound Coverage**) | Ultra-fast triage, compound testpack dispatch, APM graph policy decisions |
-| **SecureBERT 2.0** | Bidirectional AST Encoder (12-layer, 768-dim) | **17.97 ms** (GPU) | **22.9% Top-1** | Deep semantic AST code slice inspection, CWE lexical mapping |
-| **Dual-Engine Ensemble** | Cascade + Bayesian Evidence Fusion | **8.74 ms** (Ensemble) | **68.6% Balanced** | Peak verified accuracy: Laya filters non-critical routes; BERT audits AST sinks |
+| **Laya System 1** | Dual-Head Encoder (`DistilBERT` + Linear Heads) | **8.39 ms** (GPU) / **20.18 ms** (ONNX CPU) | **88.6% Top-1** (**97.1% Compound Coverage**) | Ultra-fast triage, compound testpack dispatch, APM graph policy decisions |
+| **SecureBERT 2.0** | Bidirectional AST Encoder (12-layer, 768-dim) | **20.32 ms** (GPU) | **22.9% Top-1** | Deep semantic AST code slice inspection, CWE lexical mapping |
+| **Dual-Engine Ensemble** | Cascade + Bayesian Evidence Fusion | **15.23 ms** (Ensemble) | **74.3% Balanced** | Peak verified accuracy: Laya filters non-critical routes; BERT audits AST sinks |
 
-### 2.2 Laya System 1 Fine-Tuning Scorecard (Strict Disjoint Enterprise Holdout)
-Trained on 471 enterprise APM topologies with strict domain splitting (Validation domains: `admin_tenants`, `fintech`, `healthcare`, `iot`, `webhooks` — **Zero Data Leakage**):
+### 2.2 Laya System 1 Fine-Tuning Scorecard (Strict Disjoint Enterprise Holdout - Leak-Free)
+Trained on 471 enterprise APM topologies with strict domain splitting (Validation domains: `admin_tenants`, `fintech`, `healthcare`, `iot`, `webhooks` — **Zero Data Leakage**). All keyword giveaways and target risk tags (`SSRF`, `BFLA`, `AUTH`, `INJECTION`) were completely purged, and 25% realistic uninstrumented sinks were injected to force authentic semantic learning:
 
 | Epoch | Train Loss | Val Loss (Disjoint) | Priority Accuracy | Testpack Accuracy | Macro Precision | Macro Recall | Macro F1 | Status |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1** | 2.7029 | 2.2031 | 54.4% | 66.2% | 37.0% | 42.9% | 0.392 | Initializing representations |
-| **2** | 1.6772 | 1.2381 | 65.1% | 97.9% | 99.4% | 95.2% | 0.969 | Converging feature boundaries |
-| **3** | 0.9169 | 0.9008 | 65.1% | 100.0% | 100.0% | 100.0% | 1.000 | Zero false negatives across holdout |
-| **4** | 0.4880 | 0.7655 | 65.1% | 100.0% | 100.0% | 100.0% | 1.000 | Loss descent |
-| **5** | 0.2734 | **0.4219** | **84.6%** | **100.0%** | **100.0%** | **100.0%** | **1.000** | Final converged checkpoint |
+| **1** | 2.8169 | 2.6797 | 54.4% | 49.2% | 7.0% | 14.3% | 0.094 | Initializing representation space |
+| **2** | 2.2448 | 1.9577 | 57.4% | 66.2% | 31.5% | 38.1% | 0.321 | Learning parameter & route syntax |
+| **3** | 1.4929 | 1.4993 | 57.9% | 78.5% | 47.5% | 55.4% | 0.510 | Separating data access from control |
+| **4** | 0.8309 | 1.5464 | 56.4% | 79.0% | 45.7% | 56.0% | 0.501 | Boundary stabilization |
+| **5** | 0.4219 | **1.3627** | **57.9%** | **87.2%** | **81.6%** | **72.4%** | **0.739** | Converged genuine model |
 
-### 2.3 Hardware Accelerator Benchmarking
-* **NVIDIA RTX 4050 Laptop GPU (CUDA 12.4)**: Average forward-pass latency **4.44 ms / endpoint** (Min: 4.19 ms).
-* **CPU-Only Host (ONNX Runtime ORT_ENABLE_ALL)**: Average forward-pass latency **20.18 ms / endpoint** (2.5x faster than CPU PyTorch).
-* **Multi-Label Compound Vulnerability Output**: Returns calibrated softmax probabilities across all 7 families with thresholding ($P_i \ge 0.15$) and APM graph topological invariant detection (e.g. unauthenticated state changes dispatch both `authentication` and `bola`/`injection`).
+### 2.3 Hardware Accelerator Benchmarking & Compound Dispatch
+* **NVIDIA RTX 4050 Laptop GPU (CUDA 12.4)**: Forward-pass latency **~4.44–8.39 ms / endpoint**.
+* **CPU-Only Host (ONNX Runtime ORT_ENABLE_ALL)**: Forward-pass latency **20.18 ms / endpoint** (2.5x faster than CPU PyTorch).
+* **Multi-Label Compound Vulnerability Output**: Returns calibrated softmax probabilities across all 7 families with thresholding ($P_i \ge 0.15$) and APM graph topological invariant detection (e.g. unauthenticated state changes dispatch both `authentication` and `bola`/`injection`), achieving **97.1% compound coverage** on the enterprise benchmark.
 
 ---
 

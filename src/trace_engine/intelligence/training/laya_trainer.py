@@ -53,33 +53,95 @@ class LayaTrainingSample(BaseModel):
     domain_group: str  # For disjoint split to prevent data leakage
 
 
+def get_realistic_sink_desc(family: str, idx: int) -> str:
+    """Generates realistic compiler AST sink representations without target label leaks."""
+    if family == "bola":
+        options = [
+            "Sinks: 1 detected (DatabaseAccess lookup)",
+            "Sinks: 1 detected (DatabaseAccess query)",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (DatabaseAccess query)",
+        ]
+        return options[idx % len(options)]
+    elif family == "injection":
+        options = [
+            "Sinks: 1 detected (DatabaseAccess query)",
+            "Sinks: 1 detected (CommandExecution system_exec)",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (DatabaseAccess query)",
+        ]
+        return options[idx % len(options)]
+    elif family == "ssrf":
+        options = [
+            "Sinks: 1 detected (OutboundHTTPClient dispatch)",
+            "Sinks: 1 detected (OutboundHTTPClient)",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (OutboundHTTPClient)",
+        ]
+        return options[idx % len(options)]
+    elif family == "bfla":
+        options = [
+            "Sinks: 1 detected (PrivilegedOperation admin_action)",
+            "Sinks: 1 detected (DatabaseAccess update)",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (PrivilegedOperation)",
+        ]
+        return options[idx % len(options)]
+    elif family == "authentication":
+        options = [
+            "Sinks: 1 detected (StateModification state_write)",
+            "Sinks: 1 detected (DatabaseAccess update)",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (StateModification state_write)",
+        ]
+        return options[idx % len(options)]
+    elif family == "mass_assignment":
+        options = [
+            "Sinks: 1 detected (DatabaseAccess update)",
+            "Sinks: 1 detected (DatabaseAccess update)",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (DatabaseAccess update)",
+        ]
+        return options[idx % len(options)]
+    elif family == "none":
+        options = [
+            "No direct sensitive sink",
+            "No direct sensitive sink",
+            "Sinks: 1 detected (DatabaseAccess query)",
+        ]
+        return options[idx % len(options)]
+    return "No direct sensitive sink"
+
+
 def generate_laya_training_corpus() -> List[LayaTrainingSample]:
-    """Generates a rich, balanced corpus of 500+ distinct APM endpoint states across 7 categories."""
+    """Generates a rich, balanced corpus of 500+ distinct APM endpoint states across 7 categories without label leakage."""
     samples: List[LayaTrainingSample] = []
+    idx = 0
 
     # -------------------------------------------------------------
     # 1. BOLA / IDOR Patterns (CWE-639) - ~90 samples
     # -------------------------------------------------------------
     bola_configs = [
-        # (verb, resource, param, auth, db, ext, sens, sinks, domain)
-        ("GET", "orders", "id", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "commerce"),
-        ("GET", "invoices", "invoice_id", True, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "billing"),
-        ("GET", "tenants/{tenant_id}/vaults", "vault_id", True, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "security"),
-        ("GET", "documents", "doc_uuid", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "storage"),
-        ("GET", "users/{userId}/keys", "keyId", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "identity"),
-        ("POST", "tickets/{ticketId}/attachments", "attachmentId", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "support"),
+        ("GET", "orders", "id", False, True, False, True, "commerce"),
+        ("GET", "invoices", "invoice_id", True, True, False, True, "billing"),
+        ("GET", "tenants/{tenant_id}/vaults", "vault_id", True, True, False, True, "security"),
+        ("GET", "documents", "doc_uuid", False, True, False, True, "storage"),
+        ("GET", "users/{userId}/keys", "keyId", False, True, False, True, "identity"),
+        ("POST", "tickets/{ticketId}/attachments", "attachmentId", False, True, False, True, "support"),
         # Held-out domains
-        ("GET", "patients/{patientId}/records", "recordId", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "healthcare"),
-        ("GET", "clinical/charts", "chart_id", True, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "healthcare"),
-        ("PUT", "wallets", "wallet_id", True, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "fintech"),
-        ("GET", "accounts/{accountId}/statement", "accountId", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "fintech"),
-        ("GET", "devices/{devId}/telemetry", "devId", False, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "iot"),
-        ("GET", "sensors/{sensorId}/stream", "sensorId", True, True, False, True, "Sinks: 1 detected (DatabaseAccess lookup)", "iot"),
+        ("GET", "patients/{patientId}/records", "recordId", False, True, False, True, "healthcare"),
+        ("GET", "clinical/charts", "chart_id", True, True, False, True, "healthcare"),
+        ("PUT", "wallets", "wallet_id", True, True, False, True, "fintech"),
+        ("GET", "accounts/{accountId}/statement", "accountId", False, True, False, True, "fintech"),
+        ("GET", "devices/{devId}/telemetry", "devId", False, True, False, True, "iot"),
+        ("GET", "sensors/{sensorId}/stream", "sensorId", True, True, False, True, "iot"),
     ]
-    for verb, res, param, auth, db, ext, sens, sink_desc, domain in bola_configs:
+    for verb, res, param, auth, db, ext, sens, domain in bola_configs:
         for prefix in ["/api/v1", "/api/v2", "/rest", "/internal"]:
             for id_val in ["{id}", "{uuid}", "101", "8823"]:
                 path = f"{prefix}/{res}/{id_val}".replace("//", "/")
+                sink_desc = get_realistic_sink_desc("bola", idx)
+                idx += 1
                 state = (
                     f"Endpoint: {verb} {path}\n"
                     f"Auth Required: {auth}, Roles: []\n"
@@ -99,21 +161,23 @@ def generate_laya_training_corpus() -> List[LayaTrainingSample]:
     # 2. Injection Patterns (SQLi, Command, LDAP) - ~85 samples
     # -------------------------------------------------------------
     injection_configs = [
-        ("POST", "analytics/query", "filter", True, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "analytics"),
-        ("GET", "products/search", "q", False, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "catalog"),
-        ("POST", "system/diagnostics/ping", "host", True, False, False, False, "Sinks: 1 detected (CommandExecution)", "ops"),
-        ("POST", "database/raw_exec", "sql_payload", True, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "admin_db"),
-        ("GET", "reports/export_csv", "sort_by", False, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "reporting"),
-        ("POST", "audit/timing_probe", "delay_sec", False, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "audit"),
+        ("POST", "analytics/query", "filter", True, True, False, False, "analytics"),
+        ("GET", "products/search", "q", False, True, False, False, "catalog"),
+        ("POST", "system/diagnostics/ping", "host", True, False, False, False, "ops"),
+        ("POST", "database/raw_exec", "sql_payload", True, True, False, False, "admin_db"),
+        ("GET", "reports/export_csv", "sort_by", False, True, False, False, "reporting"),
+        ("POST", "audit/timing_probe", "delay_sec", False, True, False, False, "audit"),
         # Held-out domains
-        ("POST", "clinical/queries/raw", "raw_sql", False, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "healthcare"),
-        ("POST", "devices/raw_command", "cmd", True, False, False, False, "Sinks: 1 detected (CommandExecution)", "iot"),
-        ("POST", "transactions/search_filter", "expr", False, True, False, False, "Sinks: 1 detected (DatabaseAccess query)", "fintech"),
+        ("POST", "clinical/queries/raw", "raw_sql", False, True, False, False, "healthcare"),
+        ("POST", "devices/raw_command", "cmd", True, False, False, False, "iot"),
+        ("POST", "transactions/search_filter", "expr", False, True, False, False, "fintech"),
     ]
-    for verb, res, param, auth, db, ext, sens, sink_desc, domain in injection_configs:
+    for verb, res, param, auth, db, ext, sens, domain in injection_configs:
         for prefix in ["/api/v1", "/api/v2", "/data"]:
             for p_name in [param, f"{param}_custom", f"raw_{param}"]:
                 path = f"{prefix}/{res}"
+                sink_desc = get_realistic_sink_desc("injection", idx)
+                idx += 1
                 state = (
                     f"Endpoint: {verb} {path}\n"
                     f"Auth Required: {auth}, Roles: []\n"
@@ -133,20 +197,22 @@ def generate_laya_training_corpus() -> List[LayaTrainingSample]:
     # 3. SSRF Patterns (CWE-918) - ~80 samples
     # -------------------------------------------------------------
     ssrf_configs = [
-        ("POST", "media/avatar_fetch", "image_url", False, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "media"),
-        ("GET", "proxy/forward", "target_uri", False, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "gateway"),
-        ("POST", "documents/html_to_pdf", "render_url", True, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "pdf"),
-        ("POST", "oauth/callback_preview", "callback", False, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "auth_oauth"),
-        ("POST", "network/fetch_remote", "remote_url", False, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "proxy"),
+        ("POST", "media/avatar_fetch", "image_url", False, False, True, False, "media"),
+        ("GET", "proxy/forward", "target_uri", False, False, True, False, "gateway"),
+        ("POST", "documents/html_to_pdf", "render_url", True, False, True, False, "pdf"),
+        ("POST", "oauth/callback_preview", "callback", False, False, True, False, "auth_oauth"),
+        ("POST", "network/fetch_remote", "remote_url", False, False, True, False, "proxy"),
         # Held-out domains (webhooks)
-        ("POST", "integrations/webhook/dispatch", "webhook_url", True, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "webhooks"),
-        ("POST", "events/notify_subscriber", "target_url", False, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "webhooks"),
-        ("POST", "webhooks/test_ping", "callback", True, False, True, False, "Sinks: 1 detected (OutboundHTTPClient SSRF)", "webhooks"),
+        ("POST", "integrations/webhook/dispatch", "webhook_url", True, False, True, False, "webhooks"),
+        ("POST", "events/notify_subscriber", "target_url", False, False, True, False, "webhooks"),
+        ("POST", "webhooks/test_ping", "callback", True, False, True, False, "webhooks"),
     ]
-    for verb, res, param, auth, db, ext, sens, sink_desc, domain in ssrf_configs:
+    for verb, res, param, auth, db, ext, sens, domain in ssrf_configs:
         for prefix in ["/api/v1", "/api/v2", "/services", "/dispatch"]:
             for p_name in [param, f"{param}_endpoint"]:
                 path = f"{prefix}/{res}"
+                sink_desc = get_realistic_sink_desc("ssrf", idx)
+                idx += 1
                 state = (
                     f"Endpoint: {verb} {path}\n"
                     f"Auth Required: {auth}, Roles: []\n"
@@ -166,20 +232,22 @@ def generate_laya_training_corpus() -> List[LayaTrainingSample]:
     # 4. BFLA / Administrative Elevation (CWE-285) - ~75 samples
     # -------------------------------------------------------------
     bfla_configs = [
-        ("POST", "admin/reset_metrics", "", False, False, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_core"),
-        ("PUT", "admin/users/{id}/role", "role", False, True, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_rbac"),
-        ("POST", "admin/system/restart", "", True, False, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_ops"),
-        ("GET", "admin/debug/environment", "", False, False, False, True, "No direct sensitive sink", "admin_debug"),
-        ("DELETE", "admin/cache/clear", "", False, False, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_core"),
+        ("POST", "admin/reset_metrics", "", False, False, False, True, "admin_core"),
+        ("PUT", "admin/users/{id}/role", "role", False, True, False, True, "admin_rbac"),
+        ("POST", "admin/system/restart", "", True, False, False, True, "admin_ops"),
+        ("GET", "admin/debug/environment", "", False, False, False, True, "admin_debug"),
+        ("DELETE", "admin/cache/clear", "", False, False, False, True, "admin_core"),
         # Held-out domains (admin_tenants)
-        ("DELETE", "admin/tenants/{id}/purge", "id", False, True, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_tenants"),
-        ("PUT", "admin/tenants/{id}/elevate", "level", False, True, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_tenants"),
-        ("POST", "admin/organizations/{id}/disable", "id", True, True, False, True, "Sinks: 1 detected (PrivilegedOperation)", "admin_tenants"),
+        ("DELETE", "admin/tenants/{id}/purge", "id", False, True, False, True, "admin_tenants"),
+        ("PUT", "admin/tenants/{id}/elevate", "level", False, True, False, True, "admin_tenants"),
+        ("POST", "admin/organizations/{id}/disable", "id", True, True, False, True, "admin_tenants"),
     ]
-    for verb, res, param, auth, db, ext, sens, sink_desc, domain in bfla_configs:
+    for verb, res, param, auth, db, ext, sens, domain in bfla_configs:
         for prefix in ["/api/v1", "/manage", "/ops", "/superadmin"]:
             path = f"{prefix}/{res}".replace("//", "/")
             param_list = f"['{param}']" if param else "[]"
+            sink_desc = get_realistic_sink_desc("bfla", idx)
+            idx += 1
             state = (
                 f"Endpoint: {verb} {path}\n"
                 f"Auth Required: {auth}, Roles: ['admin']\n"
@@ -199,21 +267,23 @@ def generate_laya_training_corpus() -> List[LayaTrainingSample]:
     # 5. Missing / Broken Authentication (CWE-306) - ~70 samples
     # -------------------------------------------------------------
     auth_configs = [
-        ("POST", "auth/password_reset/confirm", "new_password", False, True, False, True, "Sinks: 1 detected (StateModification)", "identity"),
-        ("PUT", "account/email_change", "new_email", False, True, False, True, "Sinks: 1 detected (StateModification)", "identity"),
-        ("POST", "vault/rotate_master_key", "key", False, True, False, True, "Sinks: 1 detected (StateModification)", "security"),
-        ("POST", "tokens/revoke_all", "session_id", False, True, False, True, "Sinks: 1 detected (StateModification)", "auth_tokens"),
-        ("DELETE", "accounts/terminate", "confirm_code", False, True, False, True, "Sinks: 1 detected (StateModification)", "accounts"),
+        ("POST", "auth/password_reset/confirm", "new_password", False, True, False, True, "identity"),
+        ("PUT", "account/email_change", "new_email", False, True, False, True, "identity"),
+        ("POST", "vault/rotate_master_key", "key", False, True, False, True, "security"),
+        ("POST", "tokens/revoke_all", "session_id", False, True, False, True, "auth_tokens"),
+        ("DELETE", "accounts/terminate", "confirm_code", False, True, False, True, "accounts"),
         # Held-out domains
-        ("POST", "transfer/funds", "amount", False, True, False, True, "Sinks: 1 detected (StateModification)", "fintech"),
-        ("POST", "wallets/withdraw", "withdrawal_amount", False, True, False, True, "Sinks: 1 detected (StateModification)", "fintech"),
-        ("POST", "cards/charge", "card_token", False, True, False, True, "Sinks: 1 detected (StateModification)", "fintech"),
-        ("POST", "clinical/access/token_override", "token", False, True, False, True, "Sinks: 1 detected (StateModification)", "healthcare"),
-        ("POST", "devices/factory_reset", "pin", False, True, False, True, "Sinks: 1 detected (StateModification)", "iot"),
+        ("POST", "transfer/funds", "amount", False, True, False, True, "fintech"),
+        ("POST", "wallets/withdraw", "withdrawal_amount", False, True, False, True, "fintech"),
+        ("POST", "cards/charge", "card_token", False, True, False, True, "fintech"),
+        ("POST", "clinical/access/token_override", "token", False, True, False, True, "healthcare"),
+        ("POST", "devices/factory_reset", "pin", False, True, False, True, "iot"),
     ]
-    for verb, res, param, auth, db, ext, sens, sink_desc, domain in auth_configs:
+    for verb, res, param, auth, db, ext, sens, domain in auth_configs:
         for prefix in ["/api/v1", "/api/v2", "/public/v1"]:
             path = f"{prefix}/{res}"
+            sink_desc = get_realistic_sink_desc("authentication", idx)
+            idx += 1
             state = (
                 f"Endpoint: {verb} {path}\n"
                 f"Auth Required: {auth}, Roles: []\n"
@@ -233,18 +303,20 @@ def generate_laya_training_corpus() -> List[LayaTrainingSample]:
     # 6. Mass Assignment (CWE-915) - ~65 samples
     # -------------------------------------------------------------
     mass_configs = [
-        ("PUT", "users/{id}/profile", "payload", True, True, False, False, "Sinks: 1 detected (DatabaseAccess update)", "user_profile"),
-        ("PATCH", "tenants/{id}/settings", "data", True, True, False, False, "Sinks: 1 detected (DatabaseAccess update)", "tenant_settings"),
-        ("POST", "accounts/register", "body", False, True, False, False, "Sinks: 1 detected (DatabaseAccess update)", "registration"),
-        ("PUT", "billing/address", "address_dto", True, True, False, False, "Sinks: 1 detected (DatabaseAccess update)", "billing_address"),
+        ("PUT", "users/{id}/profile", "payload", True, True, False, False, "user_profile"),
+        ("PATCH", "tenants/{id}/settings", "data", True, True, False, False, "tenant_settings"),
+        ("POST", "accounts/register", "body", False, True, False, False, "registration"),
+        ("PUT", "billing/address", "address_dto", True, True, False, False, "billing_address"),
         # Held-out domains (fintech)
-        ("PUT", "wallets/{id}/preferences", "prefs", True, True, False, False, "Sinks: 1 detected (DatabaseAccess update)", "fintech"),
-        ("PATCH", "accounts/kyc_data", "kyc_payload", True, True, False, False, "Sinks: 1 detected (DatabaseAccess update)", "fintech"),
+        ("PUT", "wallets/{id}/preferences", "prefs", True, True, False, False, "fintech"),
+        ("PATCH", "accounts/kyc_data", "kyc_payload", True, True, False, False, "fintech"),
     ]
-    for verb, res, param, auth, db, ext, sens, sink_desc, domain in mass_configs:
+    for verb, res, param, auth, db, ext, sens, domain in mass_configs:
         for prefix in ["/api/v1", "/api/v2", "/rest"]:
             for p_name in [param, f"{param}_json"]:
                 path = f"{prefix}/{res}"
+                sink_desc = get_realistic_sink_desc("mass_assignment", idx)
+                idx += 1
                 state = (
                     f"Endpoint: {verb} {path}\n"
                     f"Auth Required: {auth}, Roles: []\n"
@@ -264,23 +336,25 @@ def generate_laya_training_corpus() -> List[LayaTrainingSample]:
     # 7. Safe Controls / Benign Endpoints - ~80 samples
     # -------------------------------------------------------------
     safe_configs = [
-        ("GET", "health", False, False, False, "No direct sensitive sink", "monitoring"),
-        ("GET", "healthz", False, False, False, "No direct sensitive sink", "monitoring"),
-        ("GET", "ping", False, False, False, "No direct sensitive sink", "monitoring"),
-        ("GET", "metrics", False, False, False, "No direct sensitive sink", "monitoring"),
-        ("GET", "static/main.css", False, False, False, "No direct sensitive sink", "assets"),
-        ("GET", "docs", False, False, False, "No direct sensitive sink", "docs"),
-        ("GET", "openapi.json", False, False, False, "No direct sensitive sink", "docs"),
-        ("GET", "api/v1/orders/my", True, True, False, "No direct sensitive sink", "safe_commerce"),
-        ("GET", "api/v1/search/safe", True, True, False, "No direct sensitive sink", "safe_catalog"),
+        ("GET", "health", False, False, False, "monitoring"),
+        ("GET", "healthz", False, False, False, "monitoring"),
+        ("GET", "ping", False, False, False, "monitoring"),
+        ("GET", "metrics", False, False, False, "monitoring"),
+        ("GET", "static/main.css", False, False, False, "assets"),
+        ("GET", "docs", False, False, False, "docs"),
+        ("GET", "openapi.json", False, False, False, "docs"),
+        ("GET", "api/v1/orders/my", True, True, False, "safe_commerce"),
+        ("GET", "api/v1/search/safe", True, True, False, "safe_catalog"),
         # Held-out domains
-        ("GET", "clinical/vitals/ping", False, False, False, "No direct sensitive sink", "healthcare"),
-        ("GET", "devices/heartbeat", False, False, False, "No direct sensitive sink", "iot"),
-        ("GET", "fintech/exchange_rates", False, False, False, "No direct sensitive sink", "fintech"),
+        ("GET", "clinical/vitals/ping", False, False, False, "healthcare"),
+        ("GET", "devices/heartbeat", False, False, False, "iot"),
+        ("GET", "fintech/exchange_rates", False, False, False, "fintech"),
     ]
-    for verb, path, auth, db, sens, sink_desc, domain in safe_configs:
+    for verb, path, auth, db, sens, domain in safe_configs:
         for suffix in ["", "/v1", "/v2"]:
             full_path = f"/{path}{suffix}".replace("//", "/")
+            sink_desc = get_realistic_sink_desc("none", idx)
+            idx += 1
             state = (
                 f"Endpoint: {verb} {full_path}\n"
                 f"Auth Required: {auth}, Roles: []\n"
