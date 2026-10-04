@@ -5,7 +5,7 @@
  * Node.js & NPX launcher for TRACE Python engine.
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { existsSync, mkdirSync, cpSync, writeFileSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -99,6 +99,48 @@ for (const cand of candidatePythons) {
   if (cand && existsSync(cand)) {
     pythonBin = cand;
     break;
+  }
+}
+
+// Verify that the resolved Python environment has required TRACE dependencies
+let depsOk = false;
+try {
+  execSync(`"${pythonBin}" -c "import typer, rich, pydantic"`, { stdio: 'ignore' });
+  depsOk = true;
+} catch (e) {
+  depsOk = false;
+}
+
+if (!depsOk) {
+  const dedicatedVenv = join(userHome, '.trace', 'venv');
+  const venvPython = join(dedicatedVenv, isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
+
+  if (existsSync(venvPython)) {
+    try {
+      execSync(`"${venvPython}" -c "import typer, rich, pydantic"`, { stdio: 'ignore' });
+      pythonBin = venvPython;
+      depsOk = true;
+    } catch (e) {
+      depsOk = false;
+    }
+  }
+
+  if (!depsOk) {
+    console.log('\n\x1b[32m\x1b[1m[TRACE]\x1b[0m Initializing TRACE runtime dependencies in dedicated environment (~/.trace/venv)...');
+    try {
+      mkdirSync(join(userHome, '.trace'), { recursive: true });
+      if (!existsSync(venvPython)) {
+        console.log('  \x1b[38;2;255;158;59m›\x1b[0m Creating Python virtual environment in ~/.trace/venv...');
+        execSync(`"${pythonBin}" -m venv "${dedicatedVenv}"`, { stdio: 'inherit' });
+      }
+      console.log('  \x1b[38;2;255;158;59m›\x1b[0m Installing core dependencies (typer, rich, pydantic, tree-sitter, torch, transformers)...');
+      execSync(`"${venvPython}" -m pip install typer rich pydantic pydantic-settings networkx httpx orjson tomli-w tree-sitter tree-sitter-language-pack torch transformers safetensors onnxruntime numpy`, { stdio: 'inherit' });
+      pythonBin = venvPython;
+      console.log('\x1b[32m✓ Runtime dependencies provisioned successfully.\x1b[0m\n');
+    } catch (e) {
+      console.warn(`[TRACE] Automatic environment setup warning: ${e.message}`);
+      console.warn(`If command fails, install directly via: pip install git+https://github.com/VK-Amogh/TRACE.git\n`);
+    }
   }
 }
 
