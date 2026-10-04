@@ -267,6 +267,69 @@ class HypothesisEngine:
                                 )
                             )
                             hypo_idx += 1
+                        elif any(term in ep.path.lower() for term in ("analyze", "competitive-advantage", "generate-workspace", "generate-plan", "orchestrator/run")):
+                            # Case: Unauthenticated AI Agent / LLM Inference Pipeline
+                            hypotheses.append(
+                                SecurityHypothesis(
+                                    id=f"HYP-AUTH-{hypo_idx:03d}",
+                                    category=VulnerabilityCategory.AUTHENTICATION,
+                                    endpoint_id=ep.id,
+                                    endpoint_display=ep_disp,
+                                    title=f"Unauthenticated AI Agent Pipeline / Token Depletion on {ep_disp}",
+                                    description="Endpoint invokes expensive backend AI agent or LLM pipelines without authentication or rate-limiting, exposing the application to token exhaustion and prompt injection.",
+                                    recommended_test_pack="authentication",
+                                    confidence_prior=0.85,
+                                    static_evidence=[
+                                        f"AI Agent / LLM reasoning endpoint: {ep.method} {ep.path}",
+                                        "No authentication or caller identity verification detected",
+                                        "Risk: Denial-of-wallet, unbounded LLM token consumption, prompt injection",
+                                    ],
+                                    severity=Severity.HIGH,
+                                )
+                            )
+                            hypo_idx += 1
+                        elif any(term in ep.path.lower() for term in ("identity", "mvp", "product-config", "tech-preferences", "business-model", "additional-info")):
+                            # Case: Multi-step wizard session state mutation
+                            hypotheses.append(
+                                SecurityHypothesis(
+                                    id=f"HYP-AUTH-{hypo_idx:03d}",
+                                    category=VulnerabilityCategory.AUTHENTICATION,
+                                    endpoint_id=ep.id,
+                                    endpoint_display=ep_disp,
+                                    title=f"Insecure Discovery Session State Mutation on {ep_disp}",
+                                    description="Endpoint updates onboarding discovery session data using client-supplied sessionId without session tenant verification, enabling session hijacking and state poisoning.",
+                                    recommended_test_pack="authentication",
+                                    confidence_prior=0.80,
+                                    static_evidence=[
+                                        f"Discovery session state modification: {ep.method} {ep.path}",
+                                        "Client-controlled sessionId parameter without verified caller ownership",
+                                        "Risk: Cross-session data corruption and poisoning of startup configuration",
+                                    ],
+                                    severity=Severity.HIGH,
+                                )
+                            )
+                            hypo_idx += 1
+                        elif any(term in ep.path.lower() for term in ("deliverable", "rollforward")):
+                            # Case: Unauthorized task status / sprint roadmap mutation
+                            hypotheses.append(
+                                SecurityHypothesis(
+                                    id=f"HYP-AUTH-{hypo_idx:03d}",
+                                    category=VulnerabilityCategory.AUTHENTICATION,
+                                    endpoint_id=ep.id,
+                                    endpoint_display=ep_disp,
+                                    title=f"Unauthorized Sprint Deliverable & Schedule Manipulation on {ep_disp}",
+                                    description="Endpoint updates deliverable statuses or rolls forward sprint deadlines without verifying workspace membership or caller permissions.",
+                                    recommended_test_pack="authentication",
+                                    confidence_prior=0.80,
+                                    static_evidence=[
+                                        f"Deliverable/schedule mutation: {ep.method} {ep.path}",
+                                        "Missing workspace collaborator or editor role check",
+                                        "Risk: Tampering with project sprint audit trails and deliverable completion status",
+                                    ],
+                                    severity=Severity.HIGH,
+                                )
+                            )
+                            hypo_idx += 1
                         elif any(term in ep.path.lower() for term in ("scatt-analysis", "inference", "predict", "telemetry/analyze")) and not ep.database_access:
                             # Case: Stateless ML/inference compute endpoint (low impact)
                             hypotheses.append(
@@ -316,7 +379,7 @@ class HypothesisEngine:
                                     category=VulnerabilityCategory.AUTHENTICATION,
                                     endpoint_id=ep.id,
                                     endpoint_display=ep_disp,
-                                    title=f"Unauthenticated sensitive endpoint {ep_disp}",
+                                    title=f"Unauthenticated Sensitive Route Exposure on {ep_disp}",
                                     description="Sensitive or state-modifying endpoint does not declare authentication requirement.",
                                     recommended_test_pack="authentication",
                                     confidence_prior=0.80,

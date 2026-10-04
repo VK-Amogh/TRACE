@@ -23,6 +23,140 @@ def get_detailed_remediation_and_root_cause(
     ev_text = " ".join(static_evidence or []).lower()
     cat_upper = category.upper()
 
+    # Confidential Startup Workspace IP Exfiltration (BOLA / Exposure)
+    if any(k in ep_lower for k in ("/dashboard/workspace", "/dashboard/business", "/dashboard/branding", "/dashboard/product", "/dashboard/engineering", "/dashboard/project-management")):
+        root_cause = (
+            f"Endpoint `{endpoint}` directly reads proprietary startup intellectual property (business models, architecture plans, branding assets) "
+            f"using an unvalidated workspace ID parameter (`req.params.id`). The handler lacks session authentication and tenant "
+            f"ownership checks, allowing any external caller to exfiltrate confidential startup intellectual property simply by enumerating IDs."
+        )
+        remediation = (
+            "1. Mount `verifyToken` middleware on the dashboard router: `router.use(verifyToken)` in `dashboardRoutes.js`.\n"
+            "2. In the route handler, fetch the workspace and verify tenant ownership: `if (workspace.userId !== req.user.id) return res.status(403).json({ error: 'Unauthorized access to workspace' })`.\n"
+            "3. Reject unauthenticated requests with HTTP 401 and unauthorized workspace queries with HTTP 403 Forbidden."
+        )
+        short_action = "Assert req.user ownership of workspaceId before disclosing startup IP."
+        return root_cause, remediation, short_action
+
+    # AI Market Analysis & LLM Resource Exhaustion
+    if any(k in ep_lower for k in ("/discovery/analyze", "/discovery/competitive-advantage")):
+        root_cause = (
+            f"Endpoint `{endpoint}` dispatches directly into the backend AI discovery pipeline and LLM provider without "
+            f"caller authentication or request throttling. Malicious or automated callers can spam this endpoint to exhaust "
+            f"backend AI API token budgets (denial-of-wallet) or inject adversarial prompt payloads."
+        )
+        remediation = (
+            "1. Guard `{endpoint}` with `verifyToken` authentication middleware.\n"
+            "2. Apply rate-limiting middleware (`express-rate-limit`) to restrict users to a reasonable quota (e.g. 10 requests / hour).\n"
+            "3. Sanitize incoming prompt inputs (`startupIdea`, `targetAudience`) to mitigate prompt injection attacks."
+        )
+        short_action = "Apply verifyToken and express-rate-limit to throttle AI market analysis."
+        return root_cause, remediation, short_action
+
+    # Insecure Session State Manipulation / Poisoning
+    if any(k in ep_lower for k in ("/discovery/identity", "/discovery/mvp", "/discovery/product-config", "/discovery/tech-preferences", "/discovery/business-model", "/discovery/additional-info")):
+        step_name = endpoint.split("/")[-1]
+        root_cause = (
+            f"The `{step_name}` wizard step on `{endpoint}` takes an unauthenticated client-supplied `sessionId` and updates "
+            f"in-flight discovery state via `store.updateSession()`. Because sessions are not bound to verified user credentials, "
+            f"an attacker can guess or spoof a `sessionId` to overwrite, poison, or corrupt another founder's startup definitions."
+        )
+        remediation = (
+            "1. When initializing discovery sessions, bind `session.userId = req.user.id` using verified token claims.\n"
+            "2. In `{endpoint}`, assert that `session.userId === req.user.id` before calling `store.updateSession()`.\n"
+            "3. Use cryptographically unguessable UUIDs for session identifiers and reject unauthorized updates with HTTP 403 Forbidden."
+        )
+        short_action = "Bind sessionId to req.user.id to prevent cross-session state poisoning."
+        return root_cause, remediation, short_action
+
+    # Unauthorized Workspace Generation
+    if "/discovery/generate-workspace" in ep_lower:
+        root_cause = (
+            f"Endpoint `{endpoint}` aggregates onboarding data and instantiates a permanent startup workspace entity based solely "
+            f"on a raw `sessionId` in `req.body`. Anyone who obtains a session ID can trigger final workspace creation without "
+            f"caller verification, enabling session hijacking and unauthorized workspace instantiation."
+        )
+        remediation = (
+            "1. Protect `/generate-workspace` with `verifyToken` middleware.\n"
+            "2. Verify that `session.userId === req.user.id` before executing `store.generateWorkspace(sessionId)`.\n"
+            "3. Invalidate or mark the session as completed to prevent double-generation race conditions."
+        )
+        short_action = "Authenticate caller and verify session ownership before generating workspace."
+        return root_cause, remediation, short_action
+
+    # Autonomous Agent Pipeline Dispatch
+    if "/orchestrator/run" in ep_lower:
+        root_cause = (
+            f"Endpoint `{endpoint}` triggers the autonomous orchestrator agent pipeline (`orchestratorBridge.runOrchestration`) "
+            f"with an unvalidated user prompt. Exposing agent execution without authentication allows attackers to dispatch "
+            f"arbitrary commands against any workspace, poison agent context, and consume server compute."
+        )
+        remediation = (
+            "1. Guard `/api/orchestrator/run` with `verifyToken` middleware.\n"
+            "2. Verify that `req.user` is an authorized collaborator on the target `workspaceId`.\n"
+            "3. Sanitize the input `query` against prompt injection and enforce strict timeout and token budget constraints."
+        )
+        short_action = "Require verifyToken and sanitize query before dispatching autonomous agent."
+        return root_cause, remediation, short_action
+
+    # Sprint Plan Generation / Overwrite
+    if "/orchestrator/generate-plan" in ep_lower:
+        root_cause = (
+            f"Endpoint `{endpoint}` triggers automated generation of weekly/monthly execution plans for a given `workspaceId`. "
+            f"Without authentication or authorization checks, an unauthorized actor can overwrite existing sprint roadmaps, "
+            f"milestones, and active deliverables for any startup."
+        )
+        remediation = (
+            "1. Mount `verifyToken` middleware on `/api/orchestrator`.\n"
+            "2. Verify that `req.user` has workspace admin/editor permissions before invoking `orchestratorService.generatePlan()`.\n"
+            "3. Preserve historical plan versions instead of destructive in-place overwrites."
+        )
+        short_action = "Verify workspace management permissions before regenerating project plans."
+        return root_cause, remediation, short_action
+
+    # Deliverable & Task Status Tampering
+    if "/orchestrator/deliverable" in ep_lower:
+        root_cause = (
+            f"Endpoint `{endpoint}` permits status modifications (`pending`, `completed`, `rolled-over`) and arbitrary field updates to project deliverables "
+            f"using path parameters `planId` and `deliverableId`. The route lacks caller verification, enabling malicious actors to falsify project milestones and corrupt sprint metrics."
+        )
+        remediation = (
+            "1. Require session authentication via `verifyToken`.\n"
+            "2. Verify that the plan identified by `req.params.planId` belongs to a workspace where `req.user` is an active member.\n"
+            "3. Validate status transitions against allowed state machines and reject unauthorized updates with HTTP 403 Forbidden."
+        )
+        short_action = "Enforce workspace membership check before patching deliverable status."
+        return root_cause, remediation, short_action
+
+    # Schedule Roll-Forward Manipulation
+    if "/orchestrator/rollforward" in ep_lower:
+        root_cause = (
+            f"Endpoint `{endpoint}` reschedules uncompleted deliverables from past dates to today. Because it lacks access control, "
+            f"external actors can trigger roll-forward operations on arbitrary plans, disrupting task deadlines and sprint audit trails."
+        )
+        remediation = (
+            "1. Protect `{endpoint}` with `verifyToken`.\n"
+            "2. Validate that `req.user` has editor or admin rights on the workspace owning `planId`.\n"
+            "3. Record audit logs for roll-forward triggers with timestamps and caller ID."
+        )
+        short_action = "Restrict plan roll-forward operations to authenticated team members."
+        return root_cause, remediation, short_action
+
+    # Project Roadmaps & Progress Disclosure
+    if any(k in ep_lower for k in ("/orchestrator/plans/", "/orchestrator/active-plan/", "/orchestrator/dashboard/")):
+        root_cause = (
+            f"Endpoint `{endpoint}` returns sprint plans, active tasks, upcoming deadlines, and progress metrics for the specified "
+            f"`workspaceId`. Without authentication or tenant checks, external actors can inspect internal development roadmaps, "
+            f"proprietary feature deadlines, and team deliverables."
+        )
+        remediation = (
+            "1. Mount `verifyToken` middleware on the orchestrator router.\n"
+            "2. Verify that `req.user` is a verified member of `workspaceId` before calling `planStore` or `orchestratorService`.\n"
+            "3. Return HTTP 403 Forbidden if the caller is not affiliated with the workspace."
+        )
+        short_action = "Verify workspace membership before disclosing plan roadmaps and tasks."
+        return root_cause, remediation, short_action
+
     # 1. Caller-Controlled Ownership Bypass via Optional Parameter
     if "caller-controlled" in t_lower or "assert_coach_owns_athlete" in ev_text or ("coach_id" in ev_text and "bypass" in t_lower):
         root_cause = (
@@ -129,6 +263,21 @@ def get_detailed_remediation_and_root_cause(
 
     # 7. Insecure CORS Configuration
     if cat_upper == "CORS" or "cors" in t_lower:
+        if "localhost" in ev_text or "3000" in ev_text or "backend/server.js" in filepath:
+            root_cause = (
+                f"CORS configuration on `{endpoint}` uses hardcoded `origin: 'http://localhost:3000'`. "
+                f"Static development origin definitions in server code leave production deployments vulnerable "
+                f"to misconfiguration or unintended cross-origin access from local debugging ports."
+            )
+            remediation = (
+                "1. Load allowed origins dynamically from environment variables: "
+                "`const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(','); app.use(cors({ origin: allowedOrigins }));`.\n"
+                "2. Ensure credentials (`credentials: true`) are never combined with wildcard origins.\n"
+                "3. Reject cross-origin requests from unlisted origin headers."
+            )
+            short_action = "Configure CORS origins dynamically via environment variable rather than hardcoding localhost."
+            return root_cause, remediation, short_action
+
         root_cause = (
             f"`CORSMiddleware` on `{endpoint}` is configured with `allow_origins=['*']` combined with "
             f"`allow_credentials=True`. This permits arbitrary third-party websites to execute credentialed "

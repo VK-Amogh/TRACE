@@ -158,7 +158,11 @@ class ExpressFrameworkAdapter(FrameworkAdapter):
         content_lower = content.lower()
         has_db_sink = any(
             term in content_lower
-            for term in ("mongoose", "prisma", "sequelize", "knex", "pool.query", "db.query", "db.collection")
+            for term in (
+                "mongoose", "prisma", "sequelize", "knex", "pool.query", "db.query", "db.collection",
+                "supabase", "store.", "planstore", "discoverystore", "findone", "find(", "findby",
+                "getworkspace", "getplan", "getsession", "model."
+            )
         )
         has_ext_sink = any(
             term in content_lower
