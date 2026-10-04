@@ -65,7 +65,7 @@ def print_banner() -> None:
         ("trace", "launch interactive guided audit wizard"),
         ("trace audit <repo>", "run complete full vulnerability audit with AI models"),
         ("trace scan <repo> -t <url>", "end-to-end static + live exploit verification"),
-        ("trace heal", "autonomous AST self-healing with verification oracle"),
+        ("trace mcp", "launch local MCP server for Claude Code & Cursor"),
         ("trace doctor", "inspect local environment & security tools"),
     ]
 

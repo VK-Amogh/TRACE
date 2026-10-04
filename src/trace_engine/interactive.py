@@ -303,7 +303,7 @@ def run_interactive_story() -> None:
     if update_info and update_info.get("update_available"):
         render_update_banner(update_info)
 
-    console.print(f"  [{WHITE}]Welcome, Security Operator. TRACE stands ready to audit, verify, and heal codebases.[/{WHITE}]")
+    console.print(f"  [{WHITE}]Welcome, Security Operator. TRACE stands ready to audit, map attack paths, and verify codebases.[/{WHITE}]")
     console.print(f"  [{DIM_WHITE}]Navigate using the options below (type 'exit' or 'q' at any prompt to quit).[/{DIM_WHITE}]\n")
 
     # =========================================================================
@@ -312,17 +312,16 @@ def run_interactive_story() -> None:
     console.print(f"  [{BOLD_WHITE}]Select Audit Mission:[/{BOLD_WHITE}]")
     console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Full Security Audit[/{BOLD_WHITE}] [{GREEN}]★ RECOMMENDED[/{GREEN}] [{DIM_WHITE}]─ Multi-language AST, APM graph, & Security Hypotheses[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][2][/{ORANGE}] [{BOLD_WHITE}]Targeted Vulnerability Probes[/{BOLD_WHITE}] [{DIM_WHITE}]─ Select specific testpacks (BOLA, SQLi, SSRF, BFLA)[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Autonomous AST Self-Healing[/{BOLD_WHITE}] [{DIM_WHITE}]─ Surgical refactoring with live rollback verification[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]Start Claude Code Local MCP Server[/{BOLD_WHITE}] [{GREEN}]★ LOCAL MCP[/{GREEN}] [{DIM_WHITE}]─ Run HTTP/SSE bridge for Claude Code chat[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][5][/{ORANGE}] [{BOLD_WHITE}]How TRACE Works & Architecture Guide[/{BOLD_WHITE}] [{DIM_WHITE}]─ Interactive architectural diagram & operational FAQ[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Environment Diagnostics (Doctor)[/{BOLD_WHITE}] [{DIM_WHITE}]─ Inspect local security tools and dependencies[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Start Claude Code Local MCP Server[/{BOLD_WHITE}] [{GREEN}]★ LOCAL MCP[/{GREEN}] [{DIM_WHITE}]─ Run HTTP/SSE bridge for Claude Code chat[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]How TRACE Works & Architecture Guide[/{BOLD_WHITE}] [{DIM_WHITE}]─ Interactive architectural diagram & operational FAQ[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][5][/{ORANGE}] [{BOLD_WHITE}]Environment Diagnostics (Doctor)[/{BOLD_WHITE}] [{DIM_WHITE}]─ Inspect local security tools and dependencies[/{DIM_WHITE}]")
     if not models_ready:
-        console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Download Neural Weights[/{BOLD_WHITE}] [{DIM_WHITE}]─ Provision ~1 GB SecureBERT 2.0 & Laya AI into ~/.trace/models[/{DIM_WHITE}]")
-        console.print(f"    [{ORANGE}][8][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]")
-        valid_choices = ["1", "2", "3", "4", "5", "6", "7", "8"]
-    else:
+        console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Download Neural Weights[/{BOLD_WHITE}] [{DIM_WHITE}]─ Provision ~1 GB SecureBERT 2.0 & Laya AI into ~/.trace/models[/{DIM_WHITE}]")
         console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]")
         valid_choices = ["1", "2", "3", "4", "5", "6", "7"]
+    else:
+        console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]")
+        valid_choices = ["1", "2", "3", "4", "5", "6"]
 
     if update_info and update_info.get("update_available"):
         latest_ver = update_info["latest_version"]
@@ -345,11 +344,11 @@ def run_interactive_story() -> None:
         run_interactive_story()
         return
 
-    if (not models_ready and choice == "8") or (models_ready and choice == "7"):
+    if (not models_ready and choice == "7") or (models_ready and choice == "6"):
         console.print(f"\n  [{GREEN}]✓ TRACE session closed. Happy hacking![/{GREEN}]\n")
         return
 
-    if not models_ready and choice == "7":
+    if not models_ready and choice == "6":
         display_story_header(2, 2, "Neural Model Provisioning", "Downloading fine-tuned SecureBERT 2.0 & Laya AI from GitHub LFS Hub")
         console.print(f"  [{WHITE}]Downloading fine-tuned neural models into ~/.trace/models/...[/{WHITE}]")
         try:
@@ -360,17 +359,17 @@ def run_interactive_story() -> None:
             console.print(f"  [{DIM_WHITE}]You can continue using TRACE with the built-in deterministic AST & semantic engine.[/{DIM_WHITE}]\n")
         return
 
-    if choice == "4":
+    if choice == "3":
         from trace_engine.mcp.server import TraceMCPServer
         mcp_obj = TraceMCPServer()
         mcp_obj.run_sse_server(host="127.0.0.1", port=8765)
         return
 
-    if choice == "5":
+    if choice == "4":
         run_architecture_guide()
         return
 
-    if choice == "6":
+    if choice == "5":
         display_story_header(2, 2, "Environment Diagnostics", "Auditing local dependencies and runtime requirements")
         from trace_engine.doctor import run_doctor
         report = run_doctor(Path("."))
@@ -402,21 +401,6 @@ def run_interactive_story() -> None:
         return
 
     console.print(f"  [{GREEN}]✓ Linked codebase:[/{GREEN}] [{BOLD_WHITE}]{project_dir.name}[/{BOLD_WHITE}] [{DIM_WHITE}]({project_dir})[/{DIM_WHITE}]\n")
-
-    # If Option 3 was selected, jump directly to self-healing loop
-    if choice == "3":
-        display_story_header(3, 3, "Autonomous Remediation", "Refactoring AST code nodes and running verification oracle")
-        target_url = ask_input(
-            f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Runtime Target URL (localhost/lab)[/{BOLD_WHITE}]",
-            default="http://127.0.0.1:18080",
-            show_default=True,
-        )
-        from trace_engine.harness.engine import AgentHarness
-        with console.status(f"  [{GREEN}]Autonomous Harness Active:[/{GREEN}] [{WHITE}]Applying AST refactoring and verification...[/{WHITE}]", spinner="dots"):
-            harness = AgentHarness(project_dir, target_url=target_url)
-            report = harness.run_self_healing_loop()
-        print_harness_report(report)
-        return
 
     # =========================================================================
     # STEP 3: Runtime Target Environment (Clean "Localhost or Lab" Explanation)
