@@ -35,9 +35,12 @@ class SecureBERTClassifier:
     ):
         candidates = [
             Path.home() / ".trace/models/securebert-finetuned",
+            Path("models/securebert-finetuned"),
             Path(".trace/models/securebert-finetuned"),
+            Path(__file__).resolve().parents[4] / "models/securebert-finetuned",
             Path(__file__).resolve().parents[4] / ".trace/models/securebert-finetuned",
             Path(__file__).resolve().parents[2] / "models/securebert-finetuned",
+            Path("D:/Startup/TRACE/models/securebert-finetuned"),
             Path("D:/Startup/TRACE/.trace/models/securebert-finetuned"),
         ]
         default_model = None

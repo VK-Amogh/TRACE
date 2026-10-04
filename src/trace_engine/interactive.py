@@ -278,6 +278,10 @@ def run_interactive_story() -> None:
     """Executes the complete interactive, step-by-step security audit story."""
     render_big_banner(animated=True)
 
+    from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
+    if not prompt_and_bootstrap_models(interactive=True):
+        return
+
     console.print(f"  [{WHITE}]Welcome, Security Operator. TRACE stands ready to audit, verify, and heal codebases.[/{WHITE}]")
     console.print(f"  [{DIM_WHITE}]Navigate using the options below (type 'exit' or 'q' at any prompt to quit).[/{DIM_WHITE}]\n")
 
@@ -288,26 +292,33 @@ def run_interactive_story() -> None:
     console.print(f"    [{ORANGE}][1][/{ORANGE}] [{BOLD_WHITE}]Full Security Audit[/{BOLD_WHITE}] [{GREEN}]★ RECOMMENDED[/{GREEN}] [{DIM_WHITE}]─ Multi-language AST, APM graph, & Neural AI[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][2][/{ORANGE}] [{BOLD_WHITE}]Targeted Vulnerability Probes[/{BOLD_WHITE}] [{DIM_WHITE}]─ Select specific testpacks (BOLA, SQLi, SSRF, BFLA)[/{DIM_WHITE}]")
     console.print(f"    [{ORANGE}][3][/{ORANGE}] [{BOLD_WHITE}]Autonomous AST Self-Healing[/{BOLD_WHITE}] [{DIM_WHITE}]─ Surgical refactoring with live rollback verification[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]How TRACE Works & Architecture Guide[/{BOLD_WHITE}] [{GREEN}]★ 5 Q&A[/{GREEN}] [{DIM_WHITE}]─ Interactive architectural diagram & neural models[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][5][/{ORANGE}] [{BOLD_WHITE}]Environment Diagnostics (Doctor)[/{BOLD_WHITE}] [{DIM_WHITE}]─ Inspect local security tools and dependencies[/{DIM_WHITE}]")
-    console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
+    console.print(f"    [{ORANGE}][4][/{ORANGE}] [{BOLD_WHITE}]Start Claude Code Local MCP Server[/{BOLD_WHITE}] [{GREEN}]★ LOCAL MCP[/{GREEN}] [{DIM_WHITE}]─ Run HTTP/SSE bridge for Claude Code chat[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][5][/{ORANGE}] [{BOLD_WHITE}]How TRACE Works & Architecture Guide[/{BOLD_WHITE}] [{DIM_WHITE}]─ Interactive architectural diagram & neural models[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][6][/{ORANGE}] [{BOLD_WHITE}]Environment Diagnostics (Doctor)[/{BOLD_WHITE}] [{DIM_WHITE}]─ Inspect local security tools and dependencies[/{DIM_WHITE}]")
+    console.print(f"    [{ORANGE}][7][/{ORANGE}] [{BOLD_WHITE}]Exit[/{BOLD_WHITE}]\n")
 
     choice = ask_input(
         f"  [{ORANGE}]›[/{ORANGE}] [{BOLD_WHITE}]Choose option[/{BOLD_WHITE}]",
-        choices=["1", "2", "3", "4", "5", "6"],
+        choices=["1", "2", "3", "4", "5", "6", "7"],
         default="1",
         show_default=True,
     )
 
-    if choice == "6":
+    if choice == "7":
         console.print(f"\n  [{GREEN}]✓ TRACE session closed. Happy hacking![/{GREEN}]\n")
         return
 
     if choice == "4":
-        run_architecture_guide()
+        from trace_engine.mcp.server import TraceMCPServer
+        mcp_obj = TraceMCPServer()
+        mcp_obj.run_sse_server(host="127.0.0.1", port=8765)
         return
 
     if choice == "5":
+        run_architecture_guide()
+        return
+
+    if choice == "6":
         display_story_header(2, 2, "Environment Diagnostics", "Auditing local dependencies and runtime requirements")
         from trace_engine.doctor import run_doctor
         report = run_doctor(Path("."))

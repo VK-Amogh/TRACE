@@ -320,6 +320,10 @@ def scan(
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
     project_dir = path.resolve()
+    from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
+    if not prompt_and_bootstrap_models(interactive=True):
+        raise typer.Exit(code=1)
+
     config = load_config(project_dir)
 
     console.print(f"\n[bold green]Starting TRACE Full Scan[/bold green] on [white]{project_dir.name}[/white]")
@@ -438,6 +442,11 @@ def test_all(
     from trace_engine.intelligence.orchestrator import IntelligenceOrchestrator
 
     project_dir = path.resolve()
+    if models:
+        from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
+        if not prompt_and_bootstrap_models(interactive=True):
+            raise typer.Exit(code=1)
+
     config = load_config(project_dir)
 
     resolved_target = target if target else (config.target.url or "http://127.0.0.1:18080")
@@ -824,29 +833,53 @@ def verify(
 
 
 @app.command()
-def mcp():
-    """Start the TRACE Model Context Protocol (MCP) server over stdio for Claude Code / Codex."""
+def mcp(
+    server: bool = typer.Option(False, "--server", "-s", help="Run local HTTP/SSE server instead of stdio"),
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host interface to bind HTTP/SSE server"),
+    port: int = typer.Option(8765, "--port", "-p", help="Port to bind HTTP/SSE server"),
+):
+    """Start TRACE Model Context Protocol (MCP) server for Claude Code and coding agents."""
     from trace_engine.mcp.server import TraceMCPServer
 
-    server = TraceMCPServer()
-    server.run_stdio()
+    mcp_obj = TraceMCPServer()
+    if server:
+        mcp_obj.run_sse_server(host=host, port=port)
+    else:
+        mcp_obj.run_stdio()
+
+
+@app.command(name="mcp-server")
+@app.command(name="serve-mcp")
+def mcp_server_cmd(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host interface to bind HTTP/SSE server"),
+    port: int = typer.Option(8765, "--port", "-p", help="Port to bind HTTP/SSE server"),
+):
+    """Start local HTTP/SSE TRACE MCP server and display connection link for Claude Code."""
+    from trace_engine.mcp.server import TraceMCPServer
+
+    mcp_obj = TraceMCPServer()
+    mcp_obj.run_sse_server(host=host, port=port)
 
 
 @app.command("setup-mcp")
 def setup_mcp(
     path: Path = typer.Argument(Path("."), help="Path to project repository")
 ):
-    """Generate .mcp.json and configure MCP coding agent integration (Section 64)."""
+    """Generate .mcp.json and configure MCP coding agent integration."""
     from trace_engine.mcp.config import generate_mcp_json
 
     project_dir = path.resolve()
     mcp_file = generate_mcp_json(project_dir)
 
     console.print(f"\n[bold green]Configured TRACE MCP[/bold green] in [white]{mcp_file}[/white]")
-    console.print("\n[bold white]Connect to Claude Code:[/bold white]")
-    console.print("  [green]claude mcp add trace -- cmd /c npx -y @trace-security/trace mcp[/green]")
-    console.print("\n[bold white]Connect to Codex / Cursor / Antigravity:[/bold white]")
-    console.print("  [dim]The generated .mcp.json is already recognized by compatible IDEs and CLI agents.[/dim]\n")
+    console.print("\n[bold white]Option A: Direct Stdio Integration in Claude Code:[/bold white]")
+    console.print("  [green]claude mcp add trace -- npx -y trace-sec mcp[/green]")
+    console.print("\n[bold white]Option B: Local HTTP/SSE Server Link (Real-Time Bridge):[/bold white]")
+    console.print("  1. Launch server: [bold green]trace mcp-server[/bold green]")
+    console.print("  2. Connect via CLI: [green]claude mcp add --transport sse trace http://127.0.0.1:8765/sse[/green]")
+    console.print("  3. Or paste [cyan]http://127.0.0.1:8765/sse[/cyan] directly in your Claude Code chat!")
+    console.print("\n[bold white]Option C: Cursor IDE / Antigravity / Claude Code:[/bold white]")
+    console.print("  [dim]The created .mcp.json is already active in your workspace.[/dim]\n")
 
 
 @app.command()
@@ -884,6 +917,10 @@ def remediate(
 ):
     """Execute autonomous Agent Harness self-healing and remediation loop: patch vulnerabilities and verify fixes."""
     from trace_engine.harness.engine import AgentHarness
+
+    from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
+    if not prompt_and_bootstrap_models(interactive=True):
+        raise typer.Exit(code=1)
 
     target_path = repo or path
     _, resolved_dir = resolve_finding_store(target_path.resolve())

@@ -396,3 +396,174 @@ class TraceMCPServer:
                 }
                 sys.stdout.write(json.dumps(err_resp) + "\n")
                 sys.stdout.flush()
+
+    def run_sse_server(self, host: str = "127.0.0.1", port: int = 8765):
+        """Run an MCP HTTP/SSE transport server for Claude Code and local AI coding agents."""
+        import uuid
+        import queue
+        import urllib.parse
+        from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+
+        sessions: Dict[str, queue.Queue] = {}
+        server_instance = self
+
+        class MCPHandler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass  # Suppress request clutter in terminal
+
+            def do_OPTIONS(self):
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+                self.end_headers()
+
+            def do_GET(self):
+                parsed = urllib.parse.urlparse(self.path)
+                if parsed.path == "/sse":
+                    session_id = uuid.uuid4().hex
+                    msg_queue: queue.Queue = queue.Queue()
+                    sessions[session_id] = msg_queue
+
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Connection", "keep-alive")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+
+                    # Emit endpoint event as defined in MCP SSE transport specification
+                    endpoint_msg = f"event: endpoint\r\ndata: /message?sessionId={session_id}\r\n\r\n"
+                    self.wfile.write(endpoint_msg.encode("utf-8"))
+                    self.wfile.flush()
+
+                    try:
+                        while server_instance.running:
+                            try:
+                                msg = msg_queue.get(timeout=1.0)
+                                if msg is None:
+                                    break
+                                event_str = f"event: message\r\ndata: {json.dumps(msg)}\r\n\r\n"
+                                self.wfile.write(event_str.encode("utf-8"))
+                                self.wfile.flush()
+                            except queue.Empty:
+                                self.wfile.write(b": keepalive\r\n\r\n")
+                                self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                    finally:
+                        sessions.pop(session_id, None)
+
+                elif parsed.path in ("/health", "/status"):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    status_info = {
+                        "status": "online",
+                        "server": "TRACE MCP Server v2.1",
+                        "transport": "sse",
+                        "sse_url": f"http://{host}:{port}/sse",
+                        "active_sessions": len(sessions),
+                        "tools": [t["name"] for t in TRACE_TOOLS],
+                    }
+                    self.wfile.write(json.dumps(status_info, indent=2).encode("utf-8"))
+
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TRACE Local MCP Server</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0f17; color: #f8fafc; padding: 40px; margin: 0; }}
+    .container {{ max-width: 680px; margin: 0 auto; background: #131b2e; border: 1px solid #10b981; border-radius: 12px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
+    h1 {{ color: #10b981; margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 24px; }}
+    .badge {{ background: #10b981; color: #0b0f17; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }}
+    p {{ color: #94a3b8; font-size: 14px; line-height: 1.6; }}
+    .cmd-box {{ background: #070a12; border: 1px solid #1e293b; border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-family: monospace; color: #38bdf8; font-size: 13px; word-break: break-all; }}
+    .section-title {{ color: #ffffff; font-size: 14px; font-weight: bold; margin-top: 20px; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>TRACE MCP Server <span class="badge">ONLINE</span></h1>
+    <p>Local Model Context Protocol (MCP) server listening for Claude Code and AI coding agents.</p>
+    
+    <div class="section-title">Local MCP Endpoint Link:</div>
+    <div class="cmd-box">http://{host}:{port}/sse</div>
+
+    <div class="section-title">Connect via Claude Code CLI:</div>
+    <div class="cmd-box">claude mcp add --transport sse trace http://{host}:{port}/sse</div>
+
+    <div class="section-title">Connect in Claude Chat:</div>
+    <p>Paste the local MCP link into your Claude chat to grant autonomous AST scanning and verification powers:</p>
+    <div class="cmd-box">http://{host}:{port}/sse</div>
+  </div>
+</body>
+</html>"""
+                    self.wfile.write(html.encode("utf-8"))
+
+            def do_POST(self):
+                parsed = urllib.parse.urlparse(self.path)
+                if parsed.path.startswith("/message"):
+                    query = urllib.parse.parse_qs(parsed.query)
+                    session_id = query.get("sessionId", [None])[0]
+
+                    content_len = int(self.headers.get("Content-Length", 0))
+                    body = self.rfile.read(content_len).decode("utf-8")
+                    try:
+                        req = json.loads(body)
+                        resp = server_instance.handle_request(req)
+                    except Exception as e:
+                        resp = {
+                            "jsonrpc": "2.0",
+                            "id": None,
+                            "error": {"code": -32603, "message": str(e)},
+                        }
+
+                    if session_id and session_id in sessions and resp:
+                        sessions[session_id].put(resp)
+
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(resp or {"jsonrpc": "2.0", "result": None}).encode("utf-8"))
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+        GREEN = "\033[38;2;16;185;129m"
+        CYAN = "\033[38;2;56;189;248m"
+        ORANGE = "\033[38;2;255;158;59m"
+        BOLD = "\033[1m"
+        DIM = "\033[2m"
+        RESET = "\033[0m"
+
+        print(f"\n  {GREEN}┌{'─' * 74}┐{RESET}")
+        print(f"  {GREEN}│{RESET}  {BOLD}TRACE Local MCP Server (Model Context Protocol){RESET}                     {GREEN}│{RESET}")
+        print(f"  {GREEN}├{'─' * 74}┤{RESET}")
+        print(f"  {GREEN}│{RESET}  {BOLD}Local MCP Link   :{RESET} {CYAN}http://{host}:{port}/sse{RESET}{' ' * max(0, 39 - len(f'http://{host}:{port}/sse'))}{GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}  {BOLD}Web Dashboard    :{RESET} {CYAN}http://{host}:{port}/{RESET}{' ' * max(0, 42 - len(f'http://{host}:{port}/'))}{GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}  {BOLD}Status           :{RESET} {GREEN}ONLINE{RESET} (Listening for Claude Code & AI Coding Agents)  {GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}                                                                          {GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}  {BOLD}Connect in Claude Code CLI:{RESET}                                             {GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}   {ORANGE}›{RESET} {BOLD}claude mcp add --transport sse trace http://{host}:{port}/sse{RESET}          {GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}                                                                          {GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}  {BOLD}Or paste this link directly in your Claude Code chat:{RESET}                   {GREEN}│{RESET}")
+        print(f"  {GREEN}│{RESET}   {CYAN}http://{host}:{port}/sse{RESET}{' ' * max(0, 49 - len(f'http://{host}:{port}/sse'))}{GREEN}│{RESET}")
+        print(f"  {GREEN}└{'─' * 74}┘{RESET}\n")
+        print(f"  {DIM}Press Ctrl+C to terminate the local MCP server.{RESET}\n")
+
+        httpd = ThreadingHTTPServer((host, port), MCPHandler)
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print(f"\n  {ORANGE}[TRACE] MCP Server stopped.{RESET}\n")
+        finally:
+            httpd.server_close()

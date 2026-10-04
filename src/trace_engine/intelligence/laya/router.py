@@ -58,9 +58,12 @@ class LayaDecisionEngine:
         """Resolves Laya model directory across project root, package dir, and home."""
         candidates = [
             Path.home() / ".trace/models/laya-finetuned",
+            Path("models/laya-finetuned"),
             Path(".trace/models/laya-finetuned"),
+            Path(__file__).resolve().parents[4] / "models/laya-finetuned",
             Path(__file__).resolve().parents[4] / ".trace/models/laya-finetuned",
             Path(__file__).resolve().parents[2] / "models/laya-finetuned",
+            Path("D:/Startup/TRACE/models/laya-finetuned"),
             Path("D:/Startup/TRACE/.trace/models/laya-finetuned"),
         ]
         repo_root = Path(__file__).resolve().parents[4]

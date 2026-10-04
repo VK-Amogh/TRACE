@@ -38,9 +38,7 @@ env/
 *.swo
 
 # TRACE local workspace runs and databases
-.trace/*
-!.trace/models/
-!.trace/models/**
+.trace/
 test-repository/.trace/
 testbed_hardcore/.trace/
 labs/**/.trace/

@@ -22,9 +22,8 @@ eggs/
 htmlcov/
 
 # Datasets and heavy data
-.trace/datasets/
-.trace/cache/
-.trace/runs/
+models/
+.trace/
 .trace/backups/
 .trace/findings.json
 .trace/last_scan_repo.txt
