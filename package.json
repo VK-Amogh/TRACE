@@ -1,5 +1,5 @@
 {
-  "name": "@vk-amogh/trace",
+  "name": "@vk.amogh/trace",
   "version": "2.1.0",
   "description": "Threat Reconnaissance & Attack-path Correlation Engine — Security Verification Layer for Coding Agents with Fine-Tuned SecureBERT 2.0 & Laya AI",
   "type": "module",

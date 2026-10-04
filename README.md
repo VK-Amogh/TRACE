@@ -15,19 +15,22 @@
 Run TRACE immediately on any machine with Node.js installed without cloning or manual configuration:
 
 ```bash
-# Launch interactive step-by-step security wizard
+# Launch interactive step-by-step security wizard (via NPM)
+npx @vk.amogh/trace
+
+# Or run directly from GitHub
 npx github:VK-Amogh/TRACE
 
 # Run comprehensive vulnerability audit across all source files and AI models
-npx github:VK-Amogh/TRACE audit .
+npx @vk.amogh/trace audit .
 
 # Interactive Architecture & "How It Works" Guide
-npx github:VK-Amogh/TRACE how-it-works
+npx @vk.amogh/trace how-it-works
 ```
 
 Or install globally via npm:
 ```bash
-npm install -g github:VK-Amogh/TRACE
+npm install -g @vk.amogh/trace
 trace welcome
 ```
 
@@ -41,7 +44,7 @@ TRACE was purpose-built to act as the **ground-truth verification oracle** for a
 Run this single command inside any repository you want your coding agent to audit and repair:
 
 ```bash
-npx github:VK-Amogh/TRACE install-skill
+npx @vk.amogh/trace install-skill
 ```
 
 This immediately registers:
@@ -51,7 +54,7 @@ This immediately registers:
 
 ### Connect Directly to Claude Code CLI
 ```bash
-claude mcp add trace -- npx -y github:VK-Amogh/TRACE mcp
+claude mcp add trace -- npx -y @vk.amogh/trace mcp
 ```
 
 ### Registered Agent MCP Tools:

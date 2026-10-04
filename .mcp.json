@@ -6,7 +6,7 @@
         "/c",
         "npx",
         "-y",
-        "github:VK-Amogh/TRACE",
+        "@vk.amogh/trace",
         "mcp"
       ],
       "env": {
