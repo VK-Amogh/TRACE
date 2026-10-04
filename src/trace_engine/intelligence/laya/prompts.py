@@ -17,6 +17,18 @@ def format_endpoint_state(endpoint: Endpoint, apm: AttackPathModel) -> str:
                 risk = node.properties.get("risk", "")
                 detail = f"{node.label} {op or risk}".strip()
                 sink_labels.append(detail)
+        # Prioritize architectural security sinks (Privileged, StateModification, OutboundHTTP) over generic DB sinks
+        def sink_sort_key(s: str) -> int:
+            if "Privileged" in s:
+                return 0
+            if "StateModification" in s:
+                return 1
+            if "OutboundHTTP" in s:
+                return 2
+            if "update" in s:
+                return 3
+            return 4
+        sink_labels.sort(key=sink_sort_key)
         sink_detail_str = f" ({', '.join(sink_labels[:2])})" if sink_labels else ""
         sink_summary = f"Sinks: {len(paths)} detected{sink_detail_str}"
     elif "admin" in endpoint.roles or "/admin" in endpoint.path.lower():
@@ -24,7 +36,7 @@ def format_endpoint_state(endpoint: Endpoint, apm: AttackPathModel) -> str:
     elif not endpoint.auth_required and endpoint.state_changing and endpoint.sensitive_data:
         sink_summary = "Sinks: 1 detected (StateModification)"
     elif endpoint.database_access:
-        if endpoint.method in ("PUT", "PATCH"):
+        if endpoint.method in ("PUT", "PATCH") or (endpoint.method == "POST" and endpoint.state_changing):
             op = "update"
         elif endpoint.object_identifier:
             op = "lookup"

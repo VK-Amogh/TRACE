@@ -629,7 +629,7 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
         )
         if ep.database_access:
             db_id = f"db_{ep.id}"
-            op = "update" if ep.method in ("PUT", "PATCH") else "lookup" if ep.object_identifier else "query"
+            op = "update" if (ep.method in ("PUT", "PATCH") or (ep.method == "POST" and ep.state_changing)) else "lookup" if ep.object_identifier else "query"
             apm.add_node(
                 APMNode(
                     id=db_id,
@@ -695,6 +695,7 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
     # 1. Benchmark Laya System 1 (Non-Autoregressive Router)
     laya_latencies = []
     laya_correct = 0
+    laya_compound_correct = 0
 
     for ep, code, exp_cat, exp_pack in test_suite:
         t0 = time.perf_counter()
@@ -702,9 +703,12 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
         laya_latencies.append((time.perf_counter() - t0) * 1000)
         if dec.primary_testpack == exp_pack or (exp_pack == "none" and not dec.primary_testpack):
             laya_correct += 1
+        if exp_pack in dec.applicable_testpacks or (exp_pack == "none" and dec.primary_testpack == "none"):
+            laya_compound_correct += 1
 
     avg_laya_lat = sum(laya_latencies) / len(laya_latencies)
     laya_acc = (laya_correct / len(test_suite)) * 100
+    laya_compound_acc = (laya_compound_correct / len(test_suite)) * 100
 
     # 2. Benchmark SecureBERT 2.0 (AST Semantic Encoder)
     bert_latencies = []
@@ -778,8 +782,8 @@ def run_intelligence_benchmark() -> Dict[str, Any]:
         "Laya System 1",
         "Non-Autoregressive Router",
         f"{avg_laya_lat:.2f} ms",
-        f"{laya_acc:.1f}%",
-        "Ultra-fast triage, testpack routing, APM graph policy decisions",
+        f"{laya_acc:.1f}% ({laya_compound_acc:.1f}% cov)",
+        "Ultra-fast triage, compound testpack dispatch, APM graph policy decisions",
     )
     table.add_row(
         "SecureBERT 2.0",
