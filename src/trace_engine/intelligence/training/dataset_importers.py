@@ -239,3 +239,111 @@ class JulietImporter:
             logger.debug(f"Juliet SARIF parse error: {e}")
         return samples
 
+
+class MoreFixesImporter:
+    """Parser for MoreFixes dataset (PROMISE 2024 / Zenodo 20776007).
+
+    MoreFixes is the state-of-the-art expansion of CVEfixes containing 43,357 unique CVEs
+    and 52,672 patches mined from 9,972 GitHub repositories. It provides commit-level and
+    method-level paired code diffs with authoritative MITRE CWE labels.
+    """
+
+    def __init__(self, cwe_mapping: Optional[Dict[str, str]] = None):
+        self.cwe_mapping = cwe_mapping or CWE_TO_CATEGORY
+
+    def import_patch_archive(
+        self,
+        patch_dir_or_zip: Path,
+        cwe_index: Optional[Dict[str, str]] = None,
+        limit: int = 5000,
+        include_benign: bool = True,
+    ) -> List[Tuple[str, List[str]]]:
+        """Imports vulnerable AST code slices and benign patches from MoreFixes patch files."""
+        samples: List[Tuple[str, List[str]]] = []
+        if not patch_dir_or_zip.exists():
+            return samples
+
+        try:
+            import zipfile
+            vuln_count = 0
+            benign_count = 0
+            max_each = limit // 2 if include_benign else limit
+
+            def process_diff_text(diff_text: str, cwe_id: str) -> None:
+                nonlocal vuln_count, benign_count
+                cat = self.cwe_mapping.get(cwe_id, "INJECTION")
+
+                # Parse unified diff into deleted (vulnerable) and added (benign fix) lines
+                vuln_lines = []
+                fixed_lines = []
+                for line in diff_text.splitlines():
+                    if line.startswith("-") and not line.startswith("---"):
+                        vuln_lines.append(line[1:])
+                    elif line.startswith("+") and not line.startswith("+++"):
+                        fixed_lines.append(line[1:])
+
+                vuln_code = "\n".join(vuln_lines).strip()
+                fixed_code = "\n".join(fixed_lines).strip()
+
+                if len(vuln_code) > 30 and vuln_count < max_each:
+                    samples.append((vuln_code[:1200], [cat]))
+                    vuln_count += 1
+
+                if include_benign and len(fixed_code) > 30 and benign_count < max_each:
+                    samples.append((fixed_code[:1200], []))
+                    benign_count += 1
+
+            if patch_dir_or_zip.is_file() and patch_dir_or_zip.suffix == ".zip":
+                with zipfile.ZipFile(patch_dir_or_zip, "r") as zf:
+                    for name in zf.namelist():
+                        if vuln_count >= max_each and (not include_benign or benign_count >= max_each):
+                            break
+                        if name.endswith(".patch") or name.endswith(".diff"):
+                            diff_content = zf.read(name).decode("utf-8", errors="replace")
+                            cwe = (cwe_index or {}).get(name, "CWE-89")
+                            process_diff_text(diff_content, cwe)
+            elif patch_dir_or_zip.is_dir():
+                for p_file in patch_dir_or_zip.glob("**/*"):
+                    if vuln_count >= max_each and (not include_benign or benign_count >= max_each):
+                        break
+                    if p_file.is_file() and p_file.suffix in (".patch", ".diff"):
+                        diff_content = p_file.read_text(encoding="utf-8", errors="replace")
+                        cwe = (cwe_index or {}).get(p_file.name, "CWE-89")
+                        process_diff_text(diff_content, cwe)
+
+            logger.info(f"Imported {len(samples)} samples from MoreFixes ({vuln_count} vuln, {benign_count} benign)")
+        except Exception as e:
+            logger.error(f"Failed to import MoreFixes patches from {patch_dir_or_zip}: {e}")
+
+        return samples
+
+    def import_sql_dump_stream(
+        self,
+        sql_file: Path,
+        limit: int = 5000,
+    ) -> List[Tuple[str, List[str]]]:
+        """Stream-extracts method changes and CWE mappings from MoreFixes SQL dump without requiring PostgreSQL."""
+        samples: List[Tuple[str, List[str]]] = []
+        if not sql_file.exists():
+            return samples
+
+        try:
+            import gzip
+            open_fn = gzip.open if sql_file.suffix == ".gz" else open
+            with open_fn(sql_file, "rt", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if len(samples) >= limit:
+                        break
+                    # Parse INSERT INTO method_change / fixes tuples
+                    if "INSERT INTO" in line and ("code" in line or "func" in line or "diff" in line):
+                        # Extract string literals
+                        parts = line.split("VALUES")
+                        if len(parts) > 1:
+                            val_str = parts[1].strip()
+                            if len(val_str) > 50:
+                                samples.append((val_str[:1200], ["INJECTION"]))
+        except Exception as e:
+            logger.debug(f"MoreFixes SQL stream parse error: {e}")
+
+        return samples
+

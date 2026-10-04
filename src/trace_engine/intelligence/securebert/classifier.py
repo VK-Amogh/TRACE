@@ -33,8 +33,26 @@ class SecureBERTClassifier:
         model_name: Optional[str] = None,
         cache_path: Optional[Path] = None,
     ):
-        finetuned_dir = Path(".trace/models/securebert-finetuned")
-        default_model = str(finetuned_dir.resolve()) if (finetuned_dir / "model.safetensors").exists() else "ehsanaghaei/SecureBERT"
+        candidates = [
+            Path(".trace/models/securebert-finetuned"),
+            Path(__file__).resolve().parents[4] / ".trace/models/securebert-finetuned",
+            Path(__file__).resolve().parents[2] / "models/securebert-finetuned",
+            Path.home() / ".trace/models/securebert-finetuned",
+        ]
+        default_model = "ehsanaghaei/SecureBERT"
+        for cand in candidates:
+            weight_file = cand / "model.safetensors"
+            if weight_file.exists():
+                if weight_file.stat().st_size < 10000:
+                    try:
+                        import subprocess
+                        subprocess.run(["git", "lfs", "pull"], cwd=repo_root, capture_output=True, timeout=60)
+                    except Exception:
+                        pass
+                if weight_file.exists() and weight_file.stat().st_size >= 10000:
+                    default_model = str(cand.resolve())
+                    break
+
         self.model_name = model_name or default_model
         cache_file = cache_path or Path(".trace/cache/securebert_cache.json")
         self.cache = SecureBERTCache(cache_file)

@@ -87,6 +87,15 @@ def interactive_cmd():
     run_interactive_story()
 
 
+@app.command(name="how-it-works")
+@app.command(name="architecture")
+@app.command(name="guide")
+def guide_cmd():
+    """Interactive architecture and operational guide answering 5 core questions."""
+    from trace_engine.interactive import run_architecture_guide
+    run_architecture_guide()
+
+
 @app.command()
 def welcome():
     """Display the welcome screen and quick start guide."""
@@ -416,6 +425,7 @@ def scan(
 
 
 @app.command(name="test-all")
+@app.command(name="audit")
 def test_all(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
     target: Optional[str] = typer.Option(None, "--target", "-t", help="Target runtime URL (must be localhost or authorized lab)"),
@@ -945,6 +955,35 @@ def target_cmd(
         console.print("\n[bold green]Surrounding Code Slice:[/bold green]")
         console.print(Panel(pkg.code_snippet, border_style="dim", box=ROUNDED))
         console.print()
+
+
+@app.command(name="install-skill")
+@app.command(name="setup-agent")
+@app.command(name="install-agent")
+def install_skill_cmd(
+    global_install: bool = typer.Option(False, "--global", "-g", help="Install into global user config"),
+    workspace_install: bool = typer.Option(True, "--workspace", "-w", help="Install into workspace"),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Target project root directory"),
+):
+    """Install TRACE Agent Harness Skill, Zero-Bypass Rules, and MCP server for Claude Code, Antigravity & Cursor."""
+    from trace_engine.plugin import TraceHarnessPlugin
+
+    target_dir = path.resolve()
+    plugin = TraceHarnessPlugin(repo_path=target_dir)
+
+    console.print(f"\n[bold green]Installing TRACE Autonomous Security Agent Skill & MCP Tools v{plugin.VERSION}...[/bold green]")
+    locations = plugin.install(workspace_mode=workspace_install, global_mode=global_install)
+
+    for scope, loc in locations.items():
+        console.print(f"  [bold green]✓[/bold green] [white]{scope.replace('_', ' ').title()}[/white]: [dim]{loc}[/dim]")
+
+    console.print("\n[bold white]Capabilities Enabled for AI Coding Agents:[/bold white]")
+    console.print("  • [bold green]Claude Code Integration:[/bold green] .claude/skills/ + .mcp.json active")
+    console.print("  • [bold green]Antigravity & Agentic IDEs:[/bold green] .agents/plugins/trace-security active")
+    console.print("  • [bold green]Cursor & Codex:[/bold green] .cursor/mcp.json configured")
+    console.print("  • [bold green]Verification Oracles:[/bold green] trace_verify & trace_eval_patch available via MCP")
+    console.print("\n[dim]To launch MCP in Claude Code manually:[/dim]")
+    console.print("  [white]claude mcp add trace -- npx github:VK-Amogh/TRACE mcp[/white]\n")
 
 
 plugin_app = typer.Typer(help="Manage TRACE Agent Harness Plugin installation, skills, and SWE-bench tasks")

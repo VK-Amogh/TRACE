@@ -90,12 +90,48 @@ class TraceHarnessPlugin:
             self._copy_bundle(bundle_dir, ws_dest)
             installed_locations["workspace"] = ws_dest
 
+            # Direct agent skill directory (.agents/skills/trace-security-harness/)
+            skill_src = bundle_dir / "skills" / "trace-security-harness"
+            if skill_src.exists():
+                skill_dest = self.repo_path / ".agents" / "skills" / "trace-security-harness"
+                skill_dest.mkdir(parents=True, exist_ok=True)
+                self._copy_bundle(skill_src, skill_dest)
+                installed_locations["agent_skill"] = skill_dest
+
+            # Claude Code skill integration (.claude/skills/trace-security/)
+            claude_skill_dest = self.repo_path / ".claude" / "skills" / "trace-security"
+            if skill_src.exists():
+                claude_skill_dest.mkdir(parents=True, exist_ok=True)
+                self._copy_bundle(skill_src, claude_skill_dest)
+                installed_locations["claude_skill"] = claude_skill_dest
+
+            # Generate or update .mcp.json for Claude Code and Cursor
+            from trace_engine.mcp.config import generate_mcp_json
+            try:
+                mcp_file = generate_mcp_json(self.repo_path)
+                installed_locations["mcp"] = mcp_file
+                # Cursor MCP configuration (.cursor/mcp.json)
+                cursor_mcp = self.repo_path / ".cursor" / "mcp.json"
+                cursor_mcp.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(mcp_file, cursor_mcp)
+                installed_locations["cursor_mcp"] = cursor_mcp
+            except Exception:
+                pass
+
         if global_mode:
             home = Path.home()
             global_dest = home / ".gemini" / "config" / "plugins" / self.PLUGIN_NAME
             global_dest.mkdir(parents=True, exist_ok=True)
             self._copy_bundle(bundle_dir, global_dest)
             installed_locations["global"] = global_dest
+
+            # Global Claude configuration (~/.claude/skills/trace-security/)
+            global_claude = home / ".claude" / "skills" / "trace-security"
+            skill_src = bundle_dir / "skills" / "trace-security-harness"
+            if skill_src.exists():
+                global_claude.mkdir(parents=True, exist_ok=True)
+                self._copy_bundle(skill_src, global_claude)
+                installed_locations["global_claude"] = global_claude
 
         return installed_locations
 

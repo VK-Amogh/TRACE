@@ -23,10 +23,11 @@ def test_interactive_story_all_tests_flow(mock_confirm, mock_prompt, tmp_path):
     # 3. Target URL: "http://127.0.0.1:18080"
     # 4. Post-audit export: Option 3 (Finish session)
     mock_prompt.side_effect = [
-        "1",                    # Mission option
-        "testbed_hardcore",     # Target repo
+        "1",                      # Mission option
+        "testbed_hardcore",       # Target repo
         "http://127.0.0.1:18080", # Target URL
-        "3",                    # Finish session
+        "n",                      # Self-healing decline
+        "3",                      # Finish session
     ]
     mock_confirm.return_value = False
 

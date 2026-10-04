@@ -191,9 +191,9 @@ def load_parquet_security_corpus() -> List[Tuple[str, List[str]]]:
     return samples
 
 
-def load_external_cve_datasets(limit_bigvul: int = 4000, limit_cvefixes: int = 3000) -> List[Tuple[str, List[str]]]:
-    """Ingests real-world functions with CVE ground truth from Big-Vul and CVEfixes."""
-    from trace_engine.intelligence.training.dataset_importers import BigVulImporter, CVEfixesImporter
+def load_external_cve_datasets(limit_bigvul: int = 4000, limit_cvefixes: int = 3000, limit_morefixes: int = 4000) -> List[Tuple[str, List[str]]]:
+    """Ingests real-world functions with CVE ground truth from Big-Vul, CVEfixes, and MoreFixes."""
+    from trace_engine.intelligence.training.dataset_importers import BigVulImporter, CVEfixesImporter, MoreFixesImporter
 
     samples: List[Tuple[str, List[str]]] = []
 
@@ -220,6 +220,21 @@ def load_external_cve_datasets(limit_bigvul: int = 4000, limit_cvefixes: int = 3
             cve_samples = cve.import_csv(cp, limit=limit_cvefixes, include_benign=True)
             for code, labels in cve_samples:
                 samples.append((normalize_code_slice(code), labels))
+
+    # 3. MoreFixes (Zenodo 20776007: 52k+ CVE patch diffs and commit records)
+    morefixes_paths = [
+        Path(".trace/datasets/morefixes/patch-files2026-06-20.zip"),
+        Path(".trace/datasets/morefixes/patches"),
+        Path("C:/trace_datasets/morefixes/patch-files2026-06-20.zip"),
+        Path("C:/trace_datasets/morefixes/patches"),
+    ]
+    mf = MoreFixesImporter()
+    for mp in morefixes_paths:
+        if mp.exists():
+            mf_samples = mf.import_patch_archive(mp, limit=limit_morefixes, include_benign=True)
+            for code, labels in mf_samples:
+                samples.append((normalize_code_slice(code), labels))
+            break
 
     return samples
 

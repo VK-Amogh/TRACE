@@ -1,10 +1,17 @@
 {
   "mcpServers": {
     "trace": {
-      "command": "D:\\Startup\\TRACE\\trace.cmd",
+      "command": "cmd.exe",
       "args": [
+        "/c",
+        "npx",
+        "-y",
+        "github:VK-Amogh/TRACE",
         "mcp"
-      ]
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
     }
   }
 }

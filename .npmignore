@@ -1,0 +1,45 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache and builds
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Datasets and heavy data
+.trace/datasets/
+.trace/cache/
+.trace/runs/
+.trace/backups/
+.trace/findings.json
+.trace/last_scan_repo.txt
+*.parquet
+*.sqlite3
+*.db
+
+# Testbeds and fixtures
+testbed_hardcore/
+test-repository/
+benchmarks/owasp-python/
+
+# Git and OS
+.git/
+.github/
+.DS_Store
+Thumbs.db
+scratch/

@@ -1,11 +1,30 @@
 {
-  "name": "@trace-security/trace",
-  "version": "2.0.0",
-  "description": "Threat Reconnaissance & Attack-path Correlation Engine — Security Verification Layer for Coding Agents",
+  "name": "@vk-amogh/trace",
+  "version": "2.1.0",
+  "description": "Threat Reconnaissance & Attack-path Correlation Engine — Security Verification Layer for Coding Agents with Fine-Tuned SecureBERT 2.0 & Laya AI",
   "type": "module",
   "main": "bin/trace.js",
   "bin": {
-    "trace": "./bin/trace.js"
+    "trace": "./bin/trace.js",
+    "trace-sec": "./bin/trace.js",
+    "trace-security": "./bin/trace.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "pyproject.toml"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VK-Amogh/TRACE.git"
+  },
+  "bugs": {
+    "url": "https://github.com/VK-Amogh/TRACE/issues"
+  },
+  "homepage": "https://github.com/VK-Amogh/TRACE#readme",
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "security",
@@ -14,9 +33,14 @@
     "attack-path",
     "mcp",
     "claude-code",
+    "cursor",
     "codex",
-    "vulnerability"
+    "antigravity",
+    "vulnerability",
+    "securebert",
+    "laya",
+    "agent-harness"
   ],
-  "author": "TRACE Core Team",
+  "author": "Amogh (VK-Amogh)",
   "license": "Apache-2.0"
 }

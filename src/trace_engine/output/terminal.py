@@ -36,73 +36,51 @@ LOGO_ASCII = """\
 """
 
 
+def get_styled_logo() -> Text:
+    """Renders the word TRACE with white middle section and mint green shadows."""
+    styled_logo = Text()
+    for ch in LOGO_ASCII:
+        if ch in ('█', '▓', '▒'):
+            styled_logo.append(ch, style="bold white")
+        elif ch in (' ', '\n'):
+            styled_logo.append(ch)
+        else:
+            styled_logo.append(ch, style="bold #10B981")
+    return styled_logo
+
+
 def print_banner() -> None:
-    """Renders the big pixel TRACE banner in bold white with green highlights."""
-    panel_text = Text()
-    panel_text.append(LOGO_ASCII, style="bold white")
-    panel_text.append("\n\n")
-    panel_text.append("  Threat Reconnaissance & Attack-path Correlation Engine  ", style="bold white")
-    panel_text.append("v2.1.0\n", style="bold green")
-    panel_text.append("  Local-First Autonomous Security Intelligence & Runtime Verification\n", style="dim white")
-    panel_text.append("  ─────────────────────────────────────────────────────────────────────────────\n\n", style="dim green")
+    """Renders the sleek minimalist TRACE banner in Mint Green and Crisp White with Orange options."""
+    console.print()
+    console.print(get_styled_logo())
+    console.print(f"  [bold white]Threat Reconnaissance & Attack-path Correlation Engine[/bold white]  [bold #10B981]v2.1.0[/bold #10B981]")
+    console.print(f"  [dim white]Autonomous Neuro-Symbolic Security Intelligence & Live Verification[/dim white]")
+    console.print(f"  [bold #10B981]● 100% Offline[/bold #10B981]  [white]•[/white]  [bold #10B981]● Zero External Telemetry[/bold #10B981]  [white]•[/white]  [bold #10B981]● SecureBERT & Laya AI Active[/bold #10B981]")
+    console.print(f"  [dim #10B981]{'─' * 76}[/dim #10B981]\n")
 
-    panel_text.append("  Quick Start Commands:\n", style="bold white")
-
+    console.print("  [bold white]Quick Start Commands:[/bold white]")
     commands = [
-        ("trace", "launch interactive story mode (guided audit wizard)"),
-        ("trace scan <repo> -t <url>", "end-to-end static + runtime validation"),
-        ("trace test-all <repo>", "priority-ranked full vulnerability audit"),
-        ("trace remediate --apply", "autonomous AST self-healing with rollback"),
-        ("trace train --early-stopping", "fine-tune SecureBERT 2.0 with early stopping"),
+        ("trace", "launch interactive guided audit wizard"),
+        ("trace audit <repo>", "run complete full vulnerability audit with AI models"),
+        ("trace scan <repo> -t <url>", "end-to-end static + live exploit verification"),
+        ("trace heal", "autonomous AST self-healing with verification oracle"),
         ("trace doctor", "inspect local environment & security tools"),
     ]
 
     for cmd, desc in commands:
-        panel_text.append("   > ", style="bold green")
-        panel_text.append(f"{cmd:<32}", style="bold white")
-        panel_text.append(f"  ({desc})\n", style="dim white")
+        console.print(f"   [bold #FF9E3B]›[/bold #FF9E3B] [bold white]{cmd:<28}[/bold white] [dim white]({desc})[/dim white]")
 
-    panel_text.append("\n  Run interactive audit: ", style="dim white")
-    panel_text.append("trace\n", style="bold green")
-
-    console.print()
-    console.print(
-        Panel(
-            panel_text,
-            border_style="green",
-            box=ROUNDED,
-            padding=(1, 2),
-        )
-    )
-    console.print()
+    console.print(f"\n  [dim white]Run interactive audit:[/dim white] [bold #10B981]trace[/bold #10B981]\n")
 
 
 def print_security_notes() -> None:
-    """Renders Claude Code style security boundary notice."""
-    panel_content = Text()
-    panel_content.append("Security Notes:\n", style="bold white")
-    panel_content.append(" 1. ", style="bold green")
-    panel_content.append("Local-First Execution: ", style="bold white")
-    panel_content.append("TRACE operates entirely offline without telemetry or external cloud APIs.\n", style="dim")
-    
-    panel_content.append(" 2. ", style="bold green")
-    panel_content.append("Scope Guard Active: ", style="bold white")
-    panel_content.append("Runtime requests are strictly bounded to localhost and approved private lab CIDRs.\n", style="dim")
-    
-    panel_content.append(" 3. ", style="bold green")
-    panel_content.append("Evidence-First Findings: ", style="bold white")
-    panel_content.append("Findings require correlated static AST attack-paths and runtime behavioral proof.\n", style="dim")
-
-    console.print(
-        Panel(
-            panel_content,
-            title="[bold green]* TRACE Security Boundary *[/bold green]",
-            border_style="green",
-            box=ROUNDED,
-            padding=(0, 2),
-        )
-    )
-    console.print()
+    """Renders Claude Code style security boundary notice in clean minimalist white and mint green."""
+    console.print(f"  [dim #10B981]{'─' * 76}[/dim #10B981]")
+    console.print(f"  [bold #10B981]◆ TRACE Security Invariants & Guardrails[/bold #10B981]")
+    console.print(f"   [bold #10B981]1. Local-First Offline:[/bold #10B981] [white]Operates 100% locally on your machine without external cloud telemetry.[/white]")
+    console.print(f"   [bold #10B981]2. ScopeGuard Boundary:[/bold #10B981] [white]Dynamic exploits are strictly restricted to localhost and private lab subnets.[/white]")
+    console.print(f"   [bold #10B981]3. Ground-Truth Proof :[/bold #10B981] [white]Findings require correlated static AST attack paths and runtime oracles.[/white]")
+    console.print(f"  [dim #10B981]{'─' * 76}[/dim #10B981]\n")
 
 
 def print_endpoints_table(endpoints: List[Endpoint]) -> None:

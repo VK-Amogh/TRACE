@@ -1,0 +1,36 @@
+{
+  "base_model": "distilbert/distilbert-base-uncased",
+  "priority_labels": [
+    "critical",
+    "high",
+    "medium",
+    "low"
+  ],
+  "testpack_labels": [
+    "bola",
+    "bfla",
+    "authentication",
+    "ssrf",
+    "injection",
+    "mass_assignment",
+    "none"
+  ],
+  "best_val_loss": 1.0563,
+  "priority_acc": 86.7,
+  "testpack_acc": 84.6,
+  "macro_f1": 0.795,
+  "macro_prec": 89.4,
+  "macro_rec": 84.3,
+  "val_domains": [
+    "admin_tenants",
+    "fintech",
+    "healthcare",
+    "iot",
+    "webhooks"
+  ],
+  "epochs_trained": 7,
+  "onnx_available": true,
+  "train_samples": 1265,
+  "val_samples": 195,
+  "morefixes_mined": 989
+}

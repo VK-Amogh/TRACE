@@ -32,11 +32,18 @@ env/
 # IDE & Editors
 .vscode/
 .idea/
+.claude/
+.cursor/
 *.swp
 *.swo
 
 # TRACE local workspace runs and databases
-.trace/
+.trace/*
+!.trace/models/
+!.trace/models/**
+test-repository/.trace/
+testbed_hardcore/.trace/
+labs/**/.trace/
 *.db
 *.sqlite3
 labs/**/.trace/

@@ -11,7 +11,7 @@ from trace_engine.intelligence.securebert.classifier import VULN_CATEGORIES, Sec
 from trace_engine.intelligence.training.dataset import normalize_code_slice, generate_cybersecurity_training_corpus
 from trace_engine.intelligence.training.slicer import slice_and_canonicalize, DataflowSliceExtractor
 from trace_engine.intelligence.training.lora_system2 import System2LoRATrainer, LoRATrainingConfig
-from trace_engine.intelligence.training.dataset_importers import JulietImporter, BigVulImporter, CVEfixesImporter
+from trace_engine.intelligence.training.dataset_importers import JulietImporter, BigVulImporter, CVEfixesImporter, MoreFixesImporter
 
 
 def test_new_vulnerability_categories_present():
@@ -144,7 +144,40 @@ def test_dataset_importers():
     juliet = JulietImporter()
     big_vul = BigVulImporter()
     cvefixes = CVEfixesImporter()
+    morefixes = MoreFixesImporter()
 
     assert juliet.import_sarif(Path("non_existent.sarif")) == []
     assert big_vul.import_csv(Path("non_existent.csv")) == []
     assert cvefixes.import_jsonl(Path("non_existent.jsonl")) == []
+    assert morefixes.import_patch_archive(Path("non_existent.zip")) == []
+    assert morefixes.import_sql_dump_stream(Path("non_existent.sql")) == []
+
+
+def test_morefixes_patch_import(tmp_path):
+    import zipfile
+    zip_path = tmp_path / "patches.zip"
+    diff_content = """--- a/user_repo.py
++++ b/user_repo.py
+@@ -10,3 +10,3 @@
+-def get_user(uid):
+-    return db.query(f"SELECT * FROM users WHERE id = '{uid}'")
++def get_user(uid):
++    return db.query("SELECT * FROM users WHERE id = :id", id=uid)
+"""
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("CVE-2024-1234_patch.diff", diff_content)
+
+    importer = MoreFixesImporter()
+    samples = importer.import_patch_archive(
+        zip_path,
+        cwe_index={"CVE-2024-1234_patch.diff": "CWE-89"},
+        limit=10,
+        include_benign=True,
+    )
+    assert len(samples) == 2
+    vuln_code, vuln_labels = samples[0]
+    assert "SELECT * FROM users WHERE id =" in vuln_code
+    assert vuln_labels == ["INJECTION"]
+    fixed_code, fixed_labels = samples[1]
+    assert "db.query" in fixed_code
+    assert fixed_labels == []

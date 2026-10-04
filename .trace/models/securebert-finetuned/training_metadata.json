@@ -1,0 +1,82 @@
+{
+  "base_model": "ehsanaghaei/SecureBERT",
+  "categories": [
+    "BOLA",
+    "BFLA",
+    "AUTHENTICATION",
+    "SSRF",
+    "INJECTION",
+    "MASS_ASSIGNMENT",
+    "PATH_TRAVERSAL",
+    "SSTI",
+    "CORS",
+    "DESERIALIZATION"
+  ],
+  "epochs": 5,
+  "peak_f1": 0.658,
+  "eval_threshold": 0.5,
+  "device": "cuda:0",
+  "training_time_seconds": 145.58,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.3756,
+      "val_loss": 0.2528,
+      "hamming_accuracy": 0.9621,
+      "exact_match_accuracy": 0.621,
+      "top1_accuracy": 0.5126,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "threshold": 0.5
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.2486,
+      "val_loss": 0.2213,
+      "hamming_accuracy": 0.9608,
+      "exact_match_accuracy": 0.6115,
+      "top1_accuracy": 0.7059,
+      "precision": 0.477,
+      "recall": 0.345,
+      "f1": 0.4,
+      "threshold": 0.5
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.2034,
+      "val_loss": 0.1576,
+      "hamming_accuracy": 0.9688,
+      "exact_match_accuracy": 0.6911,
+      "top1_accuracy": 0.8739,
+      "precision": 0.574,
+      "recall": 0.681,
+      "f1": 0.623,
+      "threshold": 0.5
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.1509,
+      "val_loss": 0.1256,
+      "hamming_accuracy": 0.9659,
+      "exact_match_accuracy": 0.6783,
+      "top1_accuracy": 0.9832,
+      "precision": 0.532,
+      "recall": 0.849,
+      "f1": 0.654,
+      "threshold": 0.5
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.1302,
+      "val_loss": 0.1128,
+      "hamming_accuracy": 0.9656,
+      "exact_match_accuracy": 0.6561,
+      "top1_accuracy": 1.0,
+      "precision": 0.528,
+      "recall": 0.874,
+      "f1": 0.658,
+      "threshold": 0.5
+    }
+  ]
+}

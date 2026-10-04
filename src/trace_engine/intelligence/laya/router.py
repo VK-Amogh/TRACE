@@ -2,6 +2,7 @@
 
 import time
 import logging
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from trace_engine.intelligence.laya.schemas import (
@@ -53,10 +54,35 @@ class LayaDecisionEngine:
         if not self._finetuned_model and not self._onnx_session:
             self._load_agent()
 
+    def _resolve_laya_dir(self) -> Optional[Path]:
+        """Resolves Laya model directory across project root, package dir, and home."""
+        candidates = [
+            Path(".trace/models/laya-finetuned"),
+            Path(__file__).resolve().parents[4] / ".trace/models/laya-finetuned",
+            Path(__file__).resolve().parents[2] / "models/laya-finetuned",
+            Path.home() / ".trace/models/laya-finetuned",
+        ]
+        repo_root = Path(__file__).resolve().parents[4]
+        for p in candidates:
+            pt_file = p / "laya_dual_head.pt"
+            onnx_file = p / "laya_dual_head.onnx"
+            if (pt_file.exists() and pt_file.stat().st_size < 10000) or (onnx_file.exists() and onnx_file.stat().st_size < 10000):
+                try:
+                    import subprocess
+                    subprocess.run(["git", "lfs", "pull"], cwd=repo_root, capture_output=True, timeout=60)
+                except Exception:
+                    pass
+            if pt_file.exists() and pt_file.stat().st_size >= 10000:
+                return p.resolve()
+            if onnx_file.exists() and onnx_file.stat().st_size >= 10000:
+                return p.resolve()
+        return None
+
     def _load_onnx_model(self) -> None:
         """Attempt to load high-speed ONNX Runtime session for sub-millisecond execution."""
-        from pathlib import Path
-        model_dir = Path(".trace/models/laya-finetuned")
+        model_dir = self._resolve_laya_dir()
+        if not model_dir:
+            return
         onnx_path = model_dir / "laya_dual_head.onnx"
         if onnx_path.exists():
             try:
@@ -74,8 +100,9 @@ class LayaDecisionEngine:
 
     def _load_finetuned_model(self) -> None:
         """Attempt to load fine-tuned Laya dual-head model from .trace/models/laya-finetuned."""
-        from pathlib import Path
-        model_dir = Path(".trace/models/laya-finetuned")
+        model_dir = self._resolve_laya_dir()
+        if not model_dir:
+            return
         weights_path = model_dir / "laya_dual_head.pt"
         if weights_path.exists():
             try:
