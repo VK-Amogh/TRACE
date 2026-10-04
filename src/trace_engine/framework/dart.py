@@ -60,15 +60,16 @@ class DartFrameworkAdapter(FrameworkAdapter):
         auth_required = any(sig in content_lower for sig in auth_signals) or "admin" in norm_file_path.lower()
         roles = ["admin"] if "admin" in content_lower or "admin" in norm_file_path.lower() else []
 
-        # 1. Shelf Router: router.get('/path', _handler)
+        # 1. Shelf Router: router.get('/path', _handler) or router.get('/path', (req) => ...)
         shelf_pattern = re.compile(
-            r"""(?:router|app)\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]\s*,\s*([a-zA-Z0-9_$]+)""",
+            r"""(?:router|app)\.(get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]\s*,\s*([a-zA-Z0-9_$]+|\([^\)]*\))""",
             re.IGNORECASE
         )
         for match in shelf_pattern.finditer(content):
             method = match.group(1).upper()
             raw_path = match.group(2)
-            handler_name = match.group(3)
+            raw_handler = match.group(3)
+            handler_name = raw_handler if not raw_handler.startswith("(") else "closure_handler"
             line_no = content[:match.start()].count("\n") + 1
 
             # Convert Shelf <param> and :param to {param}

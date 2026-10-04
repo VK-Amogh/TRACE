@@ -37,6 +37,9 @@ class TrainingConfig(BaseModel):
     val_split: float = 0.15
     fp16: bool = True
     eval_threshold: float = 0.50
+    early_stopping: bool = True
+    patience: int = 2
+    min_delta: float = 0.001
     output_dir: str = ".trace/models/securebert-finetuned"
 
 
@@ -108,9 +111,10 @@ class SecureBERTTrainer:
         total_start = time.perf_counter()
         history: List[Dict[str, float]] = []
         best_f1 = 0.0
+        patience_counter = 0
         standard_th = self.config.eval_threshold
 
-        console.print(f"\n[bold green]Beginning GPU Fine-Tuning ({self.config.epochs} Epochs on {self.device}, Evaluation Threshold: {standard_th})[/bold green]:")
+        console.print(f"\n[bold green]Beginning GPU Fine-Tuning ({self.config.epochs} Epochs on {self.device}, Evaluation Threshold: {standard_th}, Early Stopping: {self.config.early_stopping})[/bold green]:")
 
         for epoch in range(1, self.config.epochs + 1):
             epoch_start = time.perf_counter()
@@ -250,10 +254,19 @@ class SecureBERTTrainer:
             })
 
             # Checkpoint save on improved micro F1
-            if micro_f1 >= best_f1:
+            if micro_f1 > (best_f1 + self.config.min_delta):
                 best_f1 = micro_f1
+                patience_counter = 0
                 model.save_pretrained(out_path)
                 tokenizer.save_pretrained(out_path)
+            else:
+                patience_counter += 1
+                if self.config.early_stopping and patience_counter >= self.config.patience:
+                    console.print(
+                        f"\n[bold yellow][EARLY STOPPING TRIGGERED][/bold yellow] Validation micro F1 did not improve for {patience_counter} consecutive epochs "
+                        f"(Patience threshold: {self.config.patience}). Halting training to prevent overfitting and preserving best checkpoint (F1: {best_f1})."
+                    )
+                    break
 
         total_time = round(time.perf_counter() - total_start, 2)
         console.print(f"\n[bold green][SUCCESS] Training Complete in {total_time}s! Peak Micro F1: {best_f1}[/bold green]")

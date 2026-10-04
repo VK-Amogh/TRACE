@@ -120,11 +120,59 @@ class InjectionTestPack(TestPack):
                     ]
                     break
 
+        # 3. Statistical Blind Timing Oracle (Welch's t-test) if error-based probes were inconclusive
+        if not confirmed:
+            from trace_engine.security.timing import StatisticalTimingOracle
+
+            # Measure baseline latencies (2 baseline samples)
+            base_latencies: List[float] = []
+            for _ in range(2):
+                sep = "&" if "?" in clean_path else "?"
+                b_url = f"{base_url}{clean_path}{sep}q=trace_baseline_test"
+                b_obs = client.execute(method=method, url=b_url, headers=headers)
+                observations.append(b_obs)
+                base_latencies.append(b_obs.latency_ms / 1000.0)
+
+            # Test blind sleep payloads with Welch's t-test
+            timing_probes = [
+                "'; SELECT pg_sleep(1.5)--",
+                "' OR SLEEP(1.5)--",
+                "1; sleep 1.5",
+            ]
+            expected_sec = 1.5
+
+            for t_probe in timing_probes:
+                encoded_t = urllib.parse.quote(t_probe)
+                sep = "&" if "?" in clean_path else "?"
+                t_url = f"{base_url}{clean_path}{sep}q={encoded_t}"
+
+                delay_latencies: List[float] = []
+                for _ in range(2):
+                    t_obs = client.execute(method=method, url=t_url, headers=headers)
+                    observations.append(t_obs)
+                    delay_latencies.append(t_obs.latency_ms / 1000.0)
+
+                t_res = StatisticalTimingOracle.evaluate_timing_vulnerability(
+                    baseline_latencies=base_latencies,
+                    delay_latencies=delay_latencies,
+                    expected_delay_sec=expected_sec,
+                )
+
+                if t_res.is_confirmed:
+                    confirmed = True
+                    summary = t_res.summary
+                    steps = [
+                        f"Measure baseline latency across non-delayed requests ({t_res.mean_baseline_sec:.2f}s mean)",
+                        f"Send time-delay injection probe: {t_url}",
+                        f"Observe statistically significant delay shift: +{t_res.observed_shift_sec:.2f}s (Welch's t={t_res.t_statistic}, p={t_res.p_value:.2e})",
+                    ]
+                    break
+
         return TestExecutionResult(
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.92 if confirmed else 0.15,
+            confidence=0.98 if confirmed else 0.15,
             summary=summary,
             observations=observations,
             reproduction_steps=steps,

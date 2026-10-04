@@ -11,6 +11,7 @@ from trace_engine.output.terminal import (
 )
 from trace_engine.output.markdown import generate_markdown_report
 from trace_engine.output.html import generate_html_report
+from trace_engine.output.sarif import generate_sarif_report, export_sarif_json
 
 __all__ = [
     "print_banner",
@@ -22,4 +23,6 @@ __all__ = [
     "print_doctor_report",
     "generate_markdown_report",
     "generate_html_report",
+    "generate_sarif_report",
+    "export_sarif_json",
 ]

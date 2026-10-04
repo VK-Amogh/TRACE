@@ -56,6 +56,7 @@ from trace_engine.output.terminal import (
 )
 from trace_engine.output.markdown import generate_markdown_report
 from trace_engine.output.html import generate_html_report
+from trace_engine.output.sarif import generate_sarif_report, export_sarif_json
 
 app = typer.Typer(
     name="trace",
@@ -555,6 +556,9 @@ def test_all(
     elif format == "markdown":
         md = generate_markdown_report(findings, project_name=project_dir.name)
         console.print(md)
+    elif format == "sarif":
+        sarif_payload = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
+        console.print_json(json.dumps(sarif_payload))
     else:
         print_test_all_report(
             findings=findings,
@@ -666,7 +670,7 @@ def replay(
 @app.command()
 def report(
     repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
-    format: str = typer.Option("markdown", "--format", "-f", help="Output format: markdown, html, or json"),
+    format: str = typer.Option("markdown", "--format", "-f", help="Output format: markdown, html, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
@@ -682,6 +686,11 @@ def report(
         import json
         content = json.dumps([f.model_dump() for f in findings_list], indent=2)
         ext = ".json"
+    elif format.lower() == "sarif":
+        import json
+        sarif_dict = generate_sarif_report(findings_list, project_name=resolved_dir.name, workspace_root=str(resolved_dir))
+        content = json.dumps(sarif_dict, indent=2)
+        ext = ".sarif"
     else:
         content = generate_markdown_report(findings_list, project_name=resolved_dir.name)
         ext = ".md"
@@ -1041,13 +1050,15 @@ def eval_patch(
 
 @app.command()
 def train(
-    epochs: int = typer.Option(3, "--epochs", "-e", help="Number of training epochs"),
-    batch_size: int = typer.Option(8, "--batch-size", "-b", help="Training batch size"),
-    lr: float = typer.Option(2e-5, "--lr", help="Learning rate"),
+    epochs: int = typer.Option(5, "--epochs", "-e", help="Number of training epochs"),
+    batch_size: int = typer.Option(32, "--batch-size", "-b", help="Training batch size"),
+    lr: float = typer.Option(3e-5, "--lr", help="Learning rate"),
+    early_stopping: bool = typer.Option(True, "--early-stopping/--no-early-stopping", help="Enable early stopping on validation plateau"),
+    patience: int = typer.Option(2, "--patience", help="Epoch patience before early stopping"),
     model_name: str = typer.Option("ehsanaghaei/SecureBERT", "--model", "-m", help="Base transformer checkpoint"),
     output_dir: str = typer.Option(".trace/models/securebert-finetuned", "--output", "-o", help="Checkpoint output directory"),
 ):
-    """Fine-tune SecureBERT 2.0 vulnerability classifier using local GPU (CUDA acceleration)."""
+    """Fine-tune SecureBERT 2.0 vulnerability classifier using local GPU (CUDA acceleration) with Early Stopping."""
     from trace_engine.intelligence.training.trainer import SecureBERTTrainer, TrainingConfig
 
     config = TrainingConfig(
@@ -1055,6 +1066,8 @@ def train(
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=lr,
+        early_stopping=early_stopping,
+        patience=patience,
         output_dir=output_dir,
     )
     trainer = SecureBERTTrainer(config)

@@ -10,10 +10,12 @@ from trace_engine.framework.nextjs import NextJSFrameworkAdapter
 from trace_engine.framework.dart import DartFrameworkAdapter
 from trace_engine.framework.springboot import SpringBootFrameworkAdapter
 from trace_engine.framework.go import GoFrameworkAdapter
+from trace_engine.framework.django import DjangoFrameworkAdapter
 
 _ADAPTERS: List[FrameworkAdapter] = [
     FastAPIFrameworkAdapter(),
     FlaskFrameworkAdapter(),
+    DjangoFrameworkAdapter(),
     ExpressFrameworkAdapter(),
     ReactRouterFrameworkAdapter(),
     NextJSFrameworkAdapter(),
@@ -33,6 +35,7 @@ __all__ = [
     "EndpointParameter",
     "FastAPIFrameworkAdapter",
     "FlaskFrameworkAdapter",
+    "DjangoFrameworkAdapter",
     "ExpressFrameworkAdapter",
     "ReactRouterFrameworkAdapter",
     "NextJSFrameworkAdapter",

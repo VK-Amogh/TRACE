@@ -15,11 +15,15 @@ SEVERITY_BY_CATEGORY = {
     "SSRF": Severity.HIGH,
     "INJECTION": Severity.CRITICAL,
     "MASS_ASSIGNMENT": Severity.MEDIUM,
+    "PATH_TRAVERSAL": Severity.HIGH,
+    "SSTI": Severity.CRITICAL,
+    "CORS": Severity.MEDIUM,
+    "DESERIALIZATION": Severity.CRITICAL,
 }
 
 
 class EvidenceCorrelator:
-    """Correlates static code evidence with runtime test executions."""
+    """Correlates static code evidence with runtime test executions using Neuro-Symbolic Bayesian Calibration."""
 
     def correlate(
         self,
@@ -27,20 +31,21 @@ class EvidenceCorrelator:
         test_result: Optional[TestExecutionResult],
         apm: AttackPathModel,
     ) -> Optional[Finding]:
+        from trace_engine.security.fusion import NeuroSymbolicConfidenceEngine, ConfidenceEvidence
+
         category_str = hypothesis.category.value
 
-        # Calculate combined confidence
-        if test_result and test_result.confirmed:
-            confidence = FindingConfidence.CONFIRMED
-        elif test_result and test_result.confidence > 0.5:
-            confidence = FindingConfidence.HIGH
-        elif hypothesis.confidence_prior > 0.7:
-            confidence = FindingConfidence.MEDIUM
-        else:
-            confidence = FindingConfidence.POTENTIAL
+        # Calculate combined confidence using Neuro-Symbolic Bayesian Fusion
+        evidence = ConfidenceEvidence(
+            symbolic_ast_score=hypothesis.confidence_prior,
+            dynamic_test_score=test_result.confidence if test_result else None,
+            is_dynamically_confirmed=bool(test_result and test_result.confirmed),
+        )
+        fused = NeuroSymbolicConfidenceEngine.fuse_evidence(evidence)
+        confidence = fused.confidence_level
 
-        # If not confirmed and low confidence, do not generate noisy finding
-        if not (test_result and test_result.confirmed) and hypothesis.confidence_prior < 0.7:
+        # If not confirmed and posterior probability is below 0.40, do not generate noisy finding
+        if not (test_result and test_result.confirmed) and fused.posterior_probability < 0.40:
             return None
 
         # Build attack path node trail from APM
