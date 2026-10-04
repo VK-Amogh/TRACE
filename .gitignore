@@ -55,6 +55,15 @@ artifacts/raw-tool-output/
 .coverage
 htmlcov/
 
+# TRACE Scan Output & Artifacts
+findings.md
+**/findings.md
+*.sarif
+trace-results.sarif
+trace_results*.json
+*.tmp
+*.log
+
 # Operating System
 .DS_Store
 Thumbs.db
