@@ -6,7 +6,7 @@
         "/c",
         "npx",
         "-y",
-        "@vk.amogh/trace",
+        "trace-sec",
         "mcp"
       ],
       "env": {
