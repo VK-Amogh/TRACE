@@ -84,17 +84,60 @@ if (args[0] === 'install-skill' || args[0] === 'setup-agent' || args[0] === 'ins
 // Find virtual environment python or system python
 const isWin = process.platform === 'win32';
 const userHome = process.env.USERPROFILE || process.env.HOME || '';
+const dedicatedVenv = join(userHome, '.trace', 'venv');
+const dedicatedPython = join(dedicatedVenv, isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
+const dedicatedPip = join(dedicatedVenv, isWin ? 'Scripts' : 'bin', isWin ? 'pip.exe' : 'pip');
+const reqFile = join(projectRoot, 'requirements.txt');
+
+function findSystemPython() {
+  const candidates = isWin
+    ? [
+        'python',
+        'py -3',
+        'py',
+        'python3',
+        join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe'),
+        join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe'),
+        join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python310', 'python.exe'),
+        join(process.env.PROGRAMFILES || '', 'Python312', 'python.exe'),
+        join(process.env.PROGRAMFILES || '', 'Python311', 'python.exe'),
+        join(process.env.PROGRAMFILES || '', 'Python310', 'python.exe'),
+      ]
+    : [
+        'python3',
+        'python',
+        '/usr/bin/python3',
+        '/usr/local/bin/python3',
+        '/opt/homebrew/bin/python3',
+      ];
+
+  for (const cmd of candidates) {
+    if (!cmd || !cmd.trim()) continue;
+    try {
+      const execCmd = cmd.includes(' ') && !cmd.startsWith('py ') ? `"${cmd}"` : cmd;
+      const ver = execSync(`${execCmd} -c "import sys; print(sys.version_info[0], sys.version_info[1])"`, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        encoding: 'utf-8',
+      }).trim();
+      const parts = ver.split(/\s+/).map(Number);
+      if (parts[0] === 3 && parts[1] >= 9) {
+        return execCmd;
+      }
+    } catch {
+      // try next
+    }
+  }
+  return null;
+}
+
 const candidatePythons = [
   process.env.TRACE_PYTHON,
+  dedicatedPython,
   join(process.cwd(), '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
   join(projectRoot, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
-  isWin ? 'D:\\Startup\\TRACE\\.venv\\Scripts\\python.exe' : null,
-  join(userHome, '.trace', 'venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
-  join(userHome, '.trace', 'models', 'venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'),
-  isWin ? 'python' : 'python3',
 ];
 
-let pythonBin = isWin ? 'python' : 'python3';
+let pythonBin = null;
 for (const cand of candidatePythons) {
   if (cand && existsSync(cand)) {
     pythonBin = cand;
@@ -102,23 +145,37 @@ for (const cand of candidatePythons) {
   }
 }
 
+if (!pythonBin) {
+  pythonBin = findSystemPython();
+}
+
+if (!pythonBin) {
+  console.error('\n\x1b[31m\x1b[1m[TRACE ERROR]\x1b[0m Python 3.10+ is required to execute TRACE.');
+  console.error('Please install Python to proceed:');
+  if (isWin) {
+    console.error('  \x1b[36mwinget install Python.Python.3.11\x1b[0m  (or from https://www.python.org/)\n');
+  } else if (process.platform === 'darwin') {
+    console.error('  \x1b[36mbrew install python\x1b[0m\n');
+  } else {
+    console.error('  \x1b[36msudo apt install -y python3 python3-pip python3-venv\x1b[0m\n');
+  }
+  process.exit(1);
+}
+
 // Verify that the resolved Python environment has required TRACE dependencies
 let depsOk = false;
 try {
-  execSync(`"${pythonBin}" -c "import typer, rich, pydantic"`, { stdio: 'ignore' });
+  execSync(`"${pythonBin}" -c "import typer, rich, pydantic, tree_sitter"`, { stdio: 'ignore' });
   depsOk = true;
 } catch (e) {
   depsOk = false;
 }
 
 if (!depsOk) {
-  const dedicatedVenv = join(userHome, '.trace', 'venv');
-  const venvPython = join(dedicatedVenv, isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
-
-  if (existsSync(venvPython)) {
+  if (existsSync(dedicatedPython)) {
     try {
-      execSync(`"${venvPython}" -c "import typer, rich, pydantic"`, { stdio: 'ignore' });
-      pythonBin = venvPython;
+      execSync(`"${dedicatedPython}" -c "import typer, rich, pydantic, tree_sitter"`, { stdio: 'ignore' });
+      pythonBin = dedicatedPython;
       depsOk = true;
     } catch (e) {
       depsOk = false;
@@ -129,13 +186,21 @@ if (!depsOk) {
     console.log('\n\x1b[32m\x1b[1m[TRACE]\x1b[0m Initializing TRACE runtime dependencies in dedicated environment (~/.trace/venv)...');
     try {
       mkdirSync(join(userHome, '.trace'), { recursive: true });
-      if (!existsSync(venvPython)) {
+      if (!existsSync(dedicatedPython)) {
         console.log('  \x1b[38;2;255;158;59m›\x1b[0m Creating Python virtual environment in ~/.trace/venv...');
-        execSync(`"${pythonBin}" -m venv "${dedicatedVenv}"`, { stdio: 'inherit' });
+        const sysPy = findSystemPython();
+        if (!sysPy) {
+          throw new Error('System Python 3.10+ not found. Please install Python from https://www.python.org/');
+        }
+        execSync(`${sysPy} -m venv "${dedicatedVenv}"`, { stdio: 'inherit' });
       }
-      console.log('  \x1b[38;2;255;158;59m›\x1b[0m Installing core dependencies (typer, rich, pydantic, tree-sitter, torch, transformers)...');
-      execSync(`"${venvPython}" -m pip install typer rich pydantic pydantic-settings networkx httpx orjson tomli-w tree-sitter tree-sitter-language-pack torch transformers safetensors onnxruntime numpy`, { stdio: 'inherit' });
-      pythonBin = venvPython;
+      console.log('  \x1b[38;2;255;158;59m›\x1b[0m Installing core dependencies via pip...');
+      if (existsSync(reqFile)) {
+        execSync(`"${dedicatedPython}" -m pip install -r "${reqFile}"`, { stdio: 'inherit' });
+      } else {
+        execSync(`"${dedicatedPython}" -m pip install typer rich pydantic pydantic-settings networkx httpx orjson tomli-w tree-sitter tree-sitter-language-pack onnxruntime transformers safetensors numpy`, { stdio: 'inherit' });
+      }
+      pythonBin = dedicatedPython;
       console.log('\x1b[32m✓ Runtime dependencies provisioned successfully.\x1b[0m\n');
     } catch (e) {
       console.warn(`[TRACE] Automatic environment setup warning: ${e.message}`);

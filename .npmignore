@@ -5,7 +5,9 @@ ENV/
 env/
 
 # Python cache and builds
+**/__pycache__/**
 __pycache__/
+**/*.pyc
 *.pyc
 *.pyo
 *.pyd
