@@ -4,7 +4,6 @@
     <img src="docs/assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="400">
   </picture>
 </p>
-<h1 align="center">TRACE: Threat Reconnaissance &amp; Attack-path Correlation Engine</h1>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec?color=black" alt="NPM"></a>
