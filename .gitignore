@@ -47,18 +47,29 @@ testbed_hardcore/.trace/
 labs/**/.trace/
 *.db
 *.sqlite3
-labs/**/.trace/
 labs/**/.mcp.json
 artifacts/reports/
 artifacts/screenshots/
 artifacts/raw-tool-output/
 
+# Secrets & local env (never commit; see SECURITY.md)
+.env
+.env.*
+!.env.example
+
 # Testing & Coverage
 .pytest_cache/
+.hypothesis/
 .coverage
 .coverage.*
 htmlcov/
 coverage.xml
+junit*.xml
+
+# Linters & type checkers
+.ruff_cache/
+.mypy_cache/
+.tox/
 
 # Node
 node_modules/
@@ -74,6 +85,8 @@ trace-results.sarif
 trace_results*.json
 *.tmp
 *.log
+*.orig
+*.rej
 
 # Operating System
 .DS_Store
