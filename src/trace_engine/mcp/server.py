@@ -29,6 +29,19 @@ SCAN_MAX_FILE_BYTES = 512 * 1024
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
 
+def _suggest_free_port(host: str, port: int, tries: int = 10) -> Optional[int]:
+    """Find a nearby free port to suggest when the requested one is taken."""
+    import socket
+
+    for cand in range(port + 1, port + 1 + tries):
+        try:
+            with socket.create_server((host, cand)):
+                return cand
+        except OSError:
+            continue
+    return None
+
+
 def _server_version() -> str:
     try:
         from trace_engine import __version__
@@ -706,7 +719,17 @@ class TraceMCPServer:
         print(f"  {GREEN}└{'─' * 74}┘{RESET}\n")
         print(f"  {DIM}Press Ctrl+C to terminate the local MCP server.{RESET}\n")
 
-        httpd = ThreadingHTTPServer((host, port), MCPHandler)
+        httpd = None
+        try:
+            httpd = ThreadingHTTPServer((host, port), MCPHandler)
+        except OSError as e:
+            hint = _suggest_free_port(host, port)
+            print(
+                f"\n  [TRACE] Cannot bind MCP server to {host}:{port} ({e})."
+                + (f" Try: trace mcp-server --port {hint}" if hint else " Is another copy already running?")
+                + "\n"
+            )
+            raise
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

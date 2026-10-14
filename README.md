@@ -69,7 +69,8 @@ fix findings with live verification, and connect over MCP.
 
 ## Benchmarks
 
-Onecrew production repo (189 files, 39 endpoints), offline, zero tokens:
+Onecrew production repo (189 files, 39 endpoints), offline, zero tokens —
+recorded in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md):
 
 | Stage | Time |
 |---|---|
@@ -79,7 +80,11 @@ Onecrew production repo (189 files, 39 endpoints), offline, zero tokens:
 | **End-to-end audit** | **0.261 s** |
 
 Hardcore multi-service testbed (15 endpoints, 12 planted flaws):
-**15.79 ms, 100% precision / 100% recall.**
+**15.79 ms static pipeline, 100% precision / 100% recall.**
+Every `trace audit` prints per-stage timings, so these numbers are
+reproducible on your machine — no lab-only claims.
+
+Covered by **124 automated tests** (`pytest tests/`).
 
 ## Lite or Full
 

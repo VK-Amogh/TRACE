@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Operational reliability: bare `trace` without a terminal prints help instead of hanging; MCP server reports a suggested free port on bind conflicts; progress chatter goes to stderr so `--format json/markdown/sarif` stdout stays machine-parseable; update prompts never appear in non-interactive runs; `scan` emits report payloads to stdout when no `--output` file is given.
+- Import weight: report-only output modules, doctor, and tool registry load lazily; CLI and MCP entry points import cleanly with no torch present (~11% faster startup).
 - MCP server lightened and hardened: lazy per-tool imports, paginated findings with severity filter, truncated evidence, exact-first attack-path lookup, JSON-RPC errors instead of leaked internals, SSE session caps/TTL with 202 semantics, request size limits, non-loopback bind refusal without `--allow-remote`, and honored `profile`/`limit` schema options.
 - Shared `trace_engine/constants.py` replaces scattered hardcoded targets, hosts, ports, timeouts, and probe tokens (all env-overridable).
 - Verification oracle no longer reports `FIXED` for dead targets (INCONCLUSIVE instead) and weighs static re-index evidence; `ScopeGuard.allow_target` refuses non-local hosts; patcher paths are workspace-contained; remediator templates fixed (valid imports, balanced Kotlin, no hardcoded secrets, env-driven roots/domains).

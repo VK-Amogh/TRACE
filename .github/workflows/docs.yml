@@ -1,24 +1,11 @@
 name: "docs"
 
-# Docs build on every relevant change; deploy only ships to Pages when a
-# push to main actually touches documentation.
+# Docs build on every push/PR; deploy ships to Pages on pushes to main.
 on:
   push:
     branches: ["main"]
-    paths:
-      - "docs/**"
-      - "overrides/**"
-      - "mkdocs.yml"
-      - "README.md"
-      - "CHANGELOG.md"
   pull_request:
     branches: ["main"]
-    paths:
-      - "docs/**"
-      - "overrides/**"
-      - "mkdocs.yml"
-      - "README.md"
-      - "CHANGELOG.md"
   workflow_dispatch:
 
 concurrency:

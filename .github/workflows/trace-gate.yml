@@ -3,18 +3,8 @@ name: "TRACE Security Gate (Zero-False-Positive Code Audit)"
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - "src/**"
-      - "testbed_hardcore/**"
-      - "labs/**"
-      - ".github/workflows/trace-gate.yml"
   pull_request:
     branches: [ "main" ]
-    paths:
-      - "src/**"
-      - "testbed_hardcore/**"
-      - "labs/**"
-      - ".github/workflows/trace-gate.yml"
   workflow_dispatch:
 
 concurrency:

@@ -3,30 +3,8 @@ name: "CI — lint, test, cross-OS matrix"
 on:
   push:
     branches: ["main"]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "bin/**"
-      - "labs/**"
-      - "testbed_hardcore/**"
-      - "test-repository/**"
-      - "pyproject.toml"
-      - "requirements.txt"
-      - "package.json"
-      - ".github/workflows/ci.yml"
   pull_request:
     branches: ["main"]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "bin/**"
-      - "labs/**"
-      - "testbed_hardcore/**"
-      - "test-repository/**"
-      - "pyproject.toml"
-      - "requirements.txt"
-      - "package.json"
-      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 concurrency:
