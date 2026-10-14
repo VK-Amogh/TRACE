@@ -76,6 +76,11 @@ def main(
     ),
 ):
     """If no command is provided, launch the interactive TRACE security terminal."""
+    if os.environ.get("TRACE_VERBOSE") == "1":
+        import logging
+
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("trace_engine").debug("verbose logging enabled via TRACE_VERBOSE")
     if version:
         import trace_engine
         curr_ver = getattr(trace_engine, "__version__", "0.0.0")

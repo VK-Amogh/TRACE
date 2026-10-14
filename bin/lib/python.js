@@ -73,7 +73,7 @@ export function resolvePython({ isWin, dedicatedPython, projectRoot }) {
 
 export function hasTraceDeps(pythonBin) {
   try {
-    const mods = LITE_DEPS.map((d) => d.replace('-', '_')).join(', ');
+    const mods = LITE_DEPS.map((d) => d.replace(/-/g, '_')).join(', ');
     execSync(`"${pythonBin}" -c "import ${mods}"`, { stdio: 'ignore' });
     return true;
   } catch {

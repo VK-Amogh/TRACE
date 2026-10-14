@@ -18,13 +18,26 @@ import { MIN_PYTHON } from './lib/config.js';
 import { resolvePython, hasTraceDeps, installHint } from './lib/python.js';
 import { dedicatedPaths, ensureVenv } from './lib/venv.js';
 import { installSkills } from './lib/skills.js';
+import { parseGlobalFlags, applyFormat } from './lib/flags.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..');
-const args = process.argv.slice(2);
+let args = process.argv.slice(2);
 const isWin = process.platform === 'win32';
 const [minMajor, minMinor] = MIN_PYTHON;
+
+// Global flags (--verbose, --format) are consumed here, never forwarded raw.
+let verbose = false;
+try {
+  const parsed = parseGlobalFlags(args);
+  args = parsed.args;
+  verbose = parsed.verbose;
+  args = applyFormat(args, parsed.format);
+} catch (e) {
+  console.error(`[TRACE] ${e.message}`);
+  process.exit(2);
+}
 
 // --version: instant, no Python needed.
 if (['--version', '-v', '-V', 'version'].includes(args[0])) {
@@ -69,11 +82,17 @@ if (!hasTraceDeps(pythonBin)) {
 const cliArgs = ['-m', 'trace_engine.cli', ...args];
 const sep = isWin ? ';' : ':';
 
+if (verbose) {
+  console.error(`[TRACE] python: ${pythonBin}`);
+  console.error(`[TRACE] command: ${pythonBin} ${cliArgs.join(' ')}`);
+}
+
 const proc = spawn(pythonBin, cliArgs, {
   cwd: process.cwd(),
   stdio: 'inherit',
   env: {
     ...process.env,
+    ...(verbose ? { TRACE_VERBOSE: '1' } : {}),
     PYTHONPATH: join(projectRoot, 'src') + (process.env.PYTHONPATH ? sep + process.env.PYTHONPATH : ''),
     PYTHONIOENCODING: 'utf-8',
   },
