@@ -361,8 +361,14 @@ def run_interactive_story() -> None:
 
     if choice == "3":
         from trace_engine.mcp.server import TraceMCPServer
+        from trace_engine.constants import DEFAULT_MCP_HOST, DEFAULT_MCP_PORT
+
         mcp_obj = TraceMCPServer()
-        mcp_obj.run_sse_server(host="127.0.0.1", port=8765)
+        try:
+            mcp_obj.run_sse_server(host=DEFAULT_MCP_HOST, port=DEFAULT_MCP_PORT)
+        except OSError as e:
+            console.print(f"  [{ORANGE}][!] Could not bind MCP port {DEFAULT_MCP_PORT}: {e}[/{ORANGE}]")
+            console.print(f"  [{DIM_WHITE}]Retry with: trace mcp-server --port <free-port>[/{DIM_WHITE}]")
         return
 
     if choice == "4":
@@ -687,8 +693,10 @@ def run_interactive_story() -> None:
         console.print(f"  [{DIM_WHITE}]Connect Claude Code or Cursor to: [bold white]http://127.0.0.1:8765/sse[/bold white][/{DIM_WHITE}]")
         console.print(f"  [{DIM_WHITE}]Press Ctrl+C to stop the MCP server when finished.[/{DIM_WHITE}]\n")
         from trace_engine.mcp.server import TraceMCPServer
+        from trace_engine.constants import DEFAULT_MCP_HOST, DEFAULT_MCP_PORT
+
         try:
-            TraceMCPServer().run_sse_server(host="127.0.0.1", port=8765)
+            TraceMCPServer().run_sse_server(host=DEFAULT_MCP_HOST, port=DEFAULT_MCP_PORT)
         except KeyboardInterrupt:
             console.print(f"\n  [{GREEN}]✓ TRACE MCP Server stopped.[/{GREEN}]")
 

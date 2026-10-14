@@ -57,6 +57,7 @@ from trace_engine.output.terminal import (
 from trace_engine.output.markdown import generate_markdown_report
 from trace_engine.output.html import generate_html_report
 from trace_engine.output.sarif import generate_sarif_report, export_sarif_json
+from trace_engine.constants import DEFAULT_MCP_HOST, DEFAULT_MCP_PORT, DEFAULT_TARGET_URL
 
 app = typer.Typer(
     name="trace",
@@ -77,7 +78,7 @@ def main(
     """If no command is provided, launch the interactive TRACE security terminal."""
     if version:
         import trace_engine
-        curr_ver = getattr(trace_engine, "__version__", "2.1.15")
+        curr_ver = getattr(trace_engine, "__version__", "0.0.0")
         console.print(f"[bold white]TRACE[/bold white] [bold #10B981]v{curr_ver}[/bold #10B981]")
         raise typer.Exit()
 
@@ -285,7 +286,7 @@ def analyze(
 @app.command()
 def test(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
-    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
+    target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
 ):
     """Execute active test packs against derived hypotheses using ScopedHttpClient."""
     project_dir = path.resolve()
@@ -396,7 +397,7 @@ def test(
 @app.command()
 def scan(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
-    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
+    target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
 ):
@@ -540,7 +541,7 @@ def test_all(
 
     config = load_config(project_dir)
 
-    resolved_target = target if target else (config.target.url or "http://127.0.0.1:18080")
+    resolved_target = target if target else (config.target.url or DEFAULT_TARGET_URL)
 
     console.print(f"\n[bold green]Starting TRACE Comprehensive Test-All Audit[/bold green] on [white]{project_dir.name}[/white]")
     if target:
@@ -918,7 +919,7 @@ def verify(
     finding_id: str = typer.Argument(..., help="Finding ID to verify (e.g. TR-BOLA-001)"),
     repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
-    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL"),
+    target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL"),
 ):
     """Verify whether a code modification by a coding agent resolved a finding (Section 58)."""
     from trace_engine.verify import VerificationEngine, VerificationStatus
@@ -938,15 +939,16 @@ def verify(
 @app.command()
 def mcp(
     server: bool = typer.Option(False, "--server", "-s", help="Run local HTTP/SSE server instead of stdio"),
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host interface to bind HTTP/SSE server"),
-    port: int = typer.Option(8765, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    host: str = typer.Option(DEFAULT_MCP_HOST, "--host", "-h", help="Loopback host interface to bind HTTP/SSE server"),
+    port: int = typer.Option(DEFAULT_MCP_PORT, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    allow_remote: bool = typer.Option(False, "--allow-remote", help="Permit binding a non-loopback host (LAN exposure, no auth)"),
 ):
     """Start TRACE Model Context Protocol (MCP) server for Claude Code and coding agents."""
     from trace_engine.mcp.server import TraceMCPServer
 
     mcp_obj = TraceMCPServer()
     if server:
-        mcp_obj.run_sse_server(host=host, port=port)
+        mcp_obj.run_sse_server(host=host, port=port, allow_remote=allow_remote)
     else:
         mcp_obj.run_stdio()
 
@@ -954,14 +956,15 @@ def mcp(
 @app.command(name="mcp-server")
 @app.command(name="serve-mcp")
 def mcp_server_cmd(
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host interface to bind HTTP/SSE server"),
-    port: int = typer.Option(8765, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    host: str = typer.Option(DEFAULT_MCP_HOST, "--host", "-h", help="Loopback host interface to bind HTTP/SSE server"),
+    port: int = typer.Option(DEFAULT_MCP_PORT, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    allow_remote: bool = typer.Option(False, "--allow-remote", help="Permit binding a non-loopback host (LAN exposure, no auth)"),
 ):
     """Start local HTTP/SSE TRACE MCP server and display connection link for Claude Code."""
     from trace_engine.mcp.server import TraceMCPServer
 
     mcp_obj = TraceMCPServer()
-    mcp_obj.run_sse_server(host=host, port=port)
+    mcp_obj.run_sse_server(host=host, port=port, allow_remote=allow_remote)
 
 
 @app.command("setup-mcp")
