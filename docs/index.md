@@ -22,7 +22,7 @@ proof to your coding agent to fix.
 2. [Run your first audit](quickstart.md) — one command, 60 seconds.
 3. [Connect your agent](mcp.md) — seven tools over MCP, fixes proven by replay.
 
-## How it answers
+## How it works
 
 ```
 source code → AST adapters → Attack-Path Model → hypotheses
