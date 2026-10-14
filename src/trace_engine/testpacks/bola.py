@@ -38,7 +38,7 @@ class BolaTestPack(TestPack):
         token_b = context.active_tokens.get("user-b", "")
 
         for test_id in test_ids:
-            probe_path = re.sub(r"\{[a-zA-Z0-9_]+\}", test_id, raw_path)
+            probe_path = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: test_id, raw_path)
             target_url = f"{base_url}{probe_path}"
 
             # Differential Phase 1: Request with User A context

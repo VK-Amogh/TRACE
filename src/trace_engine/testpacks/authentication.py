@@ -59,7 +59,7 @@ class AuthenticationTestPack(TestPack):
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.90 if confirmed else (None if obs.response_status == 0 else 0.15),
+            confidence=0.90 if confirmed else (0.0 if obs.response_status == 0 else 0.15),
             summary=summary,
             observations=observations,
             reproduction_steps=steps,

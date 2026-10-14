@@ -31,7 +31,8 @@ def generate_markdown_report(findings: List[Finding], project_name: str = "Appli
     lines.extend(["", "---", "", "## Finding Details", ""])
 
     for f in findings:
-        lines.append(f"### [{f.id}] {f.title}")
+        heading = f"### [{f.id}] {f.title}".replace("\n", " ")
+        lines.append(heading)
         lines.append(f"- **Category:** {f.category}")
         lines.append(f"- **Severity:** {f.severity.value}")
         lines.append(f"- **Confidence:** {f.confidence.value}")

@@ -64,7 +64,9 @@ class PathTraversalTestPack(TestPack):
         for payload in TRAVERSAL_PAYLOADS:
             # 1. Path parameter substitution if endpoint contains {id} or {path} or {file}
             if "{" in raw_path:
-                probed_path = re.sub(r"\{[a-zA-Z0-9_]+\}", payload, raw_path)
+                # Lambda replacement: traversal payloads contain backslashes
+                # that re.sub would misread as escape sequences.
+                probed_path = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: payload, raw_path)
                 target_url = f"{base_url}{probed_path}"
                 obs = client.execute(method=method, url=target_url, headers=headers)
                 observations.append(obs)

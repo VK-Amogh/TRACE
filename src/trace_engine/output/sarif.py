@@ -82,7 +82,9 @@ def generate_sarif_report(
                 rule_def["helpUri"] = f"https://cwe.mitre.org/data/definitions/{cwe.replace('CWE-', '')}.html"
             rules_dict[rule_id] = rule_def
 
-        # Build physical location
+        # Build physical location. Findings without a source file fall back
+        # to the repository root: GitHub code scanning rejects locationless
+        # results, and a root-anchored result is honest about that.
         locations: List[Dict[str, Any]] = []
         if f.source_location and f.source_location.file:
             file_path = f.source_location.file
@@ -112,6 +114,19 @@ def generate_sarif_report(
                 },
                 "message": {
                     "text": f"Vulnerable code slice at {f.endpoint}",
+                },
+            })
+        else:
+            locations.append({
+                "physicalLocation": {
+                    "artifactLocation": {
+                        "uri": ".",
+                        "uriBaseId": "%SRCROOT%",
+                    },
+                    "region": {"startLine": 1},
+                },
+                "message": {
+                    "text": f"Repository-level finding at {f.endpoint}",
                 },
             })
 
