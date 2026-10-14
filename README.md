@@ -37,6 +37,23 @@ Every command on one page: **[CLI reference](https://auraflaa.github.io/TRACE/cl
 AI agents start at [`AGENTS.md`](AGENTS.md) and the
 [security harness skill](https://auraflaa.github.io/TRACE/harness/).
 
+## Agent skills
+
+Install TRACE skills into any coding agent with the
+[`skills`](https://github.com/vercel-labs/skills) CLI — no npm publish needed:
+
+```bash
+npx skills add auraflaa/TRACE --list
+npx skills add auraflaa/TRACE --skill trace-security-audit
+npx skills add auraflaa/TRACE --skill trace-remediation-harness --skill trace-mcp-setup
+```
+
+| Skill | What the agent learns |
+|---|---|
+| `trace-security-audit` | run audits, read findings, explain root causes |
+| `trace-remediation-harness` | fix findings end to end with live verification |
+| `trace-mcp-setup` | connect the agent to TRACE over MCP |
+
 ## What it catches
 
 | ID | Category | Root cause it proves |

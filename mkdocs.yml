@@ -46,6 +46,7 @@ nav:
   - AI agents:
       - MCP setup: mcp.md
       - Security harness skill: harness.md
+      - Agent skills (npx): skills.md
   - Reference:
       - API reference: api.md
       - Benchmarks: BENCHMARKS.md
