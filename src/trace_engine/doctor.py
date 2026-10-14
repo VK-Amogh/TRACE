@@ -170,6 +170,34 @@ def run_doctor(project_root=None) -> DoctorReport:
             )
         )
 
+    # 7b. Accelerator selection (lightweight: never loads models)
+    try:
+        from trace_engine.intelligence.device import describe_accelerators
+
+        acc = describe_accelerators()
+        items.append(
+            CheckItem(
+                name="Accelerators",
+                status=True,
+                category="AI Inference",
+                details=(
+                    f"torch={acc['torch_device']} ({acc['torch_version']}), "
+                    f"onnx=[{acc['ort_providers']}], fp16={acc['fp16']} "
+                    "(TRACE_DEVICE/TRACE_DTYPE/TRACE_ORT_PROVIDERS override)"
+                ),
+                critical=False,
+            )
+        )
+    except Exception as e:
+        items.append(
+            CheckItem(
+                name="Accelerators",
+                status=False,
+                category="AI Inference",
+                details=str(e),
+                critical=False,
+            )
+        )
     # 8. Laya System 1 Engine
     try:
         import warnings
