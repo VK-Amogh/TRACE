@@ -40,6 +40,11 @@ env/
 *.swp
 *.swo
 
+# Generated agent installs (per-workspace; source lives in src/trace_engine/plugin/bundle/)
+.agents/
+.mcp.json
+.cursor/mcp.json
+
 # TRACE local workspace runs and databases
 .trace/
 test-repository/.trace/
