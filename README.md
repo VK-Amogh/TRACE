@@ -1,12 +1,10 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-wordmark-dark.svg">
-    <img src="docs/assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="440">
+    <img src="docs/assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="400">
   </picture>
 </p>
 <h1 align="center">TRACE: Threat Reconnaissance &amp; Attack-path Correlation Engine</h1>
-
-<h3 align="center">Full-repo audit in 0.26 s on local CPU. Zero tokens. No cloud.</h3>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec?color=black" alt="NPM"></a>
@@ -16,7 +14,7 @@
   <a href="https://github.com/auraflaa/TRACE/stargazers"><img src="https://img.shields.io/github/stars/auraflaa/TRACE?style=social" alt="GitHub stars"></a>
 </p>
 
-<p align="center"><b>Full-repo audit in 0.26 s on local CPU. Zero tokens. No cloud.</b><br>
+<p align="center">Full-repo audit in 0.26 s on local CPU. Zero tokens. No cloud.<br>
 If it is useful to you, a ⭐ helps other people find it.</p>
 
 **TRACE** is the radar, your coding agent is the mechanic. TRACE parses the
