@@ -7,6 +7,10 @@ description: TRACE audits any backend in under a second on local CPU, correlates
 
 **Full-repo audit in 0.26 s on local CPU. Zero tokens. No cloud.**
 
+[![npm version](https://img.shields.io/npm/v/trace-sec?color=black)](https://www.npmjs.com/package/trace-sec)
+[![CI](https://github.com/auraflaa/TRACE/actions/workflows/ci.yml/badge.svg)](https://github.com/auraflaa/TRACE/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-Apache--2.0-black)](https://github.com/auraflaa/TRACE/blob/main/LICENSE)
+
 ```bash
 npx trace-sec audit .
 ```
