@@ -3,14 +3,12 @@
 import sys
 import types
 
-import pytest
-
 from trace_engine.intelligence import device as device_mod
 from trace_engine.intelligence.device import (
-    resolve_torch_device,
-    resolve_ort_providers,
-    use_fp16,
     describe_accelerators,
+    resolve_ort_providers,
+    resolve_torch_device,
+    use_fp16,
 )
 
 
@@ -123,4 +121,6 @@ def test_device_module_has_no_heavy_imports():
             top_imports.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             top_imports.add(node.module.split(".")[0])
-    assert top_imports <= {"os", "typing"}, f"device.py must stay dependency-free, found {top_imports}"
+    assert top_imports <= {"os", "typing"}, (
+        f"device.py must stay dependency-free, found {top_imports}"
+    )
