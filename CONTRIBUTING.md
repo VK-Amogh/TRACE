@@ -95,3 +95,13 @@ For model-free environments set `HF_HUB_OFFLINE=1` (CI does this).
 Do not open public issues for vulnerabilities. See `SECURITY.md`.
 Fuzzing and exploit PoCs must target `testbed_hardcore/` or `labs/`
 — never public hosts (see `ScopeGuard` in `src/trace_engine/policy/scope.py`).
+
+## 7. Releases
+
+1. Bump `src/trace_engine/__init__.py:__version__` **and** `package.json`
+   together — CI fails the release if either drifts from the tag.
+2. Commit, tag `v<version>`, push the tag, then publish a GitHub release.
+3. `release.yml` verifies the tag, then publishes to PyPI (one-time setup:
+   add this repo as a trusted publisher at pypi.org) and NPM.
+   The NPM step skips gracefully when `NPM_TOKEN` is not configured and
+   fails only on real registry errors.

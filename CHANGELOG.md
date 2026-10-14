@@ -26,6 +26,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - NPX-installable agent skills (`skills/`: audit, remediation harness, MCP setup) following the Agent Skills spec, with a spec validator test; install via `npx skills add auraflaa/TRACE`.
+- Release pipeline (`release.yml`): tag-gated PyPI (trusted publishing) + NPM/GitHub Packages publishing with version-tag consistency check; NPM skips when unconfigured instead of failing.
 - Detailed CI matrix (`ci.yml`): Python 3.11–3.13 on Ubuntu/Windows/macOS, Node 18/20 shim checks, SARIF self-audit, plus a `testbed-full` job (CPU torch + LFS models) mirroring the hardcore suite.
 - Accelerator-aware inference: shared `intelligence/device.py` resolver (CUDA → MPS → CPU for torch, CUDA → CoreML → OpenVINO → CPU cascade for ONNX, fp16 autocast on CUDA), wired into Laya, SecureBERT, and a new `trace doctor` Accelerators row. Overrides: `TRACE_DEVICE`, `TRACE_DTYPE`, `TRACE_ORT_PROVIDERS`.
 - Docs site (`mkdocs.yml`, `docs/`) with `docs.yml` build/deploy workflow publishing to GitHub Pages.
