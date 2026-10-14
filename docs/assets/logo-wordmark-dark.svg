@@ -1,1 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" fill="none"><g transform="translate(10,10)"><rect x="0" y="0" width="100" height="100" rx="22" fill="#0B0F17" stroke="#1E293B" stroke-width="2"/><g fill="none" stroke="#14B8A6" stroke-width="5"><circle cx="50" cy="50" r="34" opacity="0.35"/><circle cx="50" cy="50" r="22" opacity="0.6"/><circle cx="50" cy="50" r="10" opacity="0.9"/></g><line x1="50" y1="50" x2="78" y2="22" stroke="#2DD4BF" stroke-width="6" stroke-linecap="round"/><circle cx="68" cy="36" r="6" fill="#F8FAFC"/></g><text x="130" y="68" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="48" font-weight="600" letter-spacing="2" fill="#F8FAFC">TRACE</text><text x="132" y="96" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="15" letter-spacing="1.6" fill="#94A3B8">SECURITY RADAR FOR AGENTS</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 88" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="beam-dark" x1="20" y1="68" x2="56" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#14B8A6" stop-opacity="0" />
+      <stop offset="50%" stop-color="#14B8A6" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+    <style>
+      .wordmark {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 600;
+        font-size: 34px;
+        letter-spacing: 0.14em;
+        fill: #F8FAFC;
+      }
+      .tagline {
+        font-family: 'JetBrains Mono', 'Inter', -apple-system, BlinkMacSystemFont, monospace, sans-serif;
+        font-weight: 500;
+        font-size: 11.5px;
+        letter-spacing: 0.16em;
+        fill: #2DD4BF;
+      }
+    </style>
+  </defs>
+
+  <!-- Background Pill (Optional: keeps contrast strict on any dark surface) -->
+  <rect width="420" height="88" rx="16" fill="#0B0F17" />
+
+  <!-- Icon Group -->
+  <g transform="translate(14, 12)">
+    <rect x="2" y="2" width="60" height="60" rx="14" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+    <path d="M12 16V12H16 M52 48V52H48" stroke="#334155" stroke-width="1.5" stroke-linecap="square" />
+    <path d="M16 30V48H34" stroke="#14B8A6" stroke-opacity="0.3" stroke-width="3.5" stroke-linecap="square" />
+    <path d="M22 24V42H40" stroke="#14B8A6" stroke-opacity="0.65" stroke-width="3.5" stroke-linecap="square" />
+    <path d="M28 18V36H46" stroke="#2DD4BF" stroke-width="3.5" stroke-linecap="square" />
+    <line x1="16" y1="48" x2="43" y2="21" stroke="url(#beam-dark)" stroke-width="3" stroke-linecap="round" />
+    <rect x="46" y="12" width="8" height="8" rx="1.5" transform="rotate(45 46 12)" fill="#0B0F17" stroke="#2DD4BF" stroke-width="2.5" />
+    <circle cx="46" cy="17.65" r="1.5" fill="#F8FAFC" />
+  </g>
+
+  <!-- Structural Divider -->
+  <line x1="94" y1="22" x2="94" y2="66" stroke="#1E293B" stroke-width="1.5" />
+  <rect x="93.25" y="38" width="1.5" height="12" fill="#14B8A6" />
+
+  <!-- Typography Lockup -->
+  <text x="112" y="47" class="wordmark">TRACE</text>
+
+  <!-- Status Indicator Dot + Tagline -->
+  <circle cx="116" cy="63" r="3" fill="#14B8A6" />
+  <circle cx="116" cy="63" r="1.5" fill="#2DD4BF" />
+  <text x="126" y="67" class="tagline">SECURITY RADAR FOR AGENTS</text>
+</svg>
