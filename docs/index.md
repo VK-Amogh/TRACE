@@ -5,6 +5,13 @@ description: TRACE audits any backend in under a second on local CPU, correlates
 
 # TRACE
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-wordmark-dark.svg">
+    <img src="assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="420">
+  </picture>
+</p>
+
 TRACE reads a backend repository and tells you, in under a second and
 with zero tokens, where it can actually be broken into — then hands the
 proof to your coding agent to fix.
