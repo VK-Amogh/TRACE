@@ -44,15 +44,11 @@ Install TRACE skills into any coding agent with the
 
 ```bash
 npx skills add auraflaa/TRACE --list
-npx skills add auraflaa/TRACE --skill trace-security-audit
-npx skills add auraflaa/TRACE --skill trace-remediation-harness --skill trace-mcp-setup
+npx skills add auraflaa/TRACE --skill trace
 ```
 
-| Skill | What the agent learns |
-|---|---|
-| `trace-security-audit` | run audits, read findings, explain root causes |
-| `trace-remediation-harness` | fix findings end to end with live verification |
-| `trace-mcp-setup` | connect the agent to TRACE over MCP |
+One skill, three workflows: `trace` teaches the agent to run audits,
+fix findings with live verification, and connect over MCP.
 
 ## What it catches
 
