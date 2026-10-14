@@ -16,8 +16,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Detailed CI matrix (`ci.yml`): Python 3.11–3.13 on Ubuntu/Windows/macOS, Node 18/20 shim checks, SARIF self-audit.
-- OSS contributor kit: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `LICENSE` (Apache-2.0), issue/PR templates, Dependabot, `AGENTS.md`, `CITATION.cff`.
+- Detailed CI matrix (`ci.yml`): Python 3.11–3.13 on Ubuntu/Windows/macOS, Node 18/20 shim checks, SARIF self-audit, plus a `testbed-full` job (CPU torch + LFS models) mirroring the hardcore suite.
+- Docs site (`mkdocs.yml`, `docs/`) with `docs.yml` build/deploy workflow publishing to GitHub Pages.
+- OSS contributor kit: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `ACCESSIBILITY.md`, `LICENSE` (Apache-2.0), issue/PR templates, Dependabot, `AGENTS.md`, `CITATION.cff`.
+- Single-source versioning: `pyproject.toml` reads `__version__` from `src/trace_engine/__init__.py` dynamically.
 - Source launchers (`trace.bat`, `trace.cmd`, `trace.ps1`) fall back to `PYTHONPATH=<repo>/src` for uninstalled checkouts.
 
 ## [2.1.18] - 2026-10-01

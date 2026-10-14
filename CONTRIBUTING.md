@@ -72,6 +72,13 @@ node --check bin/trace.js
 npm pack --dry-run
 ```
 
+Docs changes need one more check (installs `mkdocs` + `material` once):
+
+```bash
+pip install -e ".[docs]"
+mkdocs build --strict
+```
+
 For model-free environments set `HF_HUB_OFFLINE=1` (CI does this).
 
 ## 5. Commit + PR rules
@@ -79,7 +86,8 @@ For model-free environments set `HF_HUB_OFFLINE=1` (CI does this).
 - Small, reversible commits; conventional style (`fix:`, `feat:`, `docs:`, `ci:`).
 - Never commit secrets, `.trace/` output, `*.sarif`, model binaries
   (`*.pt`, `*.onnx`, `*.safetensors` go through Git LFS).
-- Update `README`/`docs/` when behavior changes.
+- Update `README`/`docs/` when behavior changes, and add a `CHANGELOG.md`
+  entry under `[Unreleased]`.
 - Fill the PR template: verification commands, device matrix, checklist.
 
 ## 6. Security contributions
