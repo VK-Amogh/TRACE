@@ -12,6 +12,7 @@ from trace_engine.mcp.server import TraceMCPServer
 
 
 def test_laya_decision_engine():
+    pytest.importorskip("torch", reason="laya engine needs torch")
     engine = LayaDecisionEngine()
     ep = Endpoint(
         id="ep_test",

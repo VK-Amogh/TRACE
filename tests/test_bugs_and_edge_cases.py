@@ -94,6 +94,7 @@ app.post(
 
 
 def test_orchestrator_empty_bert_scores():
+    pytest.importorskip("torch", reason="orchestrator engine needs torch")
     orchestrator = IntelligenceOrchestrator()
     dummy_ep = Endpoint(
         id="ep_test",

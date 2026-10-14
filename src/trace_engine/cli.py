@@ -404,7 +404,7 @@ def scan(
     project_dir = path.resolve()
     from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
     if not prompt_and_bootstrap_models(interactive=True):
-        raise typer.Exit(code=1)
+        console.print("[yellow]Continuing without neural models — deterministic AST analysis with heuristic scoring.[/yellow]\n")
 
     config = load_config(project_dir)
 
@@ -535,7 +535,8 @@ def test_all(
     if models:
         from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
         if not prompt_and_bootstrap_models(interactive=True):
-            raise typer.Exit(code=1)
+            console.print("[yellow]Neural models unavailable — continuing with deterministic analysis. Use --no-models to silence this.[/yellow]\n")
+            models = False
 
     config = load_config(project_dir)
 

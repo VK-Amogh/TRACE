@@ -7,6 +7,9 @@ from trace_engine.framework.base import Endpoint, EndpointParameter
 from trace_engine.parsing.locations import SourceLocation
 from trace_engine.apm.model import AttackPathModel
 from trace_engine.testpacks.registry import default_registry
+
+torch = pytest.importorskip("torch", reason="training deps not installed in lite environments")
+
 from trace_engine.intelligence.securebert.classifier import VULN_CATEGORIES, SecureBERTClassifier
 from trace_engine.intelligence.training.dataset import normalize_code_slice, generate_cybersecurity_training_corpus
 from trace_engine.intelligence.training.slicer import slice_and_canonicalize, DataflowSliceExtractor

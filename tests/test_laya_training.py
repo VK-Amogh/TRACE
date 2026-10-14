@@ -4,6 +4,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+torch = pytest.importorskip("torch", reason="training deps not installed in lite environments")
+
 from trace_engine.intelligence.training.laya_trainer import (
     LayaTrainingSample,
     generate_laya_training_corpus,

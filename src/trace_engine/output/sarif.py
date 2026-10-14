@@ -105,13 +105,18 @@ def generate_sarif_report(
                 },
             })
 
-        # Build code flows / attack path if present
+        # Build code flows / attack path if present. GitHub code scanning
+        # requires every threadFlow location to carry a physicalLocation,
+        # so each hop reuses the finding's own location; without a known
+        # file we omit codeFlows rather than emit an invalid result.
         code_flows: List[Dict[str, Any]] = []
-        if f.attack_path:
+        if f.attack_path and locations:
+            hop_physical = locations[0]["physicalLocation"]
             thread_flow_locations = []
             for hop in f.attack_path:
                 thread_flow_locations.append({
                     "location": {
+                        "physicalLocation": hop_physical,
                         "message": {"text": f"Attack hop: {hop}"},
                     }
                 })
