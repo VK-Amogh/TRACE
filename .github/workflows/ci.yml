@@ -48,6 +48,7 @@ jobs:
         run: python -m compileall -q src tests
 
       - name: "Lint (ruff, non-blocking on first rollout)"
+        shell: bash
         run: |
           ruff check src tests || echo "::warning::ruff found issues"
           ruff format --check src tests || echo "::warning::ruff format drift"
@@ -85,9 +86,10 @@ jobs:
           pip install -e ".[dev]"
           pip install -r requirements.txt
 
-      - name: "Hardcore testbed suite"
-        run: python -m pytest tests/test_hardcore_testbed.py tests/test_statistical_timing.py -q
+      - name: "Full test suite (heavy modules run here)"
+        run: python -m pytest tests/ -q
         env:
+          PYTHONPATH: src
           HF_HUB_OFFLINE: "1"
 
       - name: "Audit the hardcore testbed"
