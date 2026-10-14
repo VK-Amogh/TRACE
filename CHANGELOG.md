@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows
 - APM path enumeration is capped (25 paths, depth-bounded) — full-repo scans no longer hang on dense graphs.
 - Training test modules skip gracefully without `torch` instead of breaking pytest collection in lite installs.
 - CI lint step runs under `bash` on all OSs (PowerShell rejected the `||` fallback).
+- Hardcore testbed is macOS-proof: server fixture polls for readiness and loopback probes bypass environment proxies.
 - Interactive MCP handoff imports `TraceMCPServer` instead of the non-existent `run_server`.
 - BOLA testpack returns `0.0` instead of `None` when the target is unreachable, fixing a `ValidationError` on `TestExecutionResult.confidence`.
 - Removed hardcoded `D:/Startup/...` model paths; resolution is now `~/.trace/models`, `$TRACE_MODELS_DIR`, then repo-local `models/`.

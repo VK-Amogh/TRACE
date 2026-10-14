@@ -32,6 +32,8 @@ from trace_engine.security.timing import StatisticalTimingOracle
 @pytest.fixture(scope="module")
 def hardcore_server():
     """Spin up the hardcore testbed mock server on port 18086."""
+    import socket
+
     server_script = Path(__file__).parent.parent / "testbed_hardcore" / "server.py"
     port = 18086
     proc = subprocess.Popen(
@@ -39,7 +41,14 @@ def hardcore_server():
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    time.sleep(1.2)  # Allow server to bind
+    # Poll for readiness instead of a fixed sleep (slow CI runners need longer).
+    deadline = time.perf_counter() + 30
+    while time.perf_counter() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                break
+        except OSError:
+            time.sleep(0.25)
     yield f"http://127.0.0.1:{port}"
     proc.terminate()
     try:
@@ -80,6 +89,10 @@ def test_statistical_timing_oracle_on_hardcore_blind_sqli(hardcore_server):
     import urllib.request
     import json
 
+    # Bypass any environment proxy: loopback probes must go direct,
+    # otherwise a proxy blackhole turns them into timeouts on some runners.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
     target_url = f"{hardcore_server}/api/v1/analytics/query"
 
     # Baseline request latencies (without injection payload)
@@ -91,7 +104,7 @@ def test_statistical_timing_oracle_on_hardcore_blind_sqli(hardcore_server):
             data=json.dumps({"metric_filter": "cpu_usage"}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with opener.open(req, timeout=10) as resp:
             resp.read()
         baseline_samples.append(time.perf_counter() - t0)
 
@@ -104,7 +117,7 @@ def test_statistical_timing_oracle_on_hardcore_blind_sqli(hardcore_server):
             data=json.dumps({"metric_filter": "1' OR '1'='1' AND SLEEP(1)--"}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with opener.open(req, timeout=10) as resp:
             resp.read()
         injected_samples.append(time.perf_counter() - t0)
 
