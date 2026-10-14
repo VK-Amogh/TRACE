@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- MCP server lightened and hardened: lazy per-tool imports, paginated findings with severity filter, truncated evidence, exact-first attack-path lookup, JSON-RPC errors instead of leaked internals, SSE session caps/TTL with 202 semantics, request size limits, non-loopback bind refusal without `--allow-remote`, and honored `profile`/`limit` schema options.
+- Shared `trace_engine/constants.py` replaces scattered hardcoded targets, hosts, ports, timeouts, and probe tokens (all env-overridable).
+- Verification oracle no longer reports `FIXED` for dead targets (INCONCLUSIVE instead) and weighs static re-index evidence; `ScopeGuard.allow_target` refuses non-local hosts; patcher paths are workspace-contained; remediator templates fixed (valid imports, balanced Kotlin, no hardcoded secrets, env-driven roots/domains).
 - SARIF `codeFlows` now attach a `physicalLocation` to every attack hop (omitted when unlocatable) — GitHub code scanning accepts the upload again.
 - `scan`/`test-all` no longer hard-exit when neural models are missing; they warn and continue with deterministic analysis (fixes CI SARIF job on LFS-less checkouts).
 - APM path enumeration is capped (25 paths, depth-bounded) — full-repo scans no longer hang on dense graphs.

@@ -52,7 +52,7 @@ def get_styled_logo() -> Text:
 def print_banner() -> None:
     """Renders the sleek minimalist TRACE banner in Mint Green and Crisp White with Orange options."""
     import trace_engine
-    curr_ver = getattr(trace_engine, "__version__", "2.1.15")
+    curr_ver = getattr(trace_engine, "__version__", "0.0.0")
     console.print()
     console.print(get_styled_logo())
     console.print(f"  [bold white]Threat Reconnaissance & Attack-path Correlation Engine[/bold white]  [bold #10B981]v{curr_ver}[/bold #10B981]")

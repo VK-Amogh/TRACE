@@ -14,6 +14,7 @@ from trace_engine.harness.context import (
 )
 from trace_engine.harness.patcher import SafePatcher
 from trace_engine.harness.remediators import AutonomousRemediator
+from trace_engine.constants import DEFAULT_TARGET_URL
 
 
 class AgentHarness:
@@ -22,7 +23,7 @@ class AgentHarness:
     for AI coding models to inspect, patch, and mathematically prove security remediations.
     """
 
-    def __init__(self, repo_path: Path, target_url: str = "http://127.0.0.1:18080"):
+    def __init__(self, repo_path: Path, target_url: str = DEFAULT_TARGET_URL):
         self.repo_path = repo_path.resolve()
         self.target_url = target_url
         self.trace_dir = self.repo_path / ".trace"
@@ -51,18 +52,33 @@ class AgentHarness:
 
     def build_remediation_package(self, finding: Finding, rank: int = 1) -> AgentRemediationPackage:
         """Packages rich context, surrounding AST lines, and exploit proof for an AI agent."""
-        file_path = self.repo_path / finding.source_location.file
+        loc = finding.source_location
+        if loc is None or not loc.file:
+            return AgentRemediationPackage(
+                finding_id=finding.id,
+                title=finding.title,
+                category=finding.category,
+                severity=finding.severity.value,
+                priority_rank=rank,
+                endpoint=finding.endpoint,
+                source_file="",
+                line_start=0,
+                line_end=0,
+                code_snippet="",
+                attack_path_hops=finding.attack_path,
+            )
+        file_path = self.repo_path / loc.file
         if not file_path.exists():
             for sub in self.repo_path.iterdir():
-                if sub.is_dir() and (sub / finding.source_location.file).exists():
-                    file_path = sub / finding.source_location.file
+                if sub.is_dir() and (sub / loc.file).exists():
+                    file_path = sub / loc.file
                     break
 
         code_snippet = ""
         if file_path.exists():
             lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
-            start = max(0, finding.source_location.line_start - 5)
-            end = min(len(lines), finding.source_location.line_end + 10)
+            start = max(0, loc.line_start - 5)
+            end = min(len(lines), loc.line_end + 10)
             code_snippet = "\n".join(lines[start:end])
 
         return AgentRemediationPackage(
@@ -72,9 +88,9 @@ class AgentHarness:
             severity=finding.severity.value,
             priority_rank=rank,
             endpoint=finding.endpoint,
-            source_file=finding.source_location.file,
-            line_start=finding.source_location.line_start,
-            line_end=finding.source_location.line_end,
+            source_file=loc.file,
+            line_start=loc.line_start,
+            line_end=loc.line_end,
             code_snippet=code_snippet,
             attack_path_hops=finding.attack_path,
             runtime_exploit_proof=finding.runtime_evidence,

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from trace_engine.harness.engine import AgentHarness
 from trace_engine.harness.context import HarnessExecutionReport
+from trace_engine.constants import DEFAULT_TARGET_URL
 
 
 class BenchmarkScorecard(BaseModel):
@@ -28,7 +29,7 @@ class BenchmarkScorecard(BaseModel):
 class TRACEBench:
     """Evaluation harness for testing and grading AI coding agents on OWASP API security remediations."""
 
-    def __init__(self, repo_path: Path, target_url: str = "http://127.0.0.1:18080"):
+    def __init__(self, repo_path: Path, target_url: str = DEFAULT_TARGET_URL):
         self.repo_path = repo_path.resolve()
         self.target_url = target_url
         self.harness = AgentHarness(self.repo_path, target_url=self.target_url)

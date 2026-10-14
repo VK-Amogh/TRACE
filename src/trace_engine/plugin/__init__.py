@@ -13,6 +13,7 @@ from typing import List, Optional, Dict, Any
 
 from trace_engine.findings.store import FindingStore
 from trace_engine.plugin.task import HarnessTaskSpec
+from trace_engine.constants import DEFAULT_TARGET_URL
 from trace_engine.plugin.swebench_adapter import build_harness_task, export_swebench_jsonl
 from trace_engine.plugin.evaluator import HarnessEvaluator, EvaluationResult
 
@@ -25,7 +26,7 @@ class TraceHarnessPlugin:
     PLUGIN_NAME = "trace-security"
     VERSION = "2.0.0"
 
-    def __init__(self, repo_path: Optional[Path] = None, target_url: str = "http://127.0.0.1:18080"):
+    def __init__(self, repo_path: Optional[Path] = None, target_url: str = DEFAULT_TARGET_URL):
         self.repo_path = Path(repo_path or ".").resolve()
         self.target_url = target_url
         self.finding_store = FindingStore(self.repo_path / ".trace")

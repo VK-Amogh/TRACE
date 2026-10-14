@@ -45,6 +45,14 @@ def test_scope_guard_allow_target_dynamic():
     assert guard.validate_url("http://my-lab.local:8443/api")
 
 
+def test_scope_guard_allow_target_refuses_external():
+    guard = ScopeGuard()
+    with pytest.raises(ScopeViolationError):
+        guard.allow_target("https://evil.com/api")
+    with pytest.raises(ScopeViolationError):
+        guard.allow_target("ftp://127.0.0.1/file")
+
+
 def test_scoped_http_client_redirect_protocol_relative():
     guard = ScopeGuard()
     client = ScopedHttpClient(scope_guard=guard)

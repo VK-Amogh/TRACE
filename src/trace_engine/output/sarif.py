@@ -40,6 +40,16 @@ def _category_to_cwe(category: str) -> Optional[str]:
     return None
 
 
+def _tool_version() -> str:
+    """Single-source driver version (falls back gracefully outside installs)."""
+    try:
+        from trace_engine import __version__
+
+        return __version__
+    except Exception:
+        return "0.0.0"
+
+
 def generate_sarif_report(
     findings: List[Finding],
     project_name: str = "TRACE Application",
@@ -57,7 +67,7 @@ def generate_sarif_report(
             rule_def: Dict[str, Any] = {
                 "id": rule_id,
                 "name": f.category.replace("-", " ").title(),
-                "shortDescription": {"text": f.title},
+                "shortDescription": {"text": f"{f.category} vulnerability detected by TRACE"},
                 "fullDescription": {"text": f"Vulnerability in {f.category} detected by TRACE neuro-symbolic engine."},
                 "defaultConfiguration": {
                     "level": _severity_to_sarif_level(f.severity),
@@ -157,7 +167,7 @@ def generate_sarif_report(
                 "tool": {
                     "driver": {
                         "name": "TRACE Security Engine",
-                        "version": "2.0.0",
+                        "version": _tool_version(),
                         "informationUri": "https://github.com/VK-Amogh/TRACE",
                         "rules": list(rules_dict.values()),
                     }

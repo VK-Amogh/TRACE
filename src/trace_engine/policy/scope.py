@@ -72,9 +72,33 @@ class ScopeGuard:
         return True
 
     def allow_target(self, url: str) -> None:
-        """Explicitly add a target's host and port to allowed scope if it is local/private."""
+        """Add a target's host/port to scope, but only if it is local.
+
+        In `private-lab` mode RFC-1918 private addresses are also accepted.
+        Anything else raises instead of silently allowlisting an external host.
+        """
         parsed = urlparse(url)
-        if parsed.hostname:
-            self.allowed_hosts.add(parsed.hostname.lower())
+        if parsed.scheme not in ("http", "https"):
+            raise ScopeViolationError(f"Unsupported URL scheme: {parsed.scheme}")
+        hostname = (parsed.hostname or "").lower()
+        if not hostname:
+            raise ScopeViolationError(f"Invalid URL host: {url}")
+        try:
+            ip = ipaddress.ip_address(hostname)
+            local = (
+                ip.is_loopback
+                or hostname in self.allowed_hosts
+                or (self.mode == "private-lab" and ip.is_private)
+            )
+        except ValueError:
+            # DNS name: allowed when loopback or explicitly pre-authorized
+            # by the operator via allowed_hosts.
+            local = hostname in ("localhost",) or hostname in self.allowed_hosts
+        if not local:
+            raise ScopeViolationError(
+                f"Refusing to allowlist non-local target '{hostname}'. "
+                "Only loopback (or private-lab) targets may be added."
+            )
+        self.allowed_hosts.add(hostname)
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         self.allowed_ports.add(port)

@@ -16,9 +16,18 @@ class SafePatcher:
         self.backup_dir = self.workspace_root / ".trace" / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
+    def _resolve_within_workspace(self, rel_path: str) -> Path:
+        """Resolve a relative path, refusing escapes outside the workspace."""
+        candidate = (self.workspace_root / rel_path).resolve()
+        try:
+            candidate.relative_to(self.workspace_root)
+        except ValueError:
+            raise ValueError(f"Refusing path outside workspace: {rel_path}")
+        return candidate
+
     def backup(self, rel_path: str) -> Path:
         """Create timestamped backup of the target file."""
-        target = self.workspace_root / rel_path
+        target = self._resolve_within_workspace(rel_path)
         if not target.exists():
             raise FileNotFoundError(f"Target file {rel_path} does not exist in workspace.")
 
@@ -36,7 +45,15 @@ class SafePatcher:
         replacement_content: str,
     ) -> PatchResult:
         """Replace target string block with replacement content, creating a rollback backup."""
-        file_path = self.workspace_root / rel_path
+        try:
+            file_path = self._resolve_within_workspace(rel_path)
+        except ValueError as e:
+            return PatchResult(
+                finding_id=finding_id,
+                target_file=rel_path,
+                success=False,
+                error=str(e),
+            )
         if not file_path.exists():
             return PatchResult(
                 finding_id=finding_id,
@@ -92,7 +109,15 @@ class SafePatcher:
         new_content: str,
     ) -> PatchResult:
         """Write entire new file content, creating a rollback backup."""
-        file_path = self.workspace_root / rel_path
+        try:
+            file_path = self._resolve_within_workspace(rel_path)
+        except ValueError as e:
+            return PatchResult(
+                finding_id=finding_id,
+                target_file=rel_path,
+                success=False,
+                error=str(e),
+            )
         if not file_path.exists():
             return PatchResult(
                 finding_id=finding_id,
@@ -130,10 +155,15 @@ class SafePatcher:
             )
 
     def rollback(self, rel_path: str, backup_path: Path) -> bool:
-        """Restore file from backup."""
-        target = self.workspace_root / rel_path
-        if backup_path.exists():
-            shutil.copy2(backup_path, target)
+        """Restore file from backup (both paths must stay in the workspace)."""
+        try:
+            target = self._resolve_within_workspace(rel_path)
+            backup_resolved = Path(backup_path).resolve()
+            backup_resolved.relative_to(self.backup_dir)
+        except (ValueError, OSError):
+            return False
+        if backup_resolved.exists():
+            shutil.copy2(backup_resolved, target)
             return True
         return False
 

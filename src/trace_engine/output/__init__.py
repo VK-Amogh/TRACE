@@ -8,6 +8,10 @@ from trace_engine.output.terminal import (
     print_findings_table,
     print_finding_detail,
     print_doctor_report,
+    print_test_all_report,
+    print_model_intelligence_report,
+    print_harness_report,
+    print_benchmark_scorecard,
 )
 from trace_engine.output.markdown import generate_markdown_report
 from trace_engine.output.html import generate_html_report
@@ -21,6 +25,10 @@ __all__ = [
     "print_findings_table",
     "print_finding_detail",
     "print_doctor_report",
+    "print_test_all_report",
+    "print_model_intelligence_report",
+    "print_harness_report",
+    "print_benchmark_scorecard",
     "generate_markdown_report",
     "generate_html_report",
     "generate_sarif_report",

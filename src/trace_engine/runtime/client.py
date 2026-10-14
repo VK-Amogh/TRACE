@@ -34,17 +34,21 @@ class ScopedHttpClient:
 
         start_time = time.perf_counter()
         try:
+            # httpx forbids content + data together: JSON body wins when present.
+            request_kwargs: Dict[str, Any] = {
+                "method": method.upper(),
+                "url": url,
+                "headers": headers,
+            }
+            if req_body_str is not None:
+                request_kwargs["content"] = req_body_str
+            elif data is not None:
+                request_kwargs["data"] = data
             with httpx.Client(
                 timeout=self.timeout,
                 follow_redirects=False,  # Intercept redirects for scope check
             ) as client:
-                resp = client.request(
-                    method=method.upper(),
-                    url=url,
-                    headers=headers,
-                    content=req_body_str,
-                    data=data,
-                )
+                resp = client.request(**request_kwargs)
                 latency_ms = (time.perf_counter() - start_time) * 1000
 
                 # Check if redirect is safe
