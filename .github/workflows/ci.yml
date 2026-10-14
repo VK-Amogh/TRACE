@@ -54,7 +54,7 @@ jobs:
           ruff format --check src tests || echo "::warning::ruff format drift"
 
       - name: "Run pytest (lite, no model downloads)"
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/ -q -rf
         env:
           PYTHONPATH: src
           HF_HUB_OFFLINE: "1"
@@ -87,7 +87,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: "Full test suite (heavy modules run here)"
-        run: python -m pytest tests/ -q
+        run: python -m pytest tests/ -q -rf
         env:
           PYTHONPATH: src
           HF_HUB_OFFLINE: "1"
