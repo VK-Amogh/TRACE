@@ -1,5 +1,5 @@
 site_name: TRACE
-site_description: TRACE (Threat Reconnaissance & Attack-path Correlation Engine) — sub-second, zero-token security audit with an Attack-Path Model, MCP tools, and a verification oracle for AI coding agents.
+site_description: TRACE (Threat Reconnaissance & Attack-path Correlation Engine) audits any backend in under a second on local CPU, correlates real vulnerabilities, and hands structured findings to AI coding agents over MCP. npx trace-sec audit .
 site_url: https://auraflaa.github.io/TRACE/
 repo_url: https://github.com/auraflaa/TRACE
 repo_name: auraflaa/TRACE
@@ -8,6 +8,7 @@ copyright: TRACE is released under Apache-2.0
 
 theme:
   name: material
+  custom_dir: overrides
   font:
     text: Inter
     code: JetBrains Mono
@@ -27,6 +28,9 @@ theme:
     - navigation.tracking
     - navigation.sections
     - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
     - content.code.copy
     - content.tabs.link
     - toc.follow
@@ -36,11 +40,14 @@ nav:
   - Getting started:
       - Installation: installation.md
       - Quick start: quickstart.md
+      - Cheat sheet: cheatsheet.md
+      - Lite or Full: lite-or-full.md
       - CLI reference: cli.md
   - AI agents:
       - MCP setup: mcp.md
       - Security harness skill: harness.md
   - Reference:
+      - API reference: api.md
       - Benchmarks: BENCHMARKS.md
       - Architecture (v2): TRACE_v2_Architecture_and_Advancements.md
       - Benchmark & audit metrics: TRACE_Benchmark_and_Audit_Metrics.md
@@ -54,11 +61,32 @@ nav:
 
 plugins:
   - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            members_order: source
 
 markdown_extensions:
   - admonition
   - attr_list
+  - md_in_html
   - tables
   - toc: {permalink: true}
+  - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.highlight: {anchor_linenums: true}
+  - pymdownx.inlinehilite
   - pymdownx.tabbed: {alternate_style: true}
+
+extra:
+  version: 2.1.18
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/auraflaa/TRACE
+    - icon: fontawesome/brands/npm
+      link: https://www.npmjs.com/package/trace-sec

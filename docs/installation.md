@@ -13,27 +13,23 @@
 
 No torch, no model downloads — everything needed for tests and audits:
 
-```bash
-pip install -e ".[dev]"
-```
+=== "Windows"
 
-Windows (`cmd.exe`):
+    ```cmd
+    python -m venv .venv
+    .venv\Scripts\activate
+    python -m pip install --upgrade pip
+    pip install -e ".[dev]"
+    ```
 
-```cmd
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-```
+=== "Linux / macOS"
 
-Linux / macOS:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-```
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install --upgrade pip
+    pip install -e ".[dev]"
+    ```
 
 ## Full AI install (inference on your machine)
 
@@ -43,7 +39,7 @@ pip install -r requirements.txt
 
 This pulls `torch`, `transformers`, and `onnxruntime` (hundreds of MB).
 On low-RAM or metered devices, stay on lite — detection still works, neural
-scoring gracefully degrades.
+scoring gracefully degrades. See [Lite or Full](lite-or-full.md).
 
 ## NPM shim
 
@@ -63,4 +59,5 @@ trace audit ./testbed_hardcore --format table
 
 If `python -m trace_engine.cli` says `No module named 'trace_engine'`, set
 `PYTHONPATH=src` (or use the repo launchers `trace.bat` / `trace.cmd` /
-`trace.ps1`, which do it automatically).
+`trace.ps1`, which do it automatically). More in
+[Troubleshooting](troubleshooting.md).

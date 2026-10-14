@@ -49,6 +49,7 @@ docs = [
     "mkdocs>=1.6,<2",
     "mkdocs-material>=9.5,<10",
     "pymdown-extensions>=10.0",
+    "mkdocstrings[python]>=0.24",
 ]
 full = [
     "transformers>=4.40.0",
