@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible TRACE bug
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Clear description + expected vs actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Exact commands from a clean checkout.
+      value: |
+        set PYTHONPATH=src
+        python -m pytest tests/ -q
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: TRACE version / commit
+      description: Output of `trace --version` or git SHA.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Device / OS
+      options:
+        - Windows x64
+        - Linux x64
+        - macOS Intel
+        - macOS Apple Silicon
+        - Other (specify below)
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: e.g. 3.12.4
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version (if NPM path used)
+      description: e.g. 20.11.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant output. Redact secrets.
+      render: text

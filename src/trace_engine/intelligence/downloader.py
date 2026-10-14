@@ -124,8 +124,6 @@ def is_environment_ready() -> bool:
         Path(".trace/models"),
         repo_root / "models",
         repo_root / ".trace/models",
-        Path("D:/Startup/TRACE/models"),
-        Path("D:/Startup/TRACE/.trace/models"),
     ]
 
     sb_ok = False

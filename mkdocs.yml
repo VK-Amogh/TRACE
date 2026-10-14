@@ -1,0 +1,64 @@
+site_name: TRACE
+site_description: TRACE (Threat Reconnaissance & Attack-path Correlation Engine) — sub-second, zero-token security audit with an Attack-Path Model, MCP tools, and a verification oracle for AI coding agents.
+site_url: https://auraflaa.github.io/TRACE/
+repo_url: https://github.com/auraflaa/TRACE
+repo_name: auraflaa/TRACE
+edit_uri: edit/main/docs/
+copyright: TRACE is released under Apache-2.0
+
+theme:
+  name: material
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle: {icon: material/weather-night, name: Switch to dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle: {icon: material/weather-sunny, name: Switch to light mode}
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Quick start: quickstart.md
+      - CLI reference: cli.md
+  - AI agents:
+      - MCP setup: mcp.md
+      - Security harness skill: harness.md
+  - Reference:
+      - Benchmarks: BENCHMARKS.md
+      - Architecture (v2): TRACE_v2_Architecture_and_Advancements.md
+      - Benchmark & audit metrics: TRACE_Benchmark_and_Audit_Metrics.md
+      - Hackathon dossier: TRACE_HACKATHON_MASTER_DOSSIER.md
+      - Production intelligence plan (v2): TRACE_Advanced_Production_Intelligence_Implementation_Plan_v2.md
+      - Implementation plan (v1): TRACE_Detailed_Implementation_Plan_v1.md
+  - Project:
+      - FAQ: faq.md
+      - Troubleshooting: troubleshooting.md
+      - Changelog: changelog.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.superfences
+  - pymdownx.tabbed: {alternate_style: true}

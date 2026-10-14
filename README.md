@@ -333,5 +333,15 @@ TRACE/
 
 ## 📄 License & Community
 
-TRACE is open-source software licensed under the **Apache License 2.0**.  
-Contributions, issue reports, and framework adapter PRs are welcome on [GitHub](https://github.com/VK-Amogh/TRACE).
+TRACE is open-source software licensed under the **Apache License 2.0**
+(see `LICENSE`).
+Contributions, issue reports, and framework adapter PRs are welcome —
+see `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and `SECURITY.md`.
+
+Supported: Python 3.11–3.13 and Node 18/20 on Windows x64, Linux x64,
+and macOS (Intel + Apple Silicon). Lite install `pip install -e .`
+works on 4 GB machines; full AI inference (`pip install -r requirements.txt`)
+needs ~8 GB.
+
+Full guides: <https://auraflaa.github.io/TRACE/> (`mkdocs.yml`, `docs/`).
+Contributing: `CONTRIBUTING.md`.

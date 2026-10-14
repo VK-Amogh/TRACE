@@ -131,7 +131,7 @@ function findSystemPython() {
         encoding: 'utf-8',
       }).trim();
       const parts = ver.split(/\s+/).map(Number);
-      if (parts[0] === 3 && parts[1] >= 9) {
+      if (parts[0] === 3 && parts[1] >= 11) {
         return execCmd;
       }
     } catch {

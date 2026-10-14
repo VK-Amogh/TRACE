@@ -23,7 +23,7 @@ class DoctorReport(BaseModel):
     all_critical_passed: bool
 
 
-def run_doctor() -> DoctorReport:
+def run_doctor(project_root=None) -> DoctorReport:
     """Runs system diagnostics across runtime, AI, tools, and dependencies."""
     items: List[CheckItem] = []
 

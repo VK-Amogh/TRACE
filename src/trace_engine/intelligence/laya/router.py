@@ -63,8 +63,6 @@ class LayaDecisionEngine:
             Path(__file__).resolve().parents[4] / "models/laya-finetuned",
             Path(__file__).resolve().parents[4] / ".trace/models/laya-finetuned",
             Path(__file__).resolve().parents[2] / "models/laya-finetuned",
-            Path("D:/Startup/TRACE/models/laya-finetuned"),
-            Path("D:/Startup/TRACE/.trace/models/laya-finetuned"),
         ]
         repo_root = Path(__file__).resolve().parents[4]
         for p in candidates:

@@ -40,8 +40,6 @@ class SecureBERTClassifier:
             Path(__file__).resolve().parents[4] / "models/securebert-finetuned",
             Path(__file__).resolve().parents[4] / ".trace/models/securebert-finetuned",
             Path(__file__).resolve().parents[2] / "models/securebert-finetuned",
-            Path("D:/Startup/TRACE/models/securebert-finetuned"),
-            Path("D:/Startup/TRACE/.trace/models/securebert-finetuned"),
         ]
         default_model = None
         repo_root = Path(__file__).resolve().parents[4]

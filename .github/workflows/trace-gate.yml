@@ -7,6 +7,10 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+concurrency:
+  group: trace-gate-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   security-events: write
@@ -15,6 +19,7 @@ jobs:
   trace-audit:
     name: "TRACE Autonomous Security Audit"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: "Checkout Codebase"
         uses: actions/checkout@v4
@@ -41,7 +46,7 @@ jobs:
           trace scan . --format sarif --output trace-results.sarif
 
       - name: "Upload SARIF Results to GitHub Security / Code Scanning Tab"
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trace-results.sarif

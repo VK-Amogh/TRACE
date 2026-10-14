@@ -686,9 +686,9 @@ def run_interactive_story() -> None:
         console.print(f"\n  [{GREEN}]Starting TRACE MCP Server on port 8765...[/{GREEN}]")
         console.print(f"  [{DIM_WHITE}]Connect Claude Code or Cursor to: [bold white]http://127.0.0.1:8765/sse[/bold white][/{DIM_WHITE}]")
         console.print(f"  [{DIM_WHITE}]Press Ctrl+C to stop the MCP server when finished.[/{DIM_WHITE}]\n")
-        from trace_engine.mcp.server import run_server
+        from trace_engine.mcp.server import TraceMCPServer
         try:
-            run_server(host="127.0.0.1", port=8765)
+            TraceMCPServer().run_sse_server(host="127.0.0.1", port=8765)
         except KeyboardInterrupt:
             console.print(f"\n  [{GREEN}]✓ TRACE MCP Server stopped.[/{GREEN}]")
 

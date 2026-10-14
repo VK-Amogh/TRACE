@@ -19,7 +19,7 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
     pip install git+https://github.com/VK-Amogh/TRACE.git
     Write-Host "  ✓ Installed TRACE Python package." -ForegroundColor Green
 } else {
-    Write-Host "  [!] Neither npm nor pip was found. Please install Node.js or Python 3.10+." -ForegroundColor Red
+    Write-Host "  [!] Neither npm nor pip was found. Please install Node.js 18+ or Python 3.11+." -ForegroundColor Red
     exit 1
 }
 

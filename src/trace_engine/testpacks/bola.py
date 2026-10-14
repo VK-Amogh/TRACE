@@ -91,7 +91,7 @@ class BolaTestPack(TestPack):
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.98 if confirmed else (None if not any_reachable else 0.20),
+            confidence=0.98 if confirmed else (0.0 if not any_reachable else 0.20),
             summary=summary,
             observations=observations,
             reproduction_steps=steps,

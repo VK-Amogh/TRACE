@@ -23,7 +23,7 @@ from trace_engine.security.hypotheses import SecurityHypothesis
 from trace_engine.apm.model import AttackPathModel
 from trace_engine.doctor import DoctorReport
 
-console = Console(force_terminal=True, legacy_windows=False)
+console = Console(force_terminal=None, legacy_windows=True)
 
 # Big Pixel / ASCII Block Logo
 LOGO_ASCII = """\
