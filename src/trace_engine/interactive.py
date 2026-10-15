@@ -94,7 +94,7 @@ def render_big_banner(animated: bool = False) -> None:
     from trace_engine.intelligence.downloader import is_environment_ready
     models_ready = is_environment_ready()
 
-    curr_ver = getattr(trace_engine, "__version__", "2.1.15")
+    curr_ver = getattr(trace_engine, "__version__", "0.0.0")
     console.print()
     console.print(render_big_logo())
     console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine[/{BOLD_WHITE}]  [{GREEN}]v{curr_ver}[/{GREEN}]")
@@ -186,7 +186,7 @@ def run_architecture_guide() -> None:
         console.print(f"  [{DIM_GREEN}]{'─' * 76}[/{DIM_GREEN}]")
 
         if q_choice == "1":
-            curr_ver = getattr(trace_engine, "__version__", "2.1.15")
+            curr_ver = getattr(trace_engine, "__version__", "0.0.0")
             console.print(f"  [{GREEN}]Q1: What actually is TRACE?[/{GREEN}]\n")
             console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine (TRACE v{curr_ver})[/{BOLD_WHITE}]")
             console.print(

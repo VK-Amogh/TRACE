@@ -33,7 +33,7 @@ _BACKGROUND_THREAD: Optional[threading.Thread] = None
 
 def get_current_version() -> str:
     """Returns the currently running TRACE version."""
-    return getattr(trace_engine, "__version__", "2.1.15")
+    return getattr(trace_engine, "__version__", "0.0.0")
 
 
 def fetch_latest_version(timeout: float = 1.8) -> Optional[str]:
