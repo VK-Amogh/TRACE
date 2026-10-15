@@ -31,6 +31,8 @@ otherwise use the CLI. Both hit the same engine.
 Findings carry `category` (BOLA, BFLA, AUTH, SSRF, INJECTION,
 MASS_ASSIGNMENT, PATH_TRAVERSAL, SSTI, CORS), `severity`, `endpoint`,
 `source_location`, `attack_path`, evidence, and `remediation`.
+Global NPX flags: `--verbose` (diagnostics + debug logs) and `--format`
+for format-capable commands (`scan`, `audit`, `test-all`, `report`).
 Explain what the endpoint does, how the path reaches the sink, and the
 minimal fix. Never claim a fix works without verifying (workflow 2).
 

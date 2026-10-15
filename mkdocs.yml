@@ -62,6 +62,7 @@ nav:
   - Project:
       - FAQ: faq.md
       - Troubleshooting: troubleshooting.md
+      - Releases: releases.md
       - Changelog: changelog.md
 
 plugins:
