@@ -409,6 +409,7 @@ def scan(
     target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
+    chain: bool = typer.Option(True, "--chain/--no-chain", help="Re-inject harvested leaks into other routes (bounded)"),
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
     import time
@@ -453,6 +454,13 @@ def scan(
     save_apm_sqlite(graph_model, trace_dir / "graph.db")
     progress_console.print(f"  [dim]✓ Attack-Path Model:[/dim] {graph_model.graph.number_of_nodes()} nodes, {graph_model.graph.number_of_edges()} edges [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
     t_stage = time.perf_counter()
+    try:
+        choke = graph_model.choke_points(limit=5)
+    except Exception:
+        choke = []
+    if choke:
+        top = ", ".join(f"{c['label']} ({c['betweenness']})" for c in choke[:3])
+        progress_console.print(f"  [dim]✓ Choke Points:[/dim] fix these first — [white]{top}[/white]")
 
     # 3. Hypotheses
     engine = HypothesisEngine()
@@ -488,6 +496,45 @@ def scan(
         finding = correlator.correlate(hyp, test_res, graph_model)
         if finding:
             findings.append(finding)
+
+    # 4b. Chain-mode escalation: re-inject harvested leaks into other routes.
+    if chain and findings:
+        from trace_engine.testpacks.chain import escalate_chains
+        from trace_engine.findings.model import Severity, FindingConfidence
+
+        try:
+            routes = [(ep.method, ep.path) for ep in discovered_endpoints]
+            chained = escalate_chains(routes, findings, client, context)
+            for i, hit in enumerate(chained, start=1):
+                findings.append(
+                    Finding(
+                        id=f"TR-CHAIN-{i:03d}",
+                        title=f"Chained escalation via {hit['method']} {hit['path']}",
+                        category="BOLA",
+                        severity=Severity.HIGH,
+                        confidence=FindingConfidence.HIGH,
+                        endpoint=f"{hit['method']} {hit['path']}",
+                        attack_path=[str(hit["from_finding"]), f"{hit['method']} {hit['path']}"],
+                        static_evidence=[],
+                        runtime_evidence=[
+                            f"Marker '{hit['marker']}' leaked by {hit['from_finding']} re-injected here",
+                            f"Response leaks: {', '.join(map(str, hit['leaked'][:3]))}",
+                        ],
+                        correlation_notes="Chain-mode: harvested leak value unlocks a second endpoint.",
+                        remediation="Scope both endpoints to the caller tenant; rotate any exposed identifiers.",
+                        reproduction_steps=[
+                            f"Note marker '{hit['marker']}' in {hit['from_finding']} evidence",
+                            f"Send {hit['method']} {hit['path']} with the marker substituted for the ID parameter",
+                        ],
+                        observations=[],
+                        root_cause="Cross-endpoint trust in unscoped identifiers.",
+                        short_action="Scope lookups to tenant on both endpoints.",
+                    )
+                )
+            if chained:
+                progress_console.print(f"  [dim]✓ Chain Escalation:[/dim] [bold white]{len(chained)}[/bold white] chained findings [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+        except Exception:
+            pass
 
     # 5. Persist Findings
     store = FindingStore(trace_dir)
@@ -634,6 +681,13 @@ def test_all(
     save_apm_sqlite(graph_model, trace_dir / "graph.db")
     progress_console.print(f"  [dim]✓ Attack-Path Model:[/dim] [bold white]{graph_model.graph.number_of_nodes()}[/bold white] nodes, [bold white]{graph_model.graph.number_of_edges()}[/bold white] directed edges [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
     t_stage = time.perf_counter()
+    try:
+        choke_points = graph_model.choke_points(limit=5)
+    except Exception:
+        choke_points = []
+    if choke_points:
+        top = ", ".join(f"{c['label']} ({c['betweenness']})" for c in choke_points[:3])
+        progress_console.print(f"  [dim]✓ Choke Points:[/dim] fix these first — [white]{top}[/white]")
 
     # 3. Security Hypotheses
     engine = HypothesisEngine()

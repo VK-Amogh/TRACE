@@ -408,6 +408,7 @@ class TraceMCPServer:
                 "confirmed": sum(1 for f in findings if f.confidence.value == "CONFIRMED"),
                 "endpoints_audited": len(discovered_endpoints),
                 "files_skipped_large": skipped_large,
+                "choke_points": apm.choke_points(limit=5),
             }
 
         elif name == "trace_attack_path":
