@@ -77,9 +77,6 @@ jobs:
   publish-npm:
     name: "Publish to Public NPM Registry"
     needs: [preflight]
-    # Skip (don't fail) when no NPM account is configured; real registry
-    # errors still fail the step.
-    if: ${{ secrets.NPM_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout repository"
@@ -91,8 +88,15 @@ jobs:
           node-version: "20.x"
           registry-url: "https://registry.npmjs.org"
 
-      - name: "Publish trace-sec to NPM"
-        run: npm publish --access public
+      - name: "Publish trace-sec to NPM (skips when unconfigured)"
+        # Skip (don't fail) when no NPM account is configured; real
+        # registry errors still fail this step.
+        run: |
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "NPM_TOKEN not configured - skipping publish."
+            exit 0
+          fi
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

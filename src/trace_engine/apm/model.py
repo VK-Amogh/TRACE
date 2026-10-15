@@ -100,6 +100,42 @@ class AttackPathModel:
                 continue
         return result_paths[:limit]
 
+    def choke_points(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Rank nodes by betweenness centrality: fixing these covers the
+        most endpoint-to-sink reachability (choke-point prioritization)."""
+        if self.graph.number_of_nodes() == 0:
+            return []
+        try:
+            centrality = nx.betweenness_centrality(self.graph)
+        except Exception:
+            return []
+        ranked = sorted(centrality.items(), key=lambda kv: kv[1], reverse=True)
+        points = []
+        for node_id, score in ranked:
+            if score <= 0:
+                break
+            node = self.nodes_data.get(node_id)
+            points.append(
+                {
+                    "node": node_id,
+                    "label": node.label if node else node_id,
+                    "type": node.node_type.value if node else "UNKNOWN",
+                    "betweenness": round(float(score), 4),
+                }
+            )
+            if len(points) >= limit:
+                break
+        return points
+
+    def minimum_cut_size(self) -> Optional[int]:
+        """Global minimum edge cut size (number of edges whose removal
+        disconnects the graph most cheaply). None when not computable."""
+        try:
+            cut = nx.minimum_edge_cut(self.graph)
+            return len(cut)
+        except Exception:
+            return None
+
     def summary(self) -> Dict[str, Any]:
         """Return a statistical overview of the graph."""
         type_counts: Dict[str, int] = {}

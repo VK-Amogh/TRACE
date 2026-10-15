@@ -1,0 +1,181 @@
+# Declarative sink catalog for TRACE static analysis.
+#
+# Each entry names a dangerous operation. Adapters match handler bodies
+# against `patterns` and consult `sanitizers`: when a sanitizer for the
+# same kind appears in the body, the hit is suppressed. Add entries here
+# instead of hardcoding term lists in adapters.
+
+[[sink]]
+id = "py-sql-execute"
+category = "INJECTION"
+langs = ["python"]
+patterns = [
+  "\\.execute\\s*\\(",
+  "cursor\\.\\w+\\(",
+  "\\.raw\\s*\\(",
+  "from_sql|FromSqlRaw",
+  "query\\s*\\(",
+  "\\.filter\\(|\\.filter_by\\(",
+]
+sanitizers = ["\\?", "%s", ":param", "params\\s*=", "parametrize"]
+cwe = "CWE-89"
+testpack = "injection"
+
+[[sink]]
+id = "py-shell-exec"
+category = "INJECTION"
+langs = ["python"]
+patterns = [
+  "os\\.system\\s*\\(",
+  "subprocess\\.(call|run|Popen)\\s*\\(",
+  "os\\.popen\\s*\\(",
+  "eval\\s*\\(",
+  "exec\\s*\\(",
+]
+sanitizers = ["shlex\\.quote", "shlex\\.split"]
+cwe = "CWE-78"
+testpack = "injection"
+
+[[sink]]
+id = "py-http-outbound"
+category = "SSRF"
+langs = ["python"]
+patterns = [
+  "requests\\.(get|post|put|delete|request)\\s*\\(",
+  "httpx\\.(get|post|put|delete|request)\\s*\\(",
+  "urllib\\.request\\.urlopen",
+  "aiohttp",
+]
+sanitizers = ["allowlist", "allowed_hosts", "validate_url"]
+cwe = "CWE-918"
+testpack = "ssrf"
+
+[[sink]]
+id = "py-template-render"
+category = "SSTI"
+langs = ["python"]
+patterns = [
+  "render_template_string\\s*\\(",
+  "Template\\s*\\(.*?\\.render\\s*\\(",
+  "jinja2",
+]
+sanitizers = ["escape\\(", "Markup\\("]
+cwe = "CWE-1336"
+testpack = "ssti"
+
+[[sink]]
+id = "py-file-open"
+category = "PATH_TRAVERSAL"
+langs = ["python"]
+patterns = [
+  "\\bopen\\s*\\(",
+  "send_file\\s*\\(",
+  "FileResponse\\s*\\(",
+]
+sanitizers = ["abspath", "realpath", "safe_join", "is_relative_to"]
+cwe = "CWE-22"
+testpack = "path_traversal"
+
+[[sink]]
+id = "py-deserialize"
+category = "DESERIALIZATION"
+langs = ["python"]
+patterns = [
+  "pickle\\.loads?\\s*\\(",
+  "yaml\\.load\\s*\\(",
+  "marshal\\.loads\\s*\\(",
+  "shelve\\.open\\s*\\(",
+]
+sanitizers = ["yaml\\.safe_load", "SafeLoader"]
+cwe = "CWE-502"
+testpack = "deserialization"
+
+[[sink]]
+id = "js-sql-query"
+category = "INJECTION"
+langs = ["javascript", "typescript"]
+patterns = [
+  "\\.query\\s*\\(",
+  "\\.execute\\s*\\(",
+  "sequelize|knex|typeorm|prisma",
+]
+sanitizers = ["\\?", "\\$\\d", "replacements", "bind"]
+cwe = "CWE-89"
+testpack = "injection"
+
+[[sink]]
+id = "js-http-outbound"
+category = "SSRF"
+langs = ["javascript", "typescript"]
+patterns = [
+  "fetch\\s*\\(",
+  "axios\\.(get|post|put|delete)\\s*\\(",
+  "request\\s*\\(",
+  "http\\.get\\s*\\(",
+]
+sanitizers = ["allowlist", "allowed_hosts", "validate"]
+cwe = "CWE-918"
+testpack = "ssrf"
+
+[[sink]]
+id = "js-template-render"
+category = "SSTI"
+langs = ["javascript", "typescript"]
+patterns = [
+  "res\\.render\\s*\\(",
+  "ejs\\.render|handlebars|mustache",
+]
+sanitizers = ["escape", "encode"]
+cwe = "CWE-1336"
+testpack = "ssti"
+
+[[sink]]
+id = "go-sql-query"
+category = "INJECTION"
+langs = ["go"]
+patterns = [
+  "db\\.(Raw|Exec|Query|QueryRow)\\s*\\(",
+  "Sprintf\\s*\\(",
+  "Prepare\\s*\\(",
+]
+sanitizers = ["\\?", "\\$\\d"]
+cwe = "CWE-89"
+testpack = "injection"
+
+[[sink]]
+id = "go-http-outbound"
+category = "SSRF"
+langs = ["go"]
+patterns = [
+  "http\\.(Get|Post)\\s*\\(",
+  "client\\.Do\\s*\\(",
+]
+sanitizers = ["allowlist", "validate"]
+cwe = "CWE-918"
+testpack = "ssrf"
+
+[[sink]]
+id = "php-sql-query"
+category = "INJECTION"
+langs = ["php"]
+patterns = [
+  "mysqli?_query\\s*\\(",
+  "->query\\s*\\(",
+  "DB::(select|statement|raw)\\s*\\(",
+]
+sanitizers = ["prepare\\s*\\(", "bind_param", "\\?"]
+cwe = "CWE-89"
+testpack = "injection"
+
+[[sink]]
+id = "php-http-outbound"
+category = "SSRF"
+langs = ["php"]
+patterns = [
+  "file_get_contents\\s*\\(\\s*\\$",
+  "curl_exec\\s*\\(",
+  "Http::(get|post)\\s*\\(",
+]
+sanitizers = ["allowlist", "filter_var.*URL"]
+cwe = "CWE-918"
+testpack = "ssrf"

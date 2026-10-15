@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Dev-line integration branch (`dev`) for staging fork work before upstream PRs.
+
 ### Fixed
 
 - Operational reliability: bare `trace` without a terminal prints help instead of hanging; MCP server reports a suggested free port on bind conflicts; progress chatter goes to stderr so `--format json/markdown/sarif` stdout stays machine-parseable; update prompts never appear in non-interactive runs; `scan` emits report payloads to stdout when no `--output` file is given.
@@ -27,6 +31,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Canary oracles (owner-marker leaks, SSRF fetch signatures, mass-assignment persist-and-reread) and a weighted multi-signal verdict engine gating BOLA confirmations.
+- Declarative sink catalog (`security/sinks.toml` + sanitizer-aware matcher), consulted by the FastAPI adapter.
+- Chain-mode escalation (`--chain`, capped at 10 probes): harvested leaks re-injected into other routes as `TR-CHAIN` findings.
+- APM choke-point ranking plus minimum-cut size, surfaced in scan output and `trace_scan`.
 - NPX-installable agent skill (`skills/trace`: audit, remediate, MCP setup) following the Agent Skills spec, with a spec validator test; install via `npx skills add VK-Amogh/TRACE --skill trace`.
 - NPX global flags: `--verbose` (diagnostics + debug logs) and `--format` (validated injection for format-capable commands); launcher split into `bin/lib/` modules with lite-first provisioning.
 - Release pipeline (`release.yml`): tag-gated PyPI (trusted publishing) + NPM/GitHub Packages publishing with version-tag consistency check; NPM skips when unconfigured instead of failing.
