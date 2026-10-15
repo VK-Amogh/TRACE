@@ -4,6 +4,7 @@ import re
 from trace_engine.testpacks.base import TestPack, TestContext, TestExecutionResult
 from trace_engine.security.hypotheses import SecurityHypothesis
 from trace_engine.runtime.client import ScopedHttpClient
+from trace_engine.testpacks.canary import new_canary, contains_canary
 
 
 class MassAssignmentTestPack(TestPack):
@@ -34,8 +35,6 @@ class MassAssignmentTestPack(TestPack):
 
         # Inject privileged fields plus a unique canary marker, then
         # re-read: a persisted canary proves the server bound our input.
-        from trace_engine.testpacks.canary import new_canary, contains_canary
-
         canary = new_canary("ma")
         payload = {
             "name": "Updated User",

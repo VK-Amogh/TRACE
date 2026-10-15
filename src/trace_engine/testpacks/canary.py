@@ -6,8 +6,12 @@ confirmed when the canary (or owner-baseline marker) comes back in a
 response where it should never appear.
 """
 
+import re
 import secrets
-from typing import Dict, List, Optional
+from typing import Dict, List
+
+_QUOTED_LITERAL_RE = re.compile(r'"([A-Za-z0-9@._\-]{4,})"')
+_EMAIL_RE = re.compile(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b")
 
 
 def new_canary(prefix: str = "trc") -> str:
@@ -28,12 +32,11 @@ def owner_markers(owner_body: str, min_len: int = 4) -> List[str]:
     Heuristic: quoted string/number literals that are specific enough to
     re-identify (emails, uuids, long tokens, distinctive names).
     """
-    import re
-
     candidates = set()
-    for m in re.finditer(r'"([A-Za-z0-9@._\-]{%d,})"' % min_len, owner_body or ""):
-        candidates.add(m.group(1))
-    for m in re.finditer(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", owner_body or ""):
+    for m in _QUOTED_LITERAL_RE.finditer(owner_body or ""):
+        if len(m.group(1)) >= min_len:
+            candidates.add(m.group(1))
+    for m in _EMAIL_RE.finditer(owner_body or ""):
         candidates.add(m.group(1))
     generic = {"status", "message", "data", "result", "error", "success", "true", "false", "null"}
     return sorted(c for c in candidates if c.lower() not in generic)

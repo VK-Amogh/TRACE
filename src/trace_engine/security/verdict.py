@@ -7,6 +7,7 @@ LIKELY >= 0.50, otherwise CLEAR.
 
 from typing import Any, Dict, List, Set
 from pydantic import BaseModel, Field
+import json
 
 W_STATUS = 0.30
 W_STRUCTURE = 0.35
@@ -36,8 +37,6 @@ class PairVerdict(BaseModel):
 
 
 def _parse_json(body: str) -> Any:
-    import json
-
     try:
         return json.loads(body)
     except Exception:

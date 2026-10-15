@@ -105,15 +105,21 @@ class FastAPIFrameworkAdapter(FrameworkAdapter):
 
                     # Database access check: declarative sink catalog first,
                     # legacy term hints as recall fallback.
-                    from trace_engine.security.sinks import has_sink_kind
+                    from trace_engine.security.sinks import match_sinks
 
-                    db_access = has_sink_kind(fn_body, "python", "py-sql") or any(
+                    sink_hits = match_sinks(fn_body, "python")
+                    sink_kinds = {h.sink_id for h in sink_hits}
+                    db_access = any(
+                        k.startswith("py-sql") for k in sink_kinds
+                    ) or any(
                         term in fn_body.lower()
                         for term in ("db.", "session.", "cursor.", "repository", "query(", ".filter(", "database", "models.")
                     )
 
                     # Outbound network (SSRF indicator)
-                    ext_network = has_sink_kind(fn_body, "python", "py-http") or any(
+                    ext_network = any(
+                        k.startswith("py-http") for k in sink_kinds
+                    ) or any(
                         term in fn_body.lower()
                         for term in ("requests.", "httpx.", "urllib.", "aiohttp.", "fetch(")
                     )

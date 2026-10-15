@@ -8,6 +8,7 @@ reimplemented for TRACE testpacks.
 """
 
 import re
+import urllib.parse
 from typing import Dict, List, Tuple
 
 from trace_engine.testpacks.canary import attacker_sees_owner_markers
@@ -18,8 +19,10 @@ _ID_PATTERNS = (
     r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b",  # email
     r"\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b",  # uuid
     r'"id"\s*:\s*"([A-Za-z0-9_.\-]{3,64})"',  # "id": "value"
-    r"\b(user|order|patient|tenant|vault)[-_]?([0-9]{1,9})\b",  # prefixed ints
+    r"\b(?:user|order|patient|tenant|vault)[-_]?([0-9]{1,9})\b",  # prefixed ints
 )
+
+_COMPILED_ID_PATTERNS = [re.compile(p) for p in _ID_PATTERNS]
 
 
 def harvest_markers(texts: List[str], limit: int = 20) -> List[str]:
@@ -27,8 +30,8 @@ def harvest_markers(texts: List[str], limit: int = 20) -> List[str]:
     found: List[str] = []
     seen = set()
     for text in texts:
-        for pattern in _ID_PATTERNS:
-            for m in re.finditer(pattern, text or ""):
+        for rx in _COMPILED_ID_PATTERNS:
+            for m in rx.finditer(text or ""):
                 value = m.group(1) if m.lastindex else m.group(0)
                 if value and value not in seen and len(value) >= 3:
                     seen.add(value)
@@ -48,8 +51,6 @@ def finding_texts(finding) -> List[str]:
 
 def substitute_param(path: str, value: str) -> str:
     """Replace the first {param} or :param placeholder with a value."""
-    import urllib.parse
-
     replaced, count = re.subn(r"\{[a-zA-Z0-9_]+\}", urllib.parse.quote(value, safe=""), path, count=1)
     if count == 0:
         replaced, count = re.subn(r":[a-zA-Z0-9_]+", urllib.parse.quote(value, safe=""), path, count=1)
@@ -95,7 +96,6 @@ def escalate_chains(
                     method=method, url=f"{context.target_base_url.rstrip('/')}{substitute_param(path, marker)}",
                     headers=headers,
                 )
-                observations = [obs]
             except Exception:
                 continue
             if obs.response_status == 200:
