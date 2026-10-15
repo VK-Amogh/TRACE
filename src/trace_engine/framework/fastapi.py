@@ -103,14 +103,17 @@ class FastAPIFrameworkAdapter(FrameworkAdapter):
                     # State changing
                     state_changing = method in ("POST", "PUT", "DELETE", "PATCH")
 
-                    # Database access check
-                    db_access = any(
+                    # Database access check: declarative sink catalog first,
+                    # legacy term hints as recall fallback.
+                    from trace_engine.security.sinks import has_sink_kind
+
+                    db_access = has_sink_kind(fn_body, "python", "py-sql") or any(
                         term in fn_body.lower()
                         for term in ("db.", "session.", "cursor.", "repository", "query(", ".filter(", "database", "models.")
                     )
 
                     # Outbound network (SSRF indicator)
-                    ext_network = any(
+                    ext_network = has_sink_kind(fn_body, "python", "py-http") or any(
                         term in fn_body.lower()
                         for term in ("requests.", "httpx.", "urllib.", "aiohttp.", "fetch(")
                     )
