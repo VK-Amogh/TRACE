@@ -1,8 +1,8 @@
 site_name: TRACE
 site_description: TRACE (Threat Reconnaissance & Attack-path Correlation Engine) audits any backend in under a second on local CPU, correlates real vulnerabilities, and hands structured findings to AI coding agents over MCP. npx trace-sec audit .
-site_url: https://auraflaa.github.io/TRACE/
-repo_url: https://github.com/auraflaa/TRACE
-repo_name: auraflaa/TRACE
+site_url: https://VK-Amogh.github.io/TRACE/
+repo_url: https://github.com/VK-Amogh/TRACE
+repo_name: VK-Amogh/TRACE
 edit_uri: edit/main/docs/
 copyright: TRACE is released under Apache-2.0
 
@@ -92,6 +92,6 @@ extra:
   version: 2.1.18
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/auraflaa/TRACE
+      link: https://github.com/VK-Amogh/TRACE
     - icon: fontawesome/brands/npm
       link: https://www.npmjs.com/package/trace-sec

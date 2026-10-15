@@ -5,8 +5,8 @@ Any agent package manager that speaks the open skill format can install them;
 with the [`skills`](https://github.com/vercel-labs/skills) CLI:
 
 ```bash
-npx skills add auraflaa/TRACE --list
-npx skills add auraflaa/TRACE --skill trace
+npx skills add VK-Amogh/TRACE --list
+npx skills add VK-Amogh/TRACE --skill trace
 ```
 
 One skill, three workflows: auditing, verified remediation, and MCP

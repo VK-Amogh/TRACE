@@ -20,7 +20,7 @@ Trains both intelligence engines honestly from MoreFixes + synthetic data:
    - Optimizer: AdamW + LinearWarmupCosine schedule (10% warmup)
    - ONNX export on best checkpoint for sub-millisecond inference
 
-CLEANUP: All raw dataset files in C:\\dataset\\ are removed after training.
+CLEANUP: All raw dataset files in the dataset directory are removed after training.
 """
 
 import sys
@@ -58,15 +58,15 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+logger = logging.getLogger("trace.train")
 logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s  %(levelname)-8s  %(name)s: %(message)s",
 )
-logger = logging.getLogger("trace.train")
-console = Console(force_terminal=True, legacy_windows=False)
+console = Console()
 
 # ─── Paths ───────────────────────────────────────────────────────────────────────
-DATASET_DIR = Path("C:/dataset")
+DATASET_DIR = Path(os.environ.get("TRACE_DATASET_DIR", str(Path.home() / "datasets" / "morefixes")))
 PATCHES_FILE = DATASET_DIR / "patch-files2026-06-20.zip"
 SQL_FILE = DATASET_DIR / "dump-2026-06-20.sql.gz"
 SECUREBERT_OUT = Path(".trace/models/securebert-finetuned")

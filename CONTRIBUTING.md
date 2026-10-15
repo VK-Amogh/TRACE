@@ -4,19 +4,19 @@ Thanks for contributing. This guide gets you from fork to green CI.
 
 ## 1. Fork + upstream workflow
 
-Upstream for pull/push is `https://github.com/auraflaa/TRACE.git`.
+Upstream for pull/push is `https://github.com/VK-Amogh/TRACE.git`.
 
 ```bash
 git clone https://github.com/<you>/TRACE.git
 cd TRACE
-git remote add upstream https://github.com/auraflaa/TRACE.git
+git remote add upstream https://github.com/VK-Amogh/TRACE.git
 git fetch upstream
 git checkout -b feat/<short-name>
 # ... work ...
 git push origin feat/<short-name>
 ```
 
-Open the PR against `auraflaa/TRACE:main`. Keep PRs under ~400 lines when possible.
+Open the PR against `VK-Amogh/TRACE:main`. Keep PRs under ~400 lines when possible.
 
 ## 2. Requirements
 

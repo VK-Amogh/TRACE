@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
     "Typing :: Typed",
 ]
-urls = { Homepage = "https://github.com/auraflaa/TRACE", Documentation = "https://auraflaa.github.io/TRACE/", Repository = "https://github.com/auraflaa/TRACE.git", Issues = "https://github.com/auraflaa/TRACE/issues" }
+urls = { Homepage = "https://github.com/VK-Amogh/TRACE", Documentation = "https://VK-Amogh.github.io/TRACE/", Repository = "https://github.com/VK-Amogh/TRACE.git", Issues = "https://github.com/VK-Amogh/TRACE/issues" }
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.7.0",
