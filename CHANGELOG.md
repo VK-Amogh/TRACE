@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Dev-line integration branch (`dev`) for staging fork work before upstream PRs.
+
 ### Fixed
 
 - Operational reliability: bare `trace` without a terminal prints help instead of hanging; MCP server reports a suggested free port on bind conflicts; progress chatter goes to stderr so `--format json/markdown/sarif` stdout stays machine-parseable; update prompts never appear in non-interactive runs; `scan` emits report payloads to stdout when no `--output` file is given.
