@@ -56,6 +56,14 @@ class SsrfTestPack(TestPack):
         summary = "No SSRF behavior observed."
         steps: List[str] = []
 
+        # Cloud-metadata / internal-service signatures. A response carrying
+        # these proves the server fetched an internal destination (canary
+        # oracle: markers that only an internal fetch could produce).
+        SSRF_FETCH_MARKERS = (
+            "ami-id", "instance-id", "instance-type", "local-ipv4",
+            "public-hostname", "security-credentials", "meta-data",
+        )
+
         for probe_url in candidate_probes:
             payload = {"url": probe_url, "target": probe_url, "callbackUrl": probe_url, "webhookUrl": probe_url}
             try:
@@ -64,6 +72,18 @@ class SsrfTestPack(TestPack):
 
                 if obs.response_status == 200:
                     body_lower = obs.response_body.lower()
+                    echoed = [m for m in SSRF_FETCH_MARKERS if m in body_lower]
+                    if echoed:
+                        confirmed = True
+                        summary = (
+                            f"SSRF (CWE-918) CONFIRMED: Endpoint {raw_path} fetched internal address "
+                            f"{probe_url}; response carries internal markers ({', '.join(echoed)})."
+                        )
+                        steps = [
+                            f"Send {method} {target_url} with JSON payload containing URL: {probe_url}",
+                            f"Observe internal fetch markers echoed back: {', '.join(echoed)}",
+                        ]
+                        break
                     if any(k in body_lower for k in ("status", "data", "product", "content", "health", "ok", "items")):
                         confirmed = True
                         summary = (

@@ -6,6 +6,8 @@ from trace_engine.testpacks.base import TestPack, TestContext, TestExecutionResu
 from trace_engine.security.hypotheses import SecurityHypothesis
 from trace_engine.runtime.client import ScopedHttpClient
 from trace_engine.runtime.observations import RuntimeObservation
+from trace_engine.testpacks.canary import attacker_sees_owner_markers
+from trace_engine.security.verdict import score_response_pair
 
 
 class BolaTestPack(TestPack):
@@ -51,15 +53,43 @@ class BolaTestPack(TestPack):
             obs_b = client.execute(method=method, url=target_url, headers=headers_b)
             observations.append(obs_b)
 
+            # Ground-truth differential: owner-baseline markers leaking to the
+            # attacker prove cross-tenant access (canary oracle, not keywords).
+            if obs_a.response_status == 200 and obs_b.response_status == 200:
+                diff = attacker_sees_owner_markers(obs_a.response_body, obs_b.response_body)
+                if diff["confirmed"]:
+                    confirmed = True
+                    summary = (
+                        f"BOLA / IDOR (CWE-639) CONFIRMED via owner-marker leak: Object '{test_id}' on "
+                        f"{raw_path} exposes identity-A markers ({', '.join(diff['leaked'][:3])}) to identity B."
+                    )
+                    steps = [
+                        f"Query {method} {target_url} using Tenant A credentials (HTTP {obs_a.response_status})",
+                        f"Query identical resource {method} {target_url} using Tenant B credentials (HTTP {obs_b.response_status})",
+                        f"Observe Tenant A markers in Tenant B response: {', '.join(diff['leaked'][:3])}",
+                    ]
+                    break
+
             # Case A: True dual-tenant differential match
             if obs_a.response_status == 200 and obs_b.response_status == 200:
                 body_b_lower = obs_b.response_body.lower()
                 # If User B receives legitimate record data without authorization restriction
                 if any(k in body_b_lower for k in ("id", "user", "order", "item", "total", "data", "status")):
+                    # Multi-signal gate: a CLEAR verdict vetoes the keyword
+                    # heuristic (kills {"status": "ok"} false positives).
+                    gate = score_response_pair(
+                        obs_a.response_status,
+                        obs_a.response_body,
+                        obs_b.response_status,
+                        obs_b.response_body,
+                    )
+                    if gate.verdict == "CLEAR":
+                        continue
                     confirmed = True
                     summary = (
                         f"BOLA / IDOR (CWE-639) CONFIRMED via Dual-Tenant Differential Test: Object '{test_id}' on {raw_path} "
-                        f"is accessible by both Identity A and Identity B without tenant isolation."
+                        f"is accessible by both Identity A and Identity B without tenant isolation "
+                        f"(verdict {gate.verdict} {gate.score})."
                     )
                     steps = [
                         f"Query {method} {target_url} using Tenant A credentials (HTTP {obs_a.response_status})",

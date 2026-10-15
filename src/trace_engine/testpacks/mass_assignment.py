@@ -32,9 +32,14 @@ class MassAssignmentTestPack(TestPack):
         token = context.active_tokens.get("user-a", "")
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 
-        # Inject privileged fields
+        # Inject privileged fields plus a unique canary marker, then
+        # re-read: a persisted canary proves the server bound our input.
+        from trace_engine.testpacks.canary import new_canary, contains_canary
+
+        canary = new_canary("ma")
         payload = {
             "name": "Updated User",
+            "nickname": canary,
             "is_admin": True,
             "role": "admin",
         }
@@ -47,6 +52,25 @@ class MassAssignmentTestPack(TestPack):
         steps = []
 
         if obs.response_status in (200, 201):
+            try:
+                reread = client.execute(method="GET", url=target_url, headers=headers)
+                observations.append(reread)
+            except Exception:
+                reread = None
+            if reread is not None and reread.response_status in (200, 201) and contains_canary(
+                reread.response_body, canary
+            ):
+                confirmed = True
+                summary = (
+                    f"Mass Assignment confirmed: Endpoint {raw_path} persisted attacker-supplied "
+                    f"marker '{canary}' and reflected it on re-read."
+                )
+                steps = [
+                    f"Send {method} {target_url} with payload containing marker '{canary}'",
+                    f"Re-read {target_url} and observe the marker persisted in the response",
+                ]
+
+        if not confirmed and obs.response_status in (200, 201):
             body_lower = obs.response_body.lower()
             if "is_admin" in body_lower or "role" in body_lower or "admin" in body_lower:
                 confirmed = True
