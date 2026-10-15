@@ -21,18 +21,18 @@ MCP: `claude mcp add trace -- npx -y trace-sec mcp` — tools `trace_scan`, `tra
 
 ## Docs
 
-- [Home](https://auraflaa.github.io/TRACE/): 60-second intro
-- [Installation](https://auraflaa.github.io/TRACE/installation/): lite vs full, per-OS setup
-- [Quick start](https://auraflaa.github.io/TRACE/quickstart/): first audit
-- [Cheat sheet](https://auraflaa.github.io/TRACE/cheatsheet/): every common task on one page
-- [Lite or Full](https://auraflaa.github.io/TRACE/lite-or-full/): which install to choose
-- [CLI reference](https://auraflaa.github.io/TRACE/cli/): every command
-- [MCP setup](https://auraflaa.github.io/TRACE/mcp/): Claude Code, Cursor, Antigravity
-- [Security harness skill](https://auraflaa.github.io/TRACE/harness/): agent fix runbook
-- [API reference](https://auraflaa.github.io/TRACE/api/)
-- [Troubleshooting](https://auraflaa.github.io/TRACE/troubleshooting/) and [FAQ](https://auraflaa.github.io/TRACE/faq/)
+- [Home](https://VK-Amogh.github.io/TRACE/): 60-second intro
+- [Installation](https://VK-Amogh.github.io/TRACE/installation/): lite vs full, per-OS setup
+- [Quick start](https://VK-Amogh.github.io/TRACE/quickstart/): first audit
+- [Cheat sheet](https://VK-Amogh.github.io/TRACE/cheatsheet/): every common task on one page
+- [Lite or Full](https://VK-Amogh.github.io/TRACE/lite-or-full/): which install to choose
+- [CLI reference](https://VK-Amogh.github.io/TRACE/cli/): every command
+- [MCP setup](https://VK-Amogh.github.io/TRACE/mcp/): Claude Code, Cursor, Antigravity
+- [Security harness skill](https://VK-Amogh.github.io/TRACE/harness/): agent fix runbook
+- [API reference](https://VK-Amogh.github.io/TRACE/api/)
+- [Troubleshooting](https://VK-Amogh.github.io/TRACE/troubleshooting/) and [FAQ](https://VK-Amogh.github.io/TRACE/faq/)
 
 ## Optional
 
-- [Source code](https://github.com/auraflaa/TRACE), [NPM](https://www.npmjs.com/package/trace-sec),
-  [agent guide](https://github.com/auraflaa/TRACE/blob/main/AGENTS.md)
+- [Source code](https://github.com/VK-Amogh/TRACE), [NPM](https://www.npmjs.com/package/trace-sec),
+  [agent guide](https://github.com/VK-Amogh/TRACE/blob/main/AGENTS.md)

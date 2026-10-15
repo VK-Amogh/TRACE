@@ -5,7 +5,7 @@ name: "Release: PyPI + NPM"
 #   2. Commit, tag v<version> (e.g. v2.1.19), push tag.
 #   3. Publish a GitHub release from the tag -> this workflow verifies the
 #      tag matches both manifests, then publishes to PyPI (trusted
-#      publishing: configure auraflaa/TRACE once at pypi.org/manage/account/
+#      publishing: configure VK-Amogh/TRACE once at pypi.org/manage/account/
 #      publishing) and NPM (needs NPM_TOKEN secret; skipped when absent).
 # Manual runs via workflow_dispatch skip the tag check.
 

@@ -27,7 +27,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- NPX-installable agent skill (`skills/trace`: audit, remediate, MCP setup) following the Agent Skills spec, with a spec validator test; install via `npx skills add auraflaa/TRACE --skill trace`.
+- NPX-installable agent skill (`skills/trace`: audit, remediate, MCP setup) following the Agent Skills spec, with a spec validator test; install via `npx skills add VK-Amogh/TRACE --skill trace`.
 - NPX global flags: `--verbose` (diagnostics + debug logs) and `--format` (validated injection for format-capable commands); launcher split into `bin/lib/` modules with lite-first provisioning.
 - Release pipeline (`release.yml`): tag-gated PyPI (trusted publishing) + NPM/GitHub Packages publishing with version-tag consistency check; NPM skips when unconfigured instead of failing.
 - Detailed CI matrix (`ci.yml`): Python 3.11–3.13 on Ubuntu/Windows/macOS, Node 18/20 shim checks, SARIF self-audit, plus a `testbed-full` job (CPU torch + LFS models) mirroring the hardcore suite.

@@ -1,6 +1,6 @@
 # Changelog
 
-The full changelog lives in [`CHANGELOG.md`](https://github.com/auraflaa/TRACE/blob/main/CHANGELOG.md)
+The full changelog lives in [`CHANGELOG.md`](https://github.com/VK-Amogh/TRACE/blob/main/CHANGELOG.md)
 (Keep a Changelog + Semantic Versioning).
 
 ## Unreleased highlights

@@ -7,10 +7,10 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec?color=black" alt="NPM"></a>
-  <a href="https://github.com/auraflaa/TRACE/actions/workflows/ci.yml"><img src="https://github.com/auraflaa/TRACE/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://auraflaa.github.io/TRACE/"><img src="https://img.shields.io/badge/docs-online-black" alt="docs"></a>
-  <a href="https://github.com/auraflaa/TRACE/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-black" alt="license"></a>
-  <a href="https://github.com/auraflaa/TRACE/stargazers"><img src="https://img.shields.io/github/stars/auraflaa/TRACE?style=social" alt="GitHub stars"></a>
+  <a href="https://github.com/VK-Amogh/TRACE/actions/workflows/ci.yml"><img src="https://github.com/VK-Amogh/TRACE/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://VK-Amogh.github.io/TRACE/"><img src="https://img.shields.io/badge/docs-online-black" alt="docs"></a>
+  <a href="https://github.com/VK-Amogh/TRACE/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-black" alt="license"></a>
+  <a href="https://github.com/VK-Amogh/TRACE/stargazers"><img src="https://img.shields.io/github/stars/VK-Amogh/TRACE?style=social" alt="GitHub stars"></a>
 </p>
 
 <p align="center">Full-repo audit in 0.26 s on local CPU. Zero tokens. No cloud.<br>
@@ -36,9 +36,9 @@ trace verify TR-BOLA-001
 claude mcp add trace -- npx -y trace-sec mcp
 ```
 
-Every command on one page: **[CLI reference](https://auraflaa.github.io/TRACE/cli/)**.
+Every command on one page: **[CLI reference](https://VK-Amogh.github.io/TRACE/cli/)**.
 AI agents start at [`AGENTS.md`](AGENTS.md) and the
-[security harness skill](https://auraflaa.github.io/TRACE/harness/).
+[security harness skill](https://VK-Amogh.github.io/TRACE/harness/).
 
 ## Agent skills
 
@@ -46,8 +46,8 @@ Install TRACE skills into any coding agent with the
 [`skills`](https://github.com/vercel-labs/skills) CLI — no npm publish needed:
 
 ```bash
-npx skills add auraflaa/TRACE --list
-npx skills add auraflaa/TRACE --skill trace
+npx skills add VK-Amogh/TRACE --list
+npx skills add VK-Amogh/TRACE --skill trace
 ```
 
 One skill, three workflows: `trace` teaches the agent to run audits,
@@ -149,18 +149,18 @@ TRACE ships through GitHub releases:
 - Pushing a `v*` tag (or publishing a release) runs `npm-publish.yml`, which
   tests, then publishes `trace-sec` to NPM and GitHub Packages.
 - Python installs track git tags directly — there is no PyPI upload yet:
-  `pip install git+https://github.com/auraflaa/TRACE.git@v2.1.18`.
+  `pip install git+https://github.com/VK-Amogh/TRACE.git@v2.1.18`.
 - The single version source is `src/trace_engine/__init__.py:__version__`
   (read dynamically by `pyproject.toml`). Bump it together with `package.json`.
 
 ## Documentation
 
-[Installation](https://auraflaa.github.io/TRACE/installation/) ·
-[Quick start](https://auraflaa.github.io/TRACE/quickstart/) ·
-[CLI reference](https://auraflaa.github.io/TRACE/cli/) ·
-[MCP setup](https://auraflaa.github.io/TRACE/mcp/) ·
-[FAQ](https://auraflaa.github.io/TRACE/faq/) ·
-[Troubleshooting](https://auraflaa.github.io/TRACE/troubleshooting/)
+[Installation](https://VK-Amogh.github.io/TRACE/installation/) ·
+[Quick start](https://VK-Amogh.github.io/TRACE/quickstart/) ·
+[CLI reference](https://VK-Amogh.github.io/TRACE/cli/) ·
+[MCP setup](https://VK-Amogh.github.io/TRACE/mcp/) ·
+[FAQ](https://VK-Amogh.github.io/TRACE/faq/) ·
+[Troubleshooting](https://VK-Amogh.github.io/TRACE/troubleshooting/)
 
 ## Contributing
 
@@ -177,7 +177,7 @@ issue templates; pull requests follow the PR template checklist.
   title  = {TRACE: Threat Reconnaissance and Attack-path Correlation Engine},
   author = {{TRACE Core Team}},
   year   = {2026},
-  url    = {https://github.com/auraflaa/TRACE}
+  url    = {https://github.com/VK-Amogh/TRACE}
 }
 ```
 
@@ -187,8 +187,8 @@ See [`CITATION.cff`](CITATION.cff).
 
 ## Star history
 
-<a href="https://star-history.com/#auraflaa/TRACE&Date">
-  <img src="https://api.star-history.com/svg?repos=auraflaa/TRACE&type=Date" alt="Star history of TRACE" width="600">
+<a href="https://star-history.com/#VK-Amogh/TRACE&Date">
+  <img src="https://api.star-history.com/svg?repos=VK-Amogh/TRACE&type=Date" alt="Star history of TRACE" width="600">
 </a>
 
 ## License
