@@ -1,0 +1,97 @@
+site_name: TRACE
+site_description: TRACE (Threat Reconnaissance & Attack-path Correlation Engine) audits any backend in under a second on local CPU, correlates real vulnerabilities, and hands structured findings to AI coding agents over MCP. npx trace-sec audit .
+site_url: https://auraflaa.github.io/TRACE/
+repo_url: https://github.com/auraflaa/TRACE
+repo_name: auraflaa/TRACE
+edit_uri: edit/main/docs/
+copyright: TRACE is released under Apache-2.0
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/icon.svg
+  favicon: assets/icon.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle: {icon: material/weather-night, name: Switch to dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle: {icon: material/weather-sunny, name: Switch to light mode}
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Quick start: quickstart.md
+      - Cheat sheet: cheatsheet.md
+      - Lite or Full: lite-or-full.md
+      - CLI reference: cli.md
+  - AI agents:
+      - MCP setup: mcp.md
+      - Security harness skill: harness.md
+      - Agent skills (npx): skills.md
+  - Reference:
+      - API reference: api.md
+      - Benchmarks: BENCHMARKS.md
+      - Architecture (v2): TRACE_v2_Architecture_and_Advancements.md
+      - Benchmark & audit metrics: TRACE_Benchmark_and_Audit_Metrics.md
+      - Hackathon dossier: TRACE_HACKATHON_MASTER_DOSSIER.md
+      - Production intelligence plan (v2): TRACE_Advanced_Production_Intelligence_Implementation_Plan_v2.md
+      - Implementation plan (v1): TRACE_Detailed_Implementation_Plan_v1.md
+  - Project:
+      - FAQ: faq.md
+      - Troubleshooting: troubleshooting.md
+      - Changelog: changelog.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight: {anchor_linenums: true}
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed: {alternate_style: true}
+
+extra:
+  version: 2.1.18
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/auraflaa/TRACE
+    - icon: fontawesome/brands/npm
+      link: https://www.npmjs.com/package/trace-sec

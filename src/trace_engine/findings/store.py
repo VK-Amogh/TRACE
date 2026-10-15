@@ -25,12 +25,11 @@ class FindingStore:
             project_name = self.trace_dir.parent.name if self.trace_dir.parent else "Application"
             md_content = generate_markdown_report(findings, project_name=project_name)
             (self.trace_dir / "findings.md").write_text(md_content, encoding="utf-8")
+        except Exception as e:
+            import logging
 
-            workspace_root = self.trace_dir.parent
-            if workspace_root and workspace_root.exists() and workspace_root != self.trace_dir:
-                (workspace_root / "findings.md").write_text(md_content, encoding="utf-8")
-        except Exception:
-            pass
+            logging.getLogger("trace_engine").warning("findings markdown export failed: %s", e)
+            raise
 
     def load_findings(self) -> List[Finding]:
         """Load findings from JSON file."""
@@ -40,7 +39,10 @@ class FindingStore:
             with open(self.store_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return [Finding.model_validate(item) for item in data]
-        except Exception:
+        except (FileNotFoundError, ValueError) as e:
+            import logging
+
+            logging.getLogger("trace_engine").warning("findings load failed, returning empty: %s", e)
             return []
 
     def get_finding_by_id(self, finding_id: str) -> Optional[Finding]:

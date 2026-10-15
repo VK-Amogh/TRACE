@@ -34,8 +34,12 @@ class SsrfTestPack(TestPack):
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 
         # Extract port from base_url for loopback mutations
-        port_match = re.search(r":(\d+)", base_url)
-        port = port_match.group(1) if port_match else "80"
+        from urllib.parse import urlparse
+
+        try:
+            port = str(urlparse(base_url).port or (443 if base_url.startswith("https") else 80))
+        except ValueError:
+            port = "80"
 
         # Polymorphic internal probes
         candidate_probes = [

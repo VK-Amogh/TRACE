@@ -28,7 +28,7 @@ elif command -v pip >/dev/null 2>&1; then
     pip install git+https://github.com/VK-Amogh/TRACE.git
     echo -e "  ${GREEN}✓${NC} Installed TRACE Python package."
 else
-    echo -e "  ${ORANGE}[!] Neither npm nor pip was found. Please install Python 3.10+ or Node.js.${NC}"
+    echo -e "  ${ORANGE}[!] Neither npm nor pip was found. Please install Python 3.11+ or Node.js 18+.${NC}"
     exit 1
 fi
 

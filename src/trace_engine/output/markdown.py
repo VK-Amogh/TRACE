@@ -1,7 +1,7 @@
 """Markdown security report generator."""
 
 from pathlib import Path
-from typing import List
+from typing import Any, List
 from trace_engine.findings.model import Finding
 
 
@@ -20,14 +20,19 @@ def generate_markdown_report(findings: List[Finding], project_name: str = "Appli
 
     for f in findings:
         action_summary = f.short_action or f.title
+
+        def _cell(value: Any) -> str:
+            return str(value or "").replace("|", "\\|").replace("\n", " ")
+
         lines.append(
-            f"| `{f.id}` | **{f.severity.value}** | {f.confidence.value} | {f.category} | `{f.endpoint}` | {action_summary} |"
+            f"| `{_cell(f.id)}` | **{_cell(f.severity.value)}** | {_cell(f.confidence.value)} | {_cell(f.category)} | `{_cell(f.endpoint)}` | {_cell(action_summary)} |"
         )
 
     lines.extend(["", "---", "", "## Finding Details", ""])
 
     for f in findings:
-        lines.append(f"### [{f.id}] {f.title}")
+        heading = f"### [{f.id}] {f.title}".replace("\n", " ")
+        lines.append(heading)
         lines.append(f"- **Category:** {f.category}")
         lines.append(f"- **Severity:** {f.severity.value}")
         lines.append(f"- **Confidence:** {f.confidence.value}")

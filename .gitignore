@@ -1,3 +1,6 @@
+# Local reference clones (not part of TRACE, e.g. ref/synapse-sr)
+ref/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -37,6 +40,11 @@ env/
 *.swp
 *.swo
 
+# Generated agent installs (per-workspace; source lives in src/trace_engine/plugin/bundle/)
+.agents/
+.mcp.json
+.cursor/mcp.json
+
 # TRACE local workspace runs and databases
 .trace/
 test-repository/.trace/
@@ -44,16 +52,35 @@ testbed_hardcore/.trace/
 labs/**/.trace/
 *.db
 *.sqlite3
-labs/**/.trace/
 labs/**/.mcp.json
 artifacts/reports/
 artifacts/screenshots/
 artifacts/raw-tool-output/
 
+# Secrets & local env (never commit; see SECURITY.md)
+.env
+.env.*
+!.env.example
+
 # Testing & Coverage
 .pytest_cache/
+.hypothesis/
 .coverage
+.coverage.*
 htmlcov/
+coverage.xml
+junit*.xml
+
+# Linters & type checkers
+.ruff_cache/
+.mypy_cache/
+.tox/
+
+# Node
+node_modules/
+
+# Docs build output
+site/
 
 # TRACE Scan Output & Artifacts
 findings.md
@@ -63,7 +90,16 @@ trace-results.sarif
 trace_results*.json
 *.tmp
 *.log
+*.orig
+*.rej
 
 # Operating System
 .DS_Store
+Desktop.ini
 Thumbs.db
+
+# Local tooling artifacts
+*.tgz
+*~
+.python-version
+__pypackages__/

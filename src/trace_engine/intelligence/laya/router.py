@@ -37,11 +37,11 @@ class LayaDecisionEngine:
         self._finetuned_tokenizer = None
         self._finetuned_device = "cpu"
 
-        # Select best execution accelerator:
-        # GPU PyTorch provides ~4.8ms inference when NVIDIA CUDA device is present;
-        # ONNX Runtime provides optimized C++ graph execution on CPU-only hosts.
-        import torch
-        if torch.cuda.is_available():
+        # Select best execution accelerator via the shared device resolver
+        # (CUDA/MPS GPU when present, else optimized CPU runtimes).
+        from trace_engine.intelligence.device import resolve_torch_device
+
+        if resolve_torch_device() != "cpu":
             self._load_finetuned_model()
             if not self._finetuned_model:
                 self._load_onnx_model()
@@ -63,8 +63,6 @@ class LayaDecisionEngine:
             Path(__file__).resolve().parents[4] / "models/laya-finetuned",
             Path(__file__).resolve().parents[4] / ".trace/models/laya-finetuned",
             Path(__file__).resolve().parents[2] / "models/laya-finetuned",
-            Path("D:/Startup/TRACE/models/laya-finetuned"),
-            Path("D:/Startup/TRACE/.trace/models/laya-finetuned"),
         ]
         repo_root = Path(__file__).resolve().parents[4]
         for p in candidates:
@@ -99,12 +97,14 @@ class LayaDecisionEngine:
             try:
                 import onnxruntime as ort
                 from transformers import AutoTokenizer
+                from trace_engine.intelligence.device import resolve_ort_providers
 
                 sess_options = ort.SessionOptions()
                 sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                self._onnx_session = ort.InferenceSession(str(onnx_path), sess_options, providers=["CPUExecutionProvider"])
+                providers = resolve_ort_providers()
+                self._onnx_session = ort.InferenceSession(str(onnx_path), sess_options, providers=providers)
                 self._finetuned_tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
-                logger.info("Laya System 1 ONNX sub-millisecond runtime loaded successfully")
+                logger.info(f"Laya System 1 ONNX runtime loaded (providers: {self._onnx_session.get_providers()})")
             except Exception as e:
                 logger.debug(f"Failed to load Laya ONNX runtime: {e}")
                 self._onnx_session = None
@@ -120,8 +120,9 @@ class LayaDecisionEngine:
                 import torch
                 from transformers import AutoTokenizer
                 from trace_engine.intelligence.training.laya_trainer import LayaDualHeadModel
+                from trace_engine.intelligence.device import resolve_torch_device
 
-                self._finetuned_device = "cuda:0" if torch.cuda.is_available() else "cpu"
+                self._finetuned_device = resolve_torch_device()
                 self._finetuned_tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
                 self._finetuned_model = LayaDualHeadModel().to(self._finetuned_device)
                 self._finetuned_model.load_state_dict(

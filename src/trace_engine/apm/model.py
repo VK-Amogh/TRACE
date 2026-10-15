@@ -47,8 +47,8 @@ class AttackPathModel:
             if node.node_type == NodeType.ENDPOINT
         ]
 
-    def find_paths_from_endpoint(self, endpoint_id: str, max_depth: int = 4) -> List[List[str]]:
-        """Find all downstream paths originating from an endpoint up to max_depth."""
+    def find_paths_from_endpoint(self, endpoint_id: str, max_depth: int = 4, limit: int = 25) -> List[List[str]]:
+        """Find downstream paths from an endpoint up to max_depth, capped at limit paths."""
         if endpoint_id not in self.graph:
             return []
 
@@ -56,6 +56,8 @@ class AttackPathModel:
         visited = set()
 
         def dfs(curr: str, current_path: List[str], depth: int):
+            if len(paths) >= limit:
+                return
             if depth > max_depth or curr in visited:
                 return
             current_path.append(curr)
@@ -66,28 +68,37 @@ class AttackPathModel:
                 paths.append(list(current_path))
             else:
                 for succ in successors:
+                    if len(paths) >= limit:
+                        break
                     dfs(succ, current_path, depth + 1)
 
             visited.remove(curr)
             current_path.pop()
 
         dfs(endpoint_id, [], 0)
-        return paths
+        return paths[:limit]
 
-    def find_paths_to_sinks(self, endpoint_id: str) -> List[List[str]]:
-        """Find paths connecting an endpoint to any Sink node."""
+    def find_paths_to_sinks(self, endpoint_id: str, cutoff: int = 5, limit: int = 25) -> List[List[str]]:
+        """Find paths connecting an endpoint to any Sink node, capped at limit paths."""
         sink_nodes = [
             n_id
             for n_id, n in self.nodes_data.items()
             if n.node_type in (NodeType.SINK, NodeType.DATABASE, NodeType.EXTERNAL_SERVICE)
         ]
-        
+
         result_paths = []
         for sink_id in sink_nodes:
-            if nx.has_path(self.graph, endpoint_id, sink_id):
-                for path in nx.all_simple_paths(self.graph, endpoint_id, sink_id, cutoff=5):
-                    result_paths.append(path)
-        return result_paths
+            if len(result_paths) >= limit:
+                break
+            try:
+                if nx.has_path(self.graph, endpoint_id, sink_id):
+                    for path in nx.all_simple_paths(self.graph, endpoint_id, sink_id, cutoff=cutoff):
+                        result_paths.append(path)
+                        if len(result_paths) >= limit:
+                            break
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                continue
+        return result_paths[:limit]
 
     def summary(self) -> Dict[str, Any]:
         """Return a statistical overview of the graph."""

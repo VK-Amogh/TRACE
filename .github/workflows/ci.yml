@@ -1,0 +1,189 @@
+name: "CI — lint, test, cross-OS matrix"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    name: "Python ${{ matrix.python }} on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: "Setup Python ${{ matrix.python }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+
+      - name: "Install lite package (no heavy AI deps)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: "Syntax check (compileall)"
+        run: python -m compileall -q src tests
+
+      - name: "Lint (ruff, non-blocking on first rollout)"
+        shell: bash
+        run: |
+          ruff check src tests || echo "::warning::ruff found issues"
+          ruff format --check src tests || echo "::warning::ruff format drift"
+
+      - name: "Run pytest (lite, no model downloads)"
+        run: python -m pytest tests/ -q -rf
+        env:
+          PYTHONPATH: src
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+
+  testbed-full:
+    name: "testbed-full (ubuntu, full AI deps)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: "Checkout (with LFS models)"
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+
+      - name: "Install CPU torch first, then full requirements"
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev]"
+          pip install -r requirements.txt
+
+      - name: "Full test suite (heavy modules run here)"
+        run: python -m pytest tests/ -q -rf
+        env:
+          PYTHONPATH: src
+          HF_HUB_OFFLINE: "1"
+
+      - name: "Audit the hardcore testbed"
+        run: python -m trace_engine.cli audit ./testbed_hardcore --format table
+        env:
+          PYTHONPATH: src
+
+  node-shim:
+    name: "Node shim on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ["18.x", "20.x"]
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Setup Node ${{ matrix.node }}"
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+          cache-dependency-path: package.json
+
+      - name: "Node syntax check"
+        run: node --check bin/trace.js && node --check bin/postinstall.js
+
+      - name: "NPM pack dry-run"
+        run: npm pack --dry-run
+
+  security-gate:
+    name: "TRACE self-audit (SARIF)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: "Install lite package"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: "TRACE scan (SARIF)"
+        run: python -m trace_engine.cli scan . --format sarif --output trace-results.sarif
+        env:
+          PYTHONPATH: src
+
+      - name: "Upload SARIF"
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trace-results.sarif
+          category: trace-security-engine
+
+  build:
+    name: "Build + twine check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: "Build sdist + wheel"
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: "Twine metadata check"
+        run: twine check --strict dist/*
+
+      - name: "Upload dist artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

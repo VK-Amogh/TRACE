@@ -1,10 +1,10 @@
 """Automated MoreFixes Pipeline: Parallel High-Throughput Download, Extraction, Training, and Cleanup.
 
 Handles:
-1. Multi-threaded range downloading of MoreFixes datasets to C:\\dataset\\.
+1. Multi-threaded range downloading of MoreFixes datasets (see DEFAULT_DATASET_DIR).
 2. Streaming SQL extraction of CVE and CWE mapping tables (fixes & cwe_classification).
 3. Patch archive parsing and code slice canonicalization (vulnerable vs. fixed controls).
-4. GPU-accelerated PyTorch fine-tuning of SecureBERT on RTX 4050 with calibrated multi-label metrics.
+4. GPU-accelerated PyTorch fine-tuning of SecureBERT with calibrated multi-label metrics.
 5. Automated post-training cleanup of raw dataset files as configured.
 """
 
@@ -32,6 +32,10 @@ SQL_DUMP_URL = "https://zenodo.org/records/20776007/files/dump-2026-06-20.sql.gz
 
 PATCHES_SIZE = 3000621180
 SQL_DUMP_SIZE = 3472298400
+
+# Overridable via TRACE_DATASET_DIR; defaults to a home-directory folder so
+# training works on any device without a C:\dataset drive.
+DEFAULT_DATASET_DIR = Path(os.environ.get("TRACE_DATASET_DIR", str(Path.home() / "datasets" / "morefixes")))
 
 from trace_engine.intelligence.training.dataset_importers import CWE_TO_CATEGORY
 from trace_engine.intelligence.training.dataset import normalize_code_slice
@@ -426,7 +430,7 @@ def cleanup_dataset_directory(dataset_dir: Path) -> None:
 
 
 def run_pipeline(
-    dataset_dir: Path = Path("C:/dataset"),
+    dataset_dir: Path = DEFAULT_DATASET_DIR,
     workers: int = 16,
     limit_per_category: int = 1500,
     epochs: int = 5,
@@ -437,7 +441,7 @@ def run_pipeline(
     downloader = ZenodoChunkDownloader(dataset_dir, workers=workers, chunk_size_mb=8)
 
     # 1. Download both files
-    console.print("\n[bold]Step 1/4: Downloading MoreFixes Archives to C:\\dataset\\[/bold]")
+    console.print(f"\n[bold]Step 1/4: Downloading MoreFixes Archives to {dataset_dir}[/bold]")
     patch_file = downloader.download_file(PATCHES_URL, PATCHES_SIZE, "patch-files2026-06-20.zip")
     sql_file = downloader.download_file(SQL_DUMP_URL, SQL_DUMP_SIZE, "dump-2026-06-20.sql.gz")
 
@@ -447,7 +451,7 @@ def run_pipeline(
     samples = extract_curated_samples_from_patches(patch_file, hash_to_cwe, limit_per_category=limit_per_category)
 
     # 3. Train SecureBERT with GPU acceleration
-    console.print("\n[bold]Step 3/4: Supervised GPU Fine-Tuning (RTX 4050 Laptop GPU)[/bold]")
+    console.print("\n[bold]Step 3/4: Supervised GPU Fine-Tuning (best available accelerator)[/bold]")
     train_securebert_on_morefixes(samples, epochs=epochs)
 
     # 4. Cleanup dataset files

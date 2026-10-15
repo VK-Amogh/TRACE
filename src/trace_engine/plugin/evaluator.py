@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from trace_engine.verify import VerificationEngine, VerificationResult
 from trace_engine.harness.patcher import TransactionalPatcher, PatchOperationResult
+from trace_engine.constants import DEFAULT_TARGET_URL
 
 logger = logging.getLogger("trace_plugin_evaluator")
 
@@ -28,7 +29,7 @@ class EvaluationResult(BaseModel):
 class HarnessEvaluator:
     """Evaluates patches produced by external AI agent harnesses against TRACE ground-truth test packs."""
 
-    def __init__(self, repo_path: Path, target_url: str = "http://127.0.0.1:18080"):
+    def __init__(self, repo_path: Path, target_url: str = DEFAULT_TARGET_URL):
         self.repo_path = repo_path.resolve()
         self.target_url = target_url
         self.patcher = TransactionalPatcher(self.repo_path)

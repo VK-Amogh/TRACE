@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use TRACE, please cite it as below."
+title: "TRACE: Threat Reconnaissance & Attack-path Correlation Engine"
+type: software
+authors:
+  - name: "TRACE Core Team"
+repository-code: "https://github.com/auraflaa/TRACE"
+license: Apache-2.0
+keywords:
+  - application-security
+  - attack-path-model
+  - sast
+  - mcp
+  - ai-coding-agents
+  - vulnerability-detection

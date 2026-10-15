@@ -39,8 +39,6 @@ from trace_engine.testpacks.base import TestContext, UserIdentity
 from trace_engine.findings.correlate import EvidenceCorrelator
 from trace_engine.findings.store import FindingStore
 from trace_engine.findings.model import Finding
-from trace_engine.doctor import run_doctor
-from trace_engine.tools.registry import default_tool_registry
 from trace_engine.output.terminal import (
     print_banner,
     print_security_notes,
@@ -54,9 +52,7 @@ from trace_engine.output.terminal import (
     print_harness_report,
     print_benchmark_scorecard,
 )
-from trace_engine.output.markdown import generate_markdown_report
-from trace_engine.output.html import generate_html_report
-from trace_engine.output.sarif import generate_sarif_report, export_sarif_json
+from trace_engine.constants import DEFAULT_MCP_HOST, DEFAULT_MCP_PORT, DEFAULT_TARGET_URL
 
 app = typer.Typer(
     name="trace",
@@ -65,6 +61,7 @@ app = typer.Typer(
     no_args_is_help=False,
 )
 console = Console()
+progress_console = Console(stderr=True)
 
 
 @app.callback()
@@ -75,9 +72,14 @@ def main(
     ),
 ):
     """If no command is provided, launch the interactive TRACE security terminal."""
+    if os.environ.get("TRACE_VERBOSE") == "1":
+        import logging
+
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("trace_engine").debug("verbose logging enabled via TRACE_VERBOSE")
     if version:
         import trace_engine
-        curr_ver = getattr(trace_engine, "__version__", "2.1.15")
+        curr_ver = getattr(trace_engine, "__version__", "0.0.0")
         console.print(f"[bold white]TRACE[/bold white] [bold #10B981]v{curr_ver}[/bold #10B981]")
         raise typer.Exit()
 
@@ -88,6 +90,14 @@ def main(
         pass
 
     if ctx.invoked_subcommand is None:
+        try:
+            interactive_tty = sys.stdin.isatty()
+        except Exception:
+            interactive_tty = False
+        if not interactive_tty:
+            console.print("[dim]No command given and no interactive terminal — showing help.[/dim]\n")
+            console.print(ctx.get_help())
+            return
         from trace_engine.interactive import run_interactive_story
         run_interactive_story()
 
@@ -285,7 +295,7 @@ def analyze(
 @app.command()
 def test(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
-    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
+    target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
 ):
     """Execute active test packs against derived hypotheses using ScopedHttpClient."""
     project_dir = path.resolve()
@@ -396,22 +406,28 @@ def test(
 @app.command()
 def scan(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
-    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
+    target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
+    import time
+    from trace_engine.output.markdown import generate_markdown_report
+    from trace_engine.output.sarif import generate_sarif_report
+
+    t_start = time.perf_counter()
     project_dir = path.resolve()
     from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
     if not prompt_and_bootstrap_models(interactive=True):
-        raise typer.Exit(code=1)
+        console.print("[yellow]Continuing without neural models — deterministic AST analysis with heuristic scoring.[/yellow]\n")
 
     config = load_config(project_dir)
 
-    console.print(f"\n[bold green]Starting TRACE Full Scan[/bold green] on [white]{project_dir.name}[/white]")
-    console.print(f"  [dim]Target Runtime:[/dim] [white]{target}[/white]")
+    progress_console.print(f"\n[bold green]Starting TRACE Full Scan[/bold green] on [white]{project_dir.name}[/white]")
+    progress_console.print(f"  [dim]Target Runtime:[/dim] [white]{target}[/white]")
 
     # 1. Ingest
+    t_stage = time.perf_counter()
     scanner = RepositoryScanner(project_dir)
     source_files = scanner.scan()
     parser = CodeParser()
@@ -427,19 +443,22 @@ def scan(
             if adapter.can_handle(pf):
                 discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
 
-    console.print(f"  [dim]✓ Ingestion:[/dim] {len(source_files)} files, {len(discovered_endpoints)} endpoints discovered")
+    progress_console.print(f"  [dim]✓ Ingestion:[/dim] {len(source_files)} files, {len(discovered_endpoints)} endpoints discovered [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    t_stage = time.perf_counter()
 
     # 2. Attack-Path Model
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
     trace_dir = init_trace_dir(project_dir)
     save_apm_sqlite(graph_model, trace_dir / "graph.db")
-    console.print(f"  [dim]✓ Attack-Path Model:[/dim] {graph_model.graph.number_of_nodes()} nodes, {graph_model.graph.number_of_edges()} edges")
+    progress_console.print(f"  [dim]✓ Attack-Path Model:[/dim] {graph_model.graph.number_of_nodes()} nodes, {graph_model.graph.number_of_edges()} edges [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    t_stage = time.perf_counter()
 
     # 3. Hypotheses
     engine = HypothesisEngine()
     hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
-    console.print(f"  [dim]✓ Security Hypotheses:[/dim] {len(hypotheses)} derived attack hypotheses")
+    progress_console.print(f"  [dim]✓ Security Hypotheses:[/dim] {len(hypotheses)} derived attack hypotheses [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    t_stage = time.perf_counter()
 
     # 4. Runtime Validation
     scope_guard = ScopeGuard(
@@ -484,36 +503,72 @@ def scan(
     except Exception:
         pass
 
-    console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings\n")
+    progress_console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]\n")
     
     if format.lower() == "sarif" or (output and str(output).endswith(".sarif")):
         sarif_payload = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
-        out_path = output or (trace_dir / "reports/trace_results.sarif")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
         import json
-        out_path.write_text(json.dumps(sarif_payload, indent=2), encoding="utf-8")
-        console.print(f"[bold green]OASIS SARIF v2.1.0 report exported:[/bold green] [white]{out_path}[/white]\n")
+        if output:
+            out_path = output
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(json.dumps(sarif_payload, indent=2), encoding="utf-8")
+            progress_console.print(f"[bold green]OASIS SARIF v2.1.0 report exported:[/bold green] [white]{out_path}[/white]\n")
+        else:
+            # No file requested: SARIF goes to stdout for pipes (`trace scan --format sarif | ...`).
+            console.print_json(json.dumps(sarif_payload))
     elif format.lower() == "json" or (output and str(output).endswith(".json")):
         import json
         payload = [f.model_dump() for f in findings]
-        out_path = output or (trace_dir / "reports/trace_results.json")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-        console.print(f"[bold green]JSON findings exported:[/bold green] [white]{out_path}[/white]\n")
+        if output:
+            out_path = output
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+            progress_console.print(f"[bold green]JSON findings exported:[/bold green] [white]{out_path}[/white]\n")
+        else:
+            console.print_json(json.dumps(payload, default=str))
     elif format.lower() == "markdown" or (output and str(output).endswith(".md")):
         md = generate_markdown_report(findings, project_name=project_dir.name)
-        out_path = output or (trace_dir / "reports/trace_report.md")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(md, encoding="utf-8")
-        console.print(f"[bold green]Markdown report exported:[/bold green] [white]{out_path}[/white]\n")
+        if output:
+            out_path = output
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(md, encoding="utf-8")
+            progress_console.print(f"[bold green]Markdown report exported:[/bold green] [white]{out_path}[/white]\n")
+        else:
+            console.print(md)
     else:
         print_findings_table(findings)
 
+    progress_console.print(f"  [dim]Total scan time:[/dim] [bold white]{time.perf_counter() - t_start:.2f}s[/bold white]")
+    _maybe_update_notice(format)
+
+
+def _maybe_update_notice(format: str, prompt_update: bool = False) -> None:
+    """Update banner (and optional install prompt) for interactive use only.
+
+    Structured formats (json/markdown/sarif) and piped output stay clean
+    for machine consumers; nothing here may block automation.
+    """
+    if format != "table":
+        return
+    try:
+        if not sys.stdout.isatty():
+            return
+    except Exception:
+        return
     try:
         from trace_engine.updater import check_for_updates, render_update_banner
         update_info = check_for_updates()
         if update_info and update_info.get("update_available"):
             render_update_banner(update_info)
+            if prompt_update:
+                latest_ver = update_info.get("latest_version")
+                from rich.prompt import Confirm
+                from trace_engine.updater import perform_update
+                if Confirm.ask(
+                    f"  [bold #10B981]?[/bold #10B981] [bold white]Would you like to update TRACE to v{latest_ver} now?[/bold white]",
+                    default=True,
+                ):
+                    perform_update(target_version=latest_ver)
     except Exception:
         pass
 
@@ -530,24 +585,28 @@ def test_all(
     import time
     import json
     from trace_engine.intelligence.orchestrator import IntelligenceOrchestrator
+    from trace_engine.output.markdown import generate_markdown_report
+    from trace_engine.output.sarif import generate_sarif_report
 
     project_dir = path.resolve()
     if models:
         from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
         if not prompt_and_bootstrap_models(interactive=True):
-            raise typer.Exit(code=1)
+            progress_console.print("[yellow]Neural models unavailable — continuing with deterministic analysis. Use --no-models to silence this.[/yellow]\n")
+            models = False
 
     config = load_config(project_dir)
 
-    resolved_target = target if target else (config.target.url or "http://127.0.0.1:18080")
+    resolved_target = target if target else (config.target.url or DEFAULT_TARGET_URL)
 
-    console.print(f"\n[bold green]Starting TRACE Comprehensive Test-All Audit[/bold green] on [white]{project_dir.name}[/white]")
+    progress_console.print(f"\n[bold green]Starting TRACE Comprehensive Test-All Audit[/bold green] on [white]{project_dir.name}[/white]")
     if target:
-        console.print(f"  [dim]Active Target Runtime:[/dim] [white]{target}[/white]")
+        progress_console.print(f"  [dim]Active Target Runtime:[/dim] [white]{target}[/white]")
     else:
-        console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white] (auto probe)")
+        progress_console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white] (auto probe)")
 
     # 1. Ingestion across all supported languages
+    t_stage = time.perf_counter()
     scanner = RepositoryScanner(project_dir)
     source_files = scanner.scan()
     parser = CodeParser()
@@ -565,19 +624,22 @@ def test_all(
             if adapter.can_handle(pf):
                 discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
 
-    console.print(f"  [dim]✓ Ingestion:[/dim] [bold white]{len(source_files)}[/bold white] files across {len(languages)} languages ([dim]{', '.join(sorted(languages))}[/dim]), [bold white]{len(discovered_endpoints)}[/bold white] endpoints discovered")
+    progress_console.print(f"  [dim]✓ Ingestion:[/dim] [bold white]{len(source_files)}[/bold white] files across {len(languages)} languages ([dim]{', '.join(sorted(languages))}[/dim]), [bold white]{len(discovered_endpoints)}[/bold white] endpoints discovered [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    t_stage = time.perf_counter()
 
     # 2. Attack-Path Model
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
     trace_dir = init_trace_dir(project_dir)
     save_apm_sqlite(graph_model, trace_dir / "graph.db")
-    console.print(f"  [dim]✓ Attack-Path Model:[/dim] [bold white]{graph_model.graph.number_of_nodes()}[/bold white] nodes, [bold white]{graph_model.graph.number_of_edges()}[/bold white] directed edges")
+    progress_console.print(f"  [dim]✓ Attack-Path Model:[/dim] [bold white]{graph_model.graph.number_of_nodes()}[/bold white] nodes, [bold white]{graph_model.graph.number_of_edges()}[/bold white] directed edges [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    t_stage = time.perf_counter()
 
     # 3. Security Hypotheses
     engine = HypothesisEngine()
     hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
-    console.print(f"  [dim]✓ Security Hypotheses:[/dim] [bold white]{len(hypotheses)}[/bold white] derived attack hypotheses")
+    progress_console.print(f"  [dim]✓ Security Hypotheses:[/dim] [bold white]{len(hypotheses)}[/bold white] derived attack hypotheses [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    t_stage = time.perf_counter()
 
     # 4. Intelligence Stack Evaluation (Laya System 1 & SecureBERT 2.0)
     model_metrics = {}
@@ -614,9 +676,9 @@ def test_all(
                         "available": orchestrator.laya.is_available(),
                     },
                 }
-            console.print(f"  [dim]✓ AI Intelligence:[/dim] Evaluated [bold white]{len(discovered_endpoints)}[/bold white] endpoints via SecureBERT 2.0 & Laya System 1")
+            progress_console.print(f"  [dim]✓ AI Intelligence:[/dim] Evaluated [bold white]{len(discovered_endpoints)}[/bold white] endpoints via SecureBERT 2.0 & Laya System 1")
         except Exception as e:
-            console.print(f"  [dim]• AI Intelligence:[/dim] [dim]Bypassed ({e})[/dim]")
+            progress_console.print(f"  [dim]• AI Intelligence:[/dim] [dim]Bypassed ({e})[/dim]")
 
     # 5. Runtime Validation & Test Pack Execution
     target_online = False
@@ -629,9 +691,9 @@ def test_all(
         target_online = False
 
     if target_online:
-        console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({resolved_target}) - executing active test packs")
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({resolved_target}) - executing active test packs")
     else:
-        console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({resolved_target}) - static boundary correlation")
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({resolved_target}) - static boundary correlation")
 
     scope_guard = ScopeGuard(
         allowed_hosts=config.target.allowed_hosts,
@@ -666,7 +728,7 @@ def test_all(
             if finding:
                 findings.append(finding)
 
-    console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings, [bold {'red' if confirmed_count > 0 else 'white'}]{confirmed_count}[/bold {'red' if confirmed_count > 0 else 'white'}] runtime confirmed")
+    progress_console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings, [bold {'red' if confirmed_count > 0 else 'white'}]{confirmed_count}[/bold {'red' if confirmed_count > 0 else 'white'}] runtime confirmed [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
 
     # 6. Persist Findings & Report
     store = FindingStore(trace_dir)
@@ -713,17 +775,7 @@ def test_all(
             model_metrics=model_metrics,
         )
 
-    try:
-        from trace_engine.updater import check_for_updates, render_update_banner, perform_update
-        update_info = check_for_updates()
-        if update_info and update_info.get("update_available"):
-            render_update_banner(update_info)
-            latest_ver = update_info.get("latest_version")
-            from rich.prompt import Confirm
-            if Confirm.ask(f"  [bold #10B981]?[/bold #10B981] [bold white]Would you like to update TRACE to v{latest_ver} now?[/bold white]", default=True):
-                perform_update(target_version=latest_ver)
-    except Exception:
-        pass
+    _maybe_update_notice(format, prompt_update=True)
 
 
 
@@ -832,6 +884,10 @@ def report(
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
     """Export comprehensive security assessment report."""
+    from trace_engine.output.html import generate_html_report
+    from trace_engine.output.markdown import generate_markdown_report
+    from trace_engine.output.sarif import generate_sarif_report
+
     project_dir = (repo or path).resolve()
     store, resolved_dir = resolve_finding_store(project_dir)
     findings_list = store.load_findings()
@@ -861,6 +917,8 @@ def report(
 @app.command()
 def doctor():
     """Verify local environment, Tree-sitter, SQLite, Ollama, and security tool adapters."""
+    from trace_engine.doctor import run_doctor
+
     console.print()
     rep = run_doctor()
     print_doctor_report(rep)
@@ -869,6 +927,8 @@ def doctor():
 @app.command()
 def tools():
     """List registered external tool adapters and installation status."""
+    from trace_engine.tools.registry import default_tool_registry
+
     console.print("\n[bold green]TRACE Tool Adapters[/bold green]")
     for t in default_tool_registry.get_all_info():
         badge = "[green]Installed[/green]" if t.installed else "[dim]Not installed[/dim]"
@@ -917,7 +977,7 @@ def verify(
     finding_id: str = typer.Argument(..., help="Finding ID to verify (e.g. TR-BOLA-001)"),
     repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
-    target: str = typer.Option("http://127.0.0.1:18080", "--target", "-t", help="Target URL"),
+    target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL"),
 ):
     """Verify whether a code modification by a coding agent resolved a finding (Section 58)."""
     from trace_engine.verify import VerificationEngine, VerificationStatus
@@ -937,15 +997,16 @@ def verify(
 @app.command()
 def mcp(
     server: bool = typer.Option(False, "--server", "-s", help="Run local HTTP/SSE server instead of stdio"),
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host interface to bind HTTP/SSE server"),
-    port: int = typer.Option(8765, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    host: str = typer.Option(DEFAULT_MCP_HOST, "--host", "-h", help="Loopback host interface to bind HTTP/SSE server"),
+    port: int = typer.Option(DEFAULT_MCP_PORT, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    allow_remote: bool = typer.Option(False, "--allow-remote", help="Permit binding a non-loopback host (LAN exposure, no auth)"),
 ):
     """Start TRACE Model Context Protocol (MCP) server for Claude Code and coding agents."""
     from trace_engine.mcp.server import TraceMCPServer
 
     mcp_obj = TraceMCPServer()
     if server:
-        mcp_obj.run_sse_server(host=host, port=port)
+        mcp_obj.run_sse_server(host=host, port=port, allow_remote=allow_remote)
     else:
         mcp_obj.run_stdio()
 
@@ -953,14 +1014,15 @@ def mcp(
 @app.command(name="mcp-server")
 @app.command(name="serve-mcp")
 def mcp_server_cmd(
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host interface to bind HTTP/SSE server"),
-    port: int = typer.Option(8765, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    host: str = typer.Option(DEFAULT_MCP_HOST, "--host", "-h", help="Loopback host interface to bind HTTP/SSE server"),
+    port: int = typer.Option(DEFAULT_MCP_PORT, "--port", "-p", help="Port to bind HTTP/SSE server"),
+    allow_remote: bool = typer.Option(False, "--allow-remote", help="Permit binding a non-loopback host (LAN exposure, no auth)"),
 ):
     """Start local HTTP/SSE TRACE MCP server and display connection link for Claude Code."""
     from trace_engine.mcp.server import TraceMCPServer
 
     mcp_obj = TraceMCPServer()
-    mcp_obj.run_sse_server(host=host, port=port)
+    mcp_obj.run_sse_server(host=host, port=port, allow_remote=allow_remote)
 
 
 @app.command("setup-mcp")
@@ -1029,7 +1091,7 @@ def remediate(
     resolved_target = target or "http://127.0.0.1:18082"
 
     console.print(f"\n[bold green]Starting TRACE Autonomous Remediation Loop[/bold green] on [white]{resolved_dir.name}[/white]")
-    console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white]")
+    progress_console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white]")
     console.print(f"  [dim]Auto-Apply & Verify Mode:[/dim] [white]{apply}[/white]")
     
     with console.status("  [bold green]Harness Active:[/bold green] Synthesizing patches & running verification loop..."):
@@ -1326,71 +1388,6 @@ def setup_models():
     console.print("[dim]Fetching fine-tuned weights from TRACE Git LFS Hub into ~/.trace/models...[/dim]\n")
     ensure_all_models()
     console.print("[bold green]✓ All fine-tuned models are installed, verified, and ready.[/bold green]\n")
-
-
-@app.command(name="install-skill")
-@app.command(name="setup-agent")
-def install_skill(
-    target_dir: Path = typer.Option(Path("."), "--target", "-t", help="Target repository directory to install skills and MCP"),
-):
-    """Install TRACE autonomous agent skill & MCP configurations for Claude Code, Antigravity, and Cursor."""
-    import shutil
-    project_root = Path(__file__).resolve().parents[2]
-    bundle_dir = project_root / "src" / "trace_engine" / "plugin" / "bundle"
-    target = target_dir.resolve()
-
-    console.print("\n[bold green]Installing TRACE Autonomous Security Agent Skill & MCP Tools...[/bold green]")
-
-    if bundle_dir.exists():
-        # 1. Antigravity plugin (.agents/plugins/trace-security)
-        agent_plugin_dir = target / ".agents" / "plugins" / "trace-security"
-        agent_plugin_dir.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(bundle_dir, agent_plugin_dir, dirs_exist_ok=True)
-        console.print(f"  [bold green]✓[/bold green] Antigravity Plugin : [white]{agent_plugin_dir}[/white]")
-
-        # 2. Agent Skill & Claude Code Skill
-        skill_src = bundle_dir / "skills" / "trace-security-harness"
-        if skill_src.exists():
-            agent_skill_dir = target / ".agents" / "skills" / "trace-security-harness"
-            agent_skill_dir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(skill_src, agent_skill_dir, dirs_exist_ok=True)
-            console.print(f"  [bold green]✓[/bold green] Agent Skill        : [white]{agent_skill_dir}[/white]")
-
-            claude_skill_dir = target / ".claude" / "skills" / "trace-security"
-            claude_skill_dir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(skill_src, claude_skill_dir, dirs_exist_ok=True)
-            console.print(f"  [bold green]✓[/bold green] Claude Code Skill  : [white]{claude_skill_dir}[/white]")
-
-        # 3. MCP Configuration
-        import json
-        is_win = sys.platform == "win32"
-        mcp_config = {
-            "mcpServers": {
-                "trace": {
-                    "command": "cmd.exe" if is_win else "npx",
-                    "args": ["/c", "npx", "-y", "trace-sec", "mcp"] if is_win else ["-y", "trace-sec", "mcp"],
-                    "env": {
-                        "PYTHONUNBUFFERED": "1"
-                    }
-                }
-            }
-        }
-        mcp_json = target / ".mcp.json"
-        mcp_json.write_text(json.dumps(mcp_config, indent=2), encoding="utf-8")
-        console.print(f"  [bold green]✓[/bold green] Claude Code MCP    : [white]{mcp_json}[/white]")
-
-        cursor_dir = target / ".cursor"
-        cursor_dir.mkdir(parents=True, exist_ok=True)
-        (cursor_dir / "mcp.json").write_text(json.dumps(mcp_config, indent=2), encoding="utf-8")
-        console.print(f"  [bold green]✓[/bold green] Cursor IDE MCP     : [white]{cursor_dir / 'mcp.json'}[/white]")
-
-        console.print("\n[bold]Capabilities Enabled for AI Coding Agents:[/bold]")
-        console.print("  • [bold green]Claude Code Integration:[/bold green] Skills + MCP server configured")
-        console.print("  • [bold green]Antigravity & Agentic IDEs:[/bold green] .agents/plugins/trace-security active")
-        console.print("  • [bold green]Verification Tools:[/bold green] trace_scan, trace_findings, trace_verify, trace_harness_task\n")
-    else:
-        console.print(f"[bold red]Error:[/bold red] Plugin bundle not found at {bundle_dir}")
-        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

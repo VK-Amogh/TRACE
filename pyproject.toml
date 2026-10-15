@@ -4,13 +4,29 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trace-sec"
-version = "2.1.18"
+dynamic = ["version"]
 description = "Threat Reconnaissance & Attack-path Correlation Engine"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
 authors = [
     { name = "TRACE Core Team" }
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+urls = { Homepage = "https://github.com/auraflaa/TRACE", Documentation = "https://auraflaa.github.io/TRACE/", Repository = "https://github.com/auraflaa/TRACE.git", Issues = "https://github.com/auraflaa/TRACE/issues" }
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.7.0",
@@ -24,9 +40,32 @@ dependencies = [
     "tree-sitter-language-pack>=0.2.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-github-actions-annotate-failures>=0.2.0",
+    "ruff>=0.4.0",
+]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5,<10",
+    "pymdown-extensions>=10.0",
+    "mkdocstrings[python]>=0.24",
+]
+full = [
+    "transformers>=4.40.0",
+    "safetensors>=0.4.0",
+    "onnxruntime>=1.17.0",
+    "numpy>=1.24.0",
+    "torch>=2.0.0",
+]
+
 [project.scripts]
 trace = "trace_engine.cli:app"
 Trace = "trace_engine.cli:app"
+
+[tool.hatch.version]
+path = "src/trace_engine/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trace_engine"]
@@ -34,6 +73,14 @@ packages = ["src/trace_engine"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["src", "tests"]
 filterwarnings = [
     "ignore::RuntimeWarning:laya.*",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

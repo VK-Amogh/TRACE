@@ -38,7 +38,7 @@ class BolaTestPack(TestPack):
         token_b = context.active_tokens.get("user-b", "")
 
         for test_id in test_ids:
-            probe_path = re.sub(r"\{[a-zA-Z0-9_]+\}", test_id, raw_path)
+            probe_path = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: test_id, raw_path)
             target_url = f"{base_url}{probe_path}"
 
             # Differential Phase 1: Request with User A context
@@ -91,7 +91,7 @@ class BolaTestPack(TestPack):
             testpack_name=self.name,
             hypothesis_id=hypothesis.id,
             confirmed=confirmed,
-            confidence=0.98 if confirmed else (None if not any_reachable else 0.20),
+            confidence=0.98 if confirmed else (0.0 if not any_reachable else 0.20),
             summary=summary,
             observations=observations,
             reproduction_steps=steps,

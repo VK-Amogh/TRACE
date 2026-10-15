@@ -40,8 +40,6 @@ class SecureBERTClassifier:
             Path(__file__).resolve().parents[4] / "models/securebert-finetuned",
             Path(__file__).resolve().parents[4] / ".trace/models/securebert-finetuned",
             Path(__file__).resolve().parents[2] / "models/securebert-finetuned",
-            Path("D:/Startup/TRACE/models/securebert-finetuned"),
-            Path("D:/Startup/TRACE/.trace/models/securebert-finetuned"),
         ]
         default_model = None
         repo_root = Path(__file__).resolve().parents[4]
@@ -73,6 +71,7 @@ class SecureBERTClassifier:
         self._tokenizer = None
         self._model = None
         self._device = "cpu"
+        self._fp16 = False
         self._initialized = False
 
     def _init_model(self) -> None:
@@ -85,9 +84,11 @@ class SecureBERTClassifier:
             import transformers
             transformers.logging.set_verbosity_error()
             from transformers import AutoTokenizer, AutoModelForSequenceClassification
+            from trace_engine.intelligence.device import resolve_torch_device, use_fp16
 
-            self._device = "cuda" if torch.cuda.is_available() else "cpu"
-            logger.info(f"Loading SecureBERT ({self.model_name}) on {self._device}...")
+            self._device = resolve_torch_device()
+            self._fp16 = use_fp16(self._device)
+            logger.info(f"Loading SecureBERT ({self.model_name}) on {self._device}{' (fp16)' if self._fp16 else ''}...")
             self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self._model = AutoModelForSequenceClassification.from_pretrained(
                 self.model_name,
@@ -135,7 +136,11 @@ class SecureBERTClassifier:
                         ).to(self._device)
 
                         with torch.no_grad():
-                            outputs = self._model(**inputs)
+                            if self._fp16:
+                                with torch.autocast(device_type="cuda", dtype=torch.float16):
+                                    outputs = self._model(**inputs)
+                            else:
+                                outputs = self._model(**inputs)
                             raw_probs = torch.sigmoid(outputs.logits).detach().cpu().tolist()
 
                         probs_list = [raw_probs] if len(c_texts) == 1 and isinstance(raw_probs[0], (int, float)) else raw_probs
@@ -183,7 +188,11 @@ class SecureBERTClassifier:
                 ).to(self._device)
 
                 with torch.no_grad():
-                    outputs = self._model(**inputs)
+                    if self._fp16:
+                        with torch.autocast(device_type="cuda", dtype=torch.float16):
+                            outputs = self._model(**inputs)
+                    else:
+                        outputs = self._model(**inputs)
                     probs = torch.sigmoid(outputs.logits).squeeze().tolist()
 
                 if isinstance(probs, list) and len(probs) == len(VULN_CATEGORIES):

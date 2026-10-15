@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {% set title = page.meta.title if page and page.meta and page.meta.title else (page.title ~ " - " ~ config.site_name if page and page.title and not page.is_homepage else config.site_name) %}
+  {% set desc = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
+  <meta name="keywords" content="TRACE, trace-sec, API security scanner, BOLA, IDOR, attack-path model, SAST, MCP security server, AI coding agent security, OWASP API Top 10">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TRACE">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ desc }}">
+  <meta property="og:url" content="{{ page.canonical_url }}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ desc }}">
+  {% if page and page.is_homepage %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "TRACE",
+    "alternateName": ["trace-sec", "trace security", "TRACE security scanner"],
+    "description": "{{ config.site_description }}",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Windows, macOS, Linux",
+    "softwareVersion": "{{ config.extra.version }}",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "url": "{{ config.site_url }}",
+    "downloadUrl": "https://www.npmjs.com/package/trace-sec",
+    "codeRepository": "https://github.com/auraflaa/TRACE",
+    "programmingLanguage": "Python",
+    "keywords": "API security, BOLA, attack-path model, SAST, MCP, AI coding agents",
+    "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+    "sameAs": ["https://github.com/auraflaa/TRACE", "https://www.npmjs.com/package/trace-sec"]
+  }
+  </script>
+  {% endif %}
+{% endblock %}

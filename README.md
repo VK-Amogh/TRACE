@@ -1,337 +1,196 @@
-# ⚡ TRACE — Threat Reconnaissance & Attack-path Correlation Engine
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/VK-Amogh/TRACE/main/docs/assets/banner.png" alt="TRACE Banner" width="100%" onerror="this.style.display='none'"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-wordmark-dark.svg">
+    <img src="docs/assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="400">
+  </picture>
 </p>
 
 <p align="center">
-  <strong>The Sub-Second, Zero-Token Security Radar for AI Coding Agents</strong><br>
-  <em>Empowering Claude Code, Cursor, Antigravity, and Codex to instantly identify, understand, and remediate CVEs without burning tokens or wasting developer time.</em>
+  <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec?color=black" alt="NPM"></a>
+  <a href="https://github.com/auraflaa/TRACE/actions/workflows/ci.yml"><img src="https://github.com/auraflaa/TRACE/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://auraflaa.github.io/TRACE/"><img src="https://img.shields.io/badge/docs-online-black" alt="docs"></a>
+  <a href="https://github.com/auraflaa/TRACE/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-black" alt="license"></a>
+  <a href="https://github.com/auraflaa/TRACE/stargazers"><img src="https://img.shields.io/github/stars/auraflaa/TRACE?style=social" alt="GitHub stars"></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/VK-Amogh/TRACE/actions/workflows/trace-gate.yml"><img src="https://github.com/VK-Amogh/TRACE/actions/workflows/trace-gate.yml/badge.svg" alt="Security Gate"></a>
-  <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec.svg?style=flat&color=38bdf8" alt="NPM Version"></a>
-  <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/dm/trace-sec.svg?style=flat&color=10b981" alt="NPM Downloads"></a>
-  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11+-38bdf8.svg" alt="Python Version"></a>
-  <a href="https://huggingface.co/ehsanaghaei/SecureBERT"><img src="https://img.shields.io/badge/AI_Stack-SecureBERT_2.0_%2B_Laya-emerald.svg" alt="AI Models"></a>
-</p>
+<p align="center">Full-repo audit in 0.26 s on local CPU. Zero tokens. No cloud.<br>
+If it is useful to you, a ⭐ helps other people find it.</p>
 
----
-
-## ⚡ Executive Summary: The Radar vs. The Mechanic
-
-> *"Asking an LLM like Claude Code or Cursor to **scan** your repository for vulnerabilities burns **350,000 to 500,000+ prompt tokens ($10–$15)**, takes **15 to 25 minutes**, and still misses complex multi-tenant BOLA and hidden parameter bypasses.*
-> 
-> ***TRACE does the entire audit in 0.26 seconds at $0.00 cost using 0 tokens.***
-> 
-> *TRACE is the **Radar**; Claude Code is the **Mechanic**. TRACE builds the multi-language Attack-Path Model with microsecond precision, identifies ground-truth CVEs, and feeds structured findings to AI coding agents via MCP to execute surgical fixes."*
-
-### Head-to-Head Comparison
-
-| Metric / Capability | Raw LLM File-by-File Scanning | TRACE + AI Coding Agent (Our Architecture) |
-|---|---|---|
-| **Scan Speed & Latency** | ⏳ **15 – 25 Minutes** (sequential file read tool calls) | ⚡ **0.26 Seconds** (sub-second AST + APM parsing) |
-| **API Cost & Token Burn** | 💸 **$8.00 – $25.00+ per scan** (350k – 500k+ tokens) | 💰 **$0.00 / Exactly 0 Tokens** (100% local CPU execution) |
-| **BOLA / IDOR Detection** | ❌ **High Miss Rate** (misses cross-file tenant context) | 🎯 **100% Detection** (tracks route parameters to DB sinks) |
-| **Memory / Footprint** | 🐘 10GB+ cloud models or multi-GB local LLMs | 🪶 **< 300 MB RAM**, 1.83 MB core package |
-| **Tool Integration** | 💬 Trapped in chat interface | 🔌 **Native Model Context Protocol (MCP)** server |
-| **Verification Loop** | 🤷 Hallucinates whether the patch worked | 🛡️ **Live Verification Oracle** tests patch before commit |
-
----
-
-## 🚀 Instant Quickstart (Zero Install via NPX)
-
-Run TRACE immediately on any machine with Node.js installed without cloning or setting up Python virtual environments:
+**TRACE** is the radar, your coding agent is the mechanic. TRACE parses the
+repository into an Attack-Path Model, correlates real vulnerabilities
+(BOLA, BFLA, SSRF, injection, …), and hands structured findings to
+Claude Code, Cursor, or Codex over MCP — then *proves* each fix with a live
+verification oracle instead of assuming it worked.
 
 ```bash
-# Launch the interactive terminal security wizard
-npx trace-sec
-
-# Run an instant sub-second vulnerability audit on the current repository
 npx trace-sec audit .
-
-# Export results to standard SARIF for GitHub Security tab
-npx trace-sec scan . --format sarif -o trace-results.sarif
 ```
-
-### Global CLI Installation
 
 ```bash
-npm install -g trace-sec
-trace
+trace scan ./backend --target http://localhost:8000
+trace explain TR-BOLA-001
+trace verify TR-BOLA-001
 ```
-
----
-
-## 🤖 1-Click AI Coding Agent Integration (Claude Code & Cursor)
-
-TRACE turns your terminal or IDE agent into a vulnerability-hardened security engineer.
-
-### Method 1: Connect to Claude Code CLI (Recommended)
-
-Register TRACE as an official MCP server in Claude Code:
 
 ```bash
 claude mcp add trace -- npx -y trace-sec mcp
 ```
 
-### Method 2: Start Local MCP Server Bridge
+Every command on one page: **[CLI reference](https://auraflaa.github.io/TRACE/cli/)**.
+AI agents start at [`AGENTS.md`](AGENTS.md) and the
+[security harness skill](https://auraflaa.github.io/TRACE/harness/).
+
+## Agent skills
+
+Install TRACE skills into any coding agent with the
+[`skills`](https://github.com/vercel-labs/skills) CLI — no npm publish needed:
 
 ```bash
-# Starts SSE/HTTP Model Context Protocol bridge on localhost:8765
-trace mcp-server --port 8765
+npx skills add auraflaa/TRACE --list
+npx skills add auraflaa/TRACE --skill trace
 ```
 
-### Registered MCP Tools for AI Agents
+One skill, three workflows: `trace` teaches the agent to run audits,
+fix findings with live verification, and connect over MCP.
 
-When connected, Claude Code, Cursor, or Antigravity gain access to specialized security tools:
+## What it catches
 
-| MCP Tool | Purpose & Agent Capability |
-|---|---|
-| `trace_scan` | Scans entire codebase in <0.5s; returns Attack-Path Model and correlated CVE findings. |
-| `trace_findings` | Queries active findings with exact file paths, line numbers, and taint traces. |
-| `trace_explain` | Provides deep-dive vulnerability root-cause analysis and remediation instructions. |
-| `trace_verify` | **The Verification Oracle:** Evaluates the agent's patch to prove the exploit vector is closed. |
-| `trace_harness_task` | Exports unmitigated vulnerabilities into reproducible SWE-bench task instances. |
-
----
-
-## 🏗️ System Architecture & How It Works
-
-TRACE utilizes a **Neuro-Symbolic Pipeline**: static Abstract Syntax Tree (AST) analysis and dynamic graph construction form the deterministic foundation, while fine-tuned transformer intelligence calibrates threat confidence.
-
-```
-                      SOURCE CODE REPOSITORY
-         (Python, Go, JS/TS, Java, Kotlin, PHP, Ruby, Rust, C#, Dart)
-                                │
-                                ▼
-        ┌────────────────────────────────────────────────────────┐
-        │   LAYER 1: MULTI-LANGUAGE AST INGESTION & PARSING      │
-        │   • Framework Adapters (FastAPI, Gin, Express, Rails)  │
-        │   • Source Extraction (Route params, headers, bodies)  │
-        │   • Sink Detection (SQL, Exec, Webhooks, File system)  │
-        └───────────────────────┬────────────────────────────────┘
-                                │
-                                ▼
-        ┌────────────────────────────────────────────────────────┐
-        │   LAYER 2: ATTACK-PATH MODEL (APM) GRAPH SYNTHESIS     │
-        │   • In-Memory Directed Graph Representation             │
-        │   • Multi-Tenant Boundary Tracking (User vs Org)       │
-        │   • Middleware & RBAC Decorator Interception           │
-        └───────────────────────┬────────────────────────────────┘
-                                │
-                                ▼
-        ┌────────────────────────────────────────────────────────┐
-        │   LAYER 3: NEURO-SYMBOLIC CONFIDENCE FUSION            │
-        │   • Signal A: Deterministic AST Dataflow (P_AST)       │
-        │   • Signal B: SecureBERT 2.0 Transformer (P_BERT)      │
-        │   • Signal C: Statistical Timing Oracle (P_Dyn)        │
-        │   • Bayesian Evidence Fusion: P_Total >= 99.8%         │
-        └───────────────────────┬────────────────────────────────┘
-                                │
-                                ▼
-        ┌────────────────────────────────────────────────────────┐
-        │   LAYER 4: MCP BRIDGE & AGENT REMEDIATION HARNESS      │
-        │   • JSON-RPC / SSE Model Context Protocol Server       │
-        │   • Surgical AST Self-Healing Engines                  │
-        │   • Rollback Protection & Verification Oracle          │
-        └────────────────────────────────────────────────────────┘
-```
-
-### 1. Multi-Framework AST Adapters
-TRACE extracts syntax trees across enterprise web frameworks without executing runtime code:
-* **Python**: FastAPI, Flask, Django, Django REST Framework
-* **Go**: Gin, Echo, Fiber, Chi, standard `net/http`
-* **Node / TypeScript**: Express, Next.js API Routes, React Router
-* **Java & Kotlin**: Spring Boot, Spring Data, WebMVC
-* **PHP**: Laravel, Lumen, Vanilla PHP
-* **Ruby**: Ruby on Rails, Sinatra
-* **Rust & C#**: Actix-web, Axum, Rocket, ASP.NET Core Minimal APIs
-* **Dart**: Shelf, Shelf Router
-
-### 2. Bayesian Confidence Fusion
-To eliminate false alarms without missing obscure architectural bypasses, TRACE combines static AST dataflow, neural token semantics, and dynamic timing proofs into a mathematically rigorous confidence score:
-
-$$\text{Confidence} = 1 - (1 - P_{\text{SecureBERT}}) \times (1 - P_{\text{AST\_Dataflow}}) \times (1 - P_{\text{Dynamic\_Oracle}})$$
-
-* **Triple Match ($\ge 99.8\%$)**: AST dataflow detects unparameterized query + SecureBERT flags SQLi syntax ($0.85$) + Dynamic probe triggers database syntax error $\rightarrow$ **Critical Verified Finding**.
-* **Sanitizer Attenuation**: When AST detects an existing validation guard (e.g., regex pattern check or integer cast), $P_{\text{AST}}$ is attenuated by **85%**, preventing false positives.
-
-### 3. Statistical Timing Oracle (Welch's Two-Sample t-Test)
-For blind SQL injection and command injection verification, TRACE avoids naive sleep thresholds. It executes a rigorous two-sample Welch's t-test comparing $N=3$ baseline samples against $N=3$ injected sleep samples:
-
-$$t = \frac{\bar{X}_{\text{probe}} - \bar{X}_{\text{base}}}{\sqrt{\frac{s_{\text{probe}}^2}{N_{\text{probe}}} + \frac{s_{\text{base}}^2}{N_{\text{base}}}}}$$
-
-A vulnerability is confirmed **only** when $p < 0.01$ and $\Delta t \ge 0.85 \times \text{delay}$, making dynamic proofs mathematically irrefutable.
-
----
-
-## 📊 Empirical Benchmarks & Performance Metrics
-
-TRACE was benchmarked on production enterprise repositories and hardcore multi-tier microservice testbeds:
-
-### Production Benchmark: Onecrew Repository (189 Files, 39 Endpoints)
-
-| Stage | Files / Assets Processed | Time Elapsed | Status |
-|---|---|---|---|
-| **Multi-Language AST Ingestion** | 189 files (Python, TypeScript, SQL) | 0.048 s | 100% Complete |
-| **APM Directed Graph Assembly** | 39 endpoints, 72 handlers | 0.071 s | Fully Linked |
-| **Vulnerability Analysis** | 36 confirmed architectural flaws | 0.141 s | Correlated |
-| **Total End-to-End Audit** | **Full Repository** | **0.260 s (260 ms)** | **Zero Tokens Burned** |
-
-### Synthetic Benchmark: Hardcore Multi-Service Testbed (15 Endpoints)
-* **Languages in testbed**: Python Django, Dart Shelf, Go Gin, Kotlin Spring Boot
-* **Flaws tested**: Timing SQLi, Nested BOLA, SSRF Webhooks, BFLA Role Overrides
-* **Total Audit Latency**: **15.79 ms (0.016 seconds)**
-* **Precision / Recall**: **100% Precision / 100% Recall**
-
----
-
-## 🧠 Model Training & Dataset Heritage
-
-TRACE's intelligence layer is powered by specialized models trained on security data rather than general web text:
-
-### 1. SecureBERT 2.0 Semantic Classifier
-* **Base Architecture**: 125M parameter RoBERTa transformer fine-tuned on cybersecurity syntax.
-* **Pretraining Corpus (13.62 Billion Tokens)**:
-  * **Cybersecurity Seed Corpus (256.8M tokens)**: NIST standards, OWASP guides, CVE/NVD advisories, exploit writeups.
-  * **Code Vulnerability Corpus (2.15M code tokens)**: Vulnerable and safe functions in C/C++, Python, Java, Go, PHP.
-  * **Cybersecurity Dialogues (98.3M tokens)**: Incident response reports and threat intelligence feeds.
-
-### 2. The Ground-Truth Patch Dataset (MoreFixes & CVEfixes)
-Processed via `morefixes_pipeline.py` and `dataset_importers.py`:
-* **52,672 Paired Git Patches** mined across **9,972 GitHub repositories** spanning **43,357 unique CVEs**.
-* **Paired Controls**:
-  * Vulnerable AST slices (`-` deletions) mapped to MITRE CWE categories (CWE-89, CWE-639, CWE-918, etc.).
-  * Fixed AST slices (`+` additions) providing negative controls for what safe code looks like.
-
-### 3. Laya System 1 Router
-* Fine-tuned non-autoregressive priority router running via **ONNX Runtime** on CPU in **<1.2 ms**.
-* Classifies incoming endpoints into priority risk tiers ($P_0$ Critical to $P_3$ Informational).
-
----
-
-## 🛡️ Vulnerability Classes Covered
-
-TRACE detects and validates the OWASP API Top 10 and critical enterprise vulnerability families:
-
-| Identifier | Category | Typical Root Cause |
+| ID | Category | Root cause it proves |
 |---|---|---|
-| `TR-BOLA` | **Broken Object Level Authorization (IDOR)** | Queries filter by `id` without scoping to session `tenant_id`. |
-| `TR-BFLA` | **Broken Function Level Authorization** | Administrative endpoints accessible without role verification. |
-| `TR-AUTH` | **Missing / Broken Authentication** | Endpoints lacking auth middleware or JWT validation. |
-| `TR-SSRF` | **Server-Side Request Forgery** | Outbound HTTP requests to unvalidated user-controlled URLs. |
-| `TR-INJ`  | **Injection (SQLi / Command Injection)** | String formatting in database queries or subprocess executions. |
-| `TR-MASS` | **Mass Assignment** | Binding untrusted request dictionaries directly to ORM models. |
-| `TR-TRAV` | **Path Traversal** | File operations using un-sanitized user paths without boundary checks. |
-| `TR-SSTI` | **Server-Side Template Injection** | Rendering unescaped user input inside template engines. |
-| `TR-CORS` | **CORS Misconfiguration** | Reflecting arbitrary origins or wildcards with credentials enabled. |
+| `TR-BOLA` | Broken Object-Level Authorization | `id` lookup without tenant scoping, shown via dual-identity differential test |
+| `TR-BFLA` | Broken Function-Level Authorization | Admin endpoint reachable without role check |
+| `TR-AUTH` | Missing / broken authentication | State-changing endpoint with no auth middleware |
+| `TR-SSRF` | Server-Side Request Forgery | User-controlled URL dispatched without validation |
+| `TR-INJ` | Injection (SQLi / command) | Unparameterized query or shell execution, triple-signal confirmed |
+| `TR-MASS` | Mass assignment | Untrusted dict bound straight onto an ORM model |
+| `TR-TRAV` | Path traversal | File operation on an unsanitized user path |
+| `TR-SSTI` | Template injection | Unescaped user input rendered server-side |
+| `TR-CORS` | CORS misconfiguration | Wildcard origin reflected with credentials |
 
----
+## Benchmarks
 
-## 💻 CLI Command Reference
+Onecrew production repo (189 files, 39 endpoints), offline, zero tokens —
+recorded in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md):
+
+| Stage | Time |
+|---|---|
+| AST ingestion | 0.049 s |
+| APM graph assembly | 0.071 s |
+| Vulnerability analysis | 0.141 s |
+| **End-to-end audit** | **0.261 s** |
+
+Hardcore multi-service testbed (15 endpoints, 12 planted flaws):
+**15.79 ms static pipeline, 100% precision / 100% recall.**
+Every `trace audit` prints per-stage timings, so these numbers are
+reproducible on your machine — no lab-only claims.
+
+Covered by **124 automated tests** (`pytest tests/`).
+
+## Lite or Full
+
+| | **Lite** (default) | **Full** |
+|---|---|---|
+| Install | `pip install -e .` | `pip install -r requirements.txt` |
+| Size | ~2 MB, no torch | ~1 GB (torch, transformers, onnxruntime) |
+| Runs on | any CPU, 4 GB RAM | 8 GB RAM recommended |
+| Detection | AST dataflow + live probes | + SecureBERT 2.0 neural scoring and Laya router |
+| Choose it | contributors, CI, quick audits | maximum confidence on your own machine |
+
+`trace doctor` reports which mode is active on your machine.
+
+## Why trust a finding
+
+```text
+Confidence = 1 − (1 − P_SecureBERT) × (1 − P_AST) × (1 − P_dynamic)
+```
+
+- **Triple match (~99.8%)**: AST dataflow finds the sink, SecureBERT flags the
+  pattern, and a live probe confirms exploitation.
+- **Sanitizer attenuation**: an existing guard cuts the AST signal by 85%,
+  suppressing false positives.
+- **Verification oracle**: after a patch, `trace verify` replays the exploit.
+  `FIXED` means the attack is actually dead — not that a linter is happy.
+
+## Runs everywhere
+
+| Platform | What you get |
+|---|---|
+| Linux x64 / Windows x64 / macOS Intel + Apple Silicon | identical CLI, CI-tested on all three |
+| Python 3.11 – 3.13, Node 18 / 20 | pinned support window (`requires-python = >=3.11`) |
+| CPU-only / 4 GB / offline | lite install; neural scoring degrades gracefully |
+| Air-gapped | models resolve from `~/.trace/models` or repo-local `models/` |
+
+`trace doctor` shows what is active on your machine.
+
+## Installation
 
 ```bash
-# Run interactive menu wizard
-trace
+npm install -g trace-sec        # global CLI: trace, trace-sec
+```
 
-# Audit specific directory
-trace audit ./backend
+```bash
+pip install -e ".[dev]"         # contributors: lite + test/lint tooling
+pip install -r requirements.txt # + full AI inference (torch, ~8 GB RAM)
+```
 
-# Full scan with target URL for dynamic correlation
-trace scan ./backend --target http://localhost:8000
-
-# Explain a specific finding with remediation code
-trace explain TR-BOLA-001
-
-# Replay reproduction curl commands
-trace replay TR-BOLA-001
-
-# Run autonomous AST self-healing on safe findings
-trace heal ./backend
-
-# Verify whether a developer's fix closed the vulnerability
-trace verify TR-BOLA-001
-
-# Start real-time MCP server for Claude Code / Cursor
-trace mcp-server --port 8765
-
-# Run environment health check
+```bash
 trace doctor
+trace audit ./testbed_hardcore --format table
 ```
 
----
+From a source checkout without installing, the `trace.bat` / `trace.cmd` /
+`trace.ps1` launchers set `PYTHONPATH` automatically. Only test systems you own
+or the bundled fixtures (`testbed_hardcore/`, `test-repository/`, `labs/`).
 
-## 🧪 Comprehensive Test Suite
+## Releases
 
-TRACE is verified by an automated test suite covering all frameworks, adapters, mathematical models, and AST self-healing engines:
+TRACE ships through GitHub releases:
 
-```bash
-# Run test suite via Python virtual environment
-pytest tests/
+- Pushing a `v*` tag (or publishing a release) runs `npm-publish.yml`, which
+  tests, then publishes `trace-sec` to NPM and GitHub Packages.
+- Python installs track git tags directly — there is no PyPI upload yet:
+  `pip install git+https://github.com/auraflaa/TRACE.git@v2.1.18`.
+- The single version source is `src/trace_engine/__init__.py:__version__`
+  (read dynamically by `pyproject.toml`). Bump it together with `package.json`.
+
+## Documentation
+
+[Installation](https://auraflaa.github.io/TRACE/installation/) ·
+[Quick start](https://auraflaa.github.io/TRACE/quickstart/) ·
+[CLI reference](https://auraflaa.github.io/TRACE/cli/) ·
+[MCP setup](https://auraflaa.github.io/TRACE/mcp/) ·
+[FAQ](https://auraflaa.github.io/TRACE/faq/) ·
+[Troubleshooting](https://auraflaa.github.io/TRACE/troubleshooting/)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately per
+[SECURITY.md](SECURITY.md); accessibility barriers are tracked as bugs, see
+[ACCESSIBILITY.md](ACCESSIBILITY.md). Bug reports and feature requests use the
+issue templates; pull requests follow the PR template checklist.
+
+<details>
+<summary>Citation</summary>
+
+```bibtex
+@software{trace_sec,
+  title  = {TRACE: Threat Reconnaissance and Attack-path Correlation Engine},
+  author = {{TRACE Core Team}},
+  year   = {2026},
+  url    = {https://github.com/auraflaa/TRACE}
+}
 ```
 
-```text
-============================= test session starts =============================
-platform win32 -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
-collected 75 items
+See [`CITATION.cff`](CITATION.cff).
 
-tests/test_adapters.py .............                                     [ 17%]
-tests/test_audit_report_fixes.py .....                                   [ 24%]
-tests/test_bugs_and_edge_cases.py .......                                [ 33%]
-tests/test_confidence_fusion.py ....                                     [ 38%]
-tests/test_django_adapter.py ..                                          [ 41%]
-tests/test_flask_adapter.py .                                            [ 42%]
-tests/test_hardcore_testbed.py ...                                       [ 46%]
-tests/test_harness_plugin.py ....                                        [ 52%]
-tests/test_intelligence.py ...                                           [ 56%]
-tests/test_interactive.py ..                                             [ 58%]
-tests/test_laya_training.py ..                                           [ 61%]
-tests/test_multi_language_remediation.py ..                              [ 64%]
-tests/test_new_vulnerabilities.py .........                              [ 76%]
-tests/test_php_adapter.py ..                                             [ 78%]
-tests/test_remediation_rollback.py ..                                    [ 81%]
-tests/test_sarif_exporter.py .                                           [ 82%]
-tests/test_statistical_timing.py ...                                     [ 86%]
-tests/test_trace.py ......                                               [ 94%]
-tests/test_updater.py ....                                               [100%]
+</details>
 
-============================= 75 passed in 23.34s =============================
-```
+## Star history
 
----
+<a href="https://star-history.com/#auraflaa/TRACE&Date">
+  <img src="https://api.star-history.com/svg?repos=auraflaa/TRACE&type=Date" alt="Star history of TRACE" width="600">
+</a>
 
-## 📂 Repository Directory Layout
+## License
 
-```text
-TRACE/
-├── bin/                          # NPM binary launchers (trace.js, postinstall.js)
-├── docs/                         # Architecture dossiers, benchmarks, and specs
-│   ├── BENCHMARKS.md             # Empirical performance benchmark dossier
-│   ├── TRACE_HACKATHON_MASTER_DOSSIER.md # Strategic blueprint & pitch notes
-│   └── TRACE_v2_Architecture_and_Advancements.md # Engineering specification
-├── models/                       # Git LFS fine-tuned neural models
-│   ├── securebert-finetuned/     # Fine-tuned SecureBERT 2.0 transformer
-│   └── laya-finetuned/           # Fine-tuned Laya ONNX dual-head router
-├── src/trace_engine/             # Core Python Engine
-│   ├── apm/                      # Attack-Path Model directed graph generator
-│   ├── framework/                # Multi-language AST adapters (Go, Django, etc.)
-│   ├── harness/                  # Verification oracle & surgical remediators
-│   ├── intelligence/             # SecureBERT, Laya, and training pipelines
-│   ├── mcp/                      # Model Context Protocol (MCP) server & config
-│   ├── security/                 # Bayesian fusion & statistical timing oracle
-│   └── testpacks/                # OWASP vulnerability testpack definitions
-├── testbed_hardcore/             # Multi-service edge-case evaluation suite
-├── tests/                        # 75 unit and integration tests
-├── package.json                  # NPM distribution manifest (trace-sec)
-└── pyproject.toml                # Python package configuration
-```
-
----
-
-## 📄 License & Community
-
-TRACE is open-source software licensed under the **Apache License 2.0**.  
-Contributions, issue reports, and framework adapter PRs are welcome on [GitHub](https://github.com/VK-Amogh/TRACE).
+Apache-2.0 — see [`LICENSE`](LICENSE).

@@ -16,11 +16,6 @@ class AutonomousRemediator:
 
         # 1. BOLA Remediation in Dart
         if category == "BOLA" and "getOrganizationProject" in code:
-            target = "    final project = await db.query("
-            replacement = (
-                "    // [TRACE HARNESS FIX: Enforce tenant ownership boundary]\n"
-                "    final project = await db.query(\n"
-            )
             # Find the return Response.ok and insert tenant validation
             target_block = """    if (project == null || project.isEmpty) {
       return Response.notFound(jsonEncode({'error': 'Project record not found'}));
@@ -30,7 +25,8 @@ class AutonomousRemediator:
     }
 
     // [TRACE HARNESS FIX]: Tenant boundary validation
-    if (project['organization_id'] != orgId) {
+    final orgId = request.headers['x-tenant-id'];
+    if (orgId == null || project['organization_id'] != orgId) {
       return Response.forbidden(jsonEncode({'error': 'Tenant boundary access violation: unauthorized project access'}));
     }"""
             return target_block, replacement_block
@@ -39,8 +35,8 @@ class AutonomousRemediator:
         if category == "BFLA" and "updateUserRole" in code:
             target_block = """    final body = jsonDecode(await request.readAsString());"""
             replacement_block = """    // [TRACE HARNESS FIX: Enforce administrative RBAC role check]
-    final userToken = authHeader.replaceFirst('Bearer ', '').trim();
-    if (userToken != 'admin-master-token' && !userToken.contains('admin')) {
+    final authHeader = request.headers['authorization'] ?? '';
+    if (authHeader.isEmpty || !authHeader.toLowerCase().contains('admin')) {
       return Response.forbidden(jsonEncode({'error': 'Forbidden: Administrative privilege required for role mutation'}));
     }
 
@@ -102,8 +98,9 @@ class AutonomousRemediator:
         if (tenantId == null || record["tenantId"] != tenantId) {
             return ResponseEntity.status(403).body(mapOf("error" to "Tenant boundary access violation"))
         }
-        return ResponseEntity.ok(record)
-        if (false) {"""
+        return if (record != null) {
+            ResponseEntity.ok(record)
+        } else {"""
             return target_block, replacement_block
 
         # 7. Kotlin Spring Boot SSRF Remediation
@@ -162,9 +159,24 @@ class AutonomousRemediator:
                     )
                     return target, replacement
                 if ".filter(" in line and "tenant_id" not in line:
-                    target = line
-                    replacement = line.replace(".filter(", ".filter(tenant_id=current_user.tenant_id, ")
-                    return target, replacement
+                    # Only safe for kwarg-style misuse; expression filters cannot
+                    # take kwargs, so leave those for the agent instead of
+                    # emitting code that raises at runtime.
+                    if re.search(r"\.filter\(\s*[A-Za-z_]+\s*=", line):
+                        target = line
+                        replacement = re.sub(
+                            r"\.filter\(",
+                            ".filter_by(",
+                            line,
+                            count=1,
+                        )
+                        replacement = re.sub(
+                            r"\.filter_by\s*\((.*?)\)\s*$",
+                            r".filter_by(\1, tenant_id=current_user.tenant_id)",
+                            replacement,
+                        )
+                        return target, replacement
+                    continue
                 if "find_one({" in line and "tenant_id" not in line:
                     target = line
                     replacement = line.replace("find_one({", "find_one({'tenant_id': current_user.tenant_id, ")
@@ -190,10 +202,19 @@ class AutonomousRemediator:
                     if any(c in line for c in ("requests.get(", "httpx.get(", "urlopen(")):
                         target = line
                         indent = " " * (len(line) - len(line.lstrip()))
+                        arg_match = re.search(
+                            r"(?:requests|httpx)\.get\(\s*([^,\)]+)|urlopen\(\s*([^,\)]+)",
+                            line,
+                        )
+                        url_var = "target_url"
+                        if arg_match:
+                            candidate = (arg_match.group(1) or arg_match.group(2) or "").strip()
+                            if candidate:
+                                url_var = candidate
                         guard_check = (
                             f"{indent}# [TRACE FIX: SSRF ScopeGuard validation]\n"
-                            f"{indent}from trace_engine.client.scope import ScopeGuard\n"
-                            f"{indent}ScopeGuard().validate_url(target_url)\n"
+                            f"{indent}from trace_engine.policy.scope import ScopeGuard\n"
+                            f"{indent}ScopeGuard().validate_url({url_var})\n"
                             f"{line}"
                         )
                         return target, guard_check
@@ -208,8 +229,10 @@ class AutonomousRemediator:
                         indent = " " * (len(line) - len(line.lstrip()))
                         path_guard = (
                             f"{indent}# [TRACE FIX: Canonical directory boundary validation]\n"
-                            f"{indent}safe_path = os.path.abspath(filepath)\n"
-                            f"{indent}if not safe_path.startswith('/var/www/safe_root/'):\n"
+                            f"{indent}import os as _trace_os\n"
+                            f"{indent}_trace_safe_root = _trace_os.path.abspath(_trace_os.environ.get('TRACE_SAFE_ROOT', '/var/www/safe_root/'))\n"
+                            f"{indent}safe_path = _trace_os.path.abspath(filepath)\n"
+                            f"{indent}if safe_path != _trace_safe_root and not safe_path.startswith(_trace_safe_root.rstrip('/') + '/'):\n"
                             f"{indent}    raise PermissionError('Path traversal boundary violation')\n"
                             f"{line.replace('filepath', 'safe_path')}"
                         )
@@ -222,7 +245,10 @@ class AutonomousRemediator:
                 for line in lines:
                     if "Access-Control-Allow-Origin" in line and ("*" in line):
                         target = line
-                        replacement = line.replace("'*'", "'https://app.verified-domain.com'").replace('"*"', '"https://app.verified-domain.com"')
+                        replacement = (
+                            "import os as _trace_os  # [TRACE FIX: explicit CORS origin, no wildcard]\n"
+                            + line.replace("'*'", "_trace_os.environ.get('FRONTEND_URL', 'https://app.example.com')").replace('"*"', "_trace_os.environ.get('FRONTEND_URL', 'https://app.example.com')")
+                        )
                         return target, replacement
 
         # 14. Go SQL Injection Remediation
@@ -268,7 +294,7 @@ class AutonomousRemediator:
                     indent = " " * (len(line) - len(line.lstrip()))
                     guard_check = (
                         f"{indent}// [TRACE HARNESS FIX: Egress network validation against SSRF]\n"
-                        f"{indent}if strings.Contains(targetURL, \"localhost\") || strings.Contains(targetURL, \"127.0.0.1\") || strings.Contains(targetURL, \"169.254\") {{\n"
+                        f"{indent}if strings.Contains(targetURL, \"localhost\") || strings.Contains(targetURL, \"127.\") || strings.Contains(targetURL, \"169.254\") || strings.Contains(targetURL, \"10.\") || strings.Contains(targetURL, \"192.168.\") || strings.Contains(targetURL, \"172.16.\") || strings.Contains(targetURL, \"0.0.0.0\") || strings.Contains(targetURL, \"::1\") {{\n"
                         f"{indent}\tc.JSON(http.StatusForbidden, gin.H{{\"error\": \"SSRF blocked: internal destination rejected\"}})\n"
                         f"{indent}\treturn\n"
                         f"{indent}}}\n"

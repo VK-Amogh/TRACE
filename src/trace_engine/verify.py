@@ -16,6 +16,7 @@ from trace_engine.runtime.client import ScopedHttpClient
 from trace_engine.testpacks.registry import default_registry
 from trace_engine.testpacks.base import TestContext
 from trace_engine.security.hypotheses import HypothesisEngine
+from trace_engine.constants import DEFAULT_TARGET_URL, DEFAULT_TEST_TOKENS, SCAN_HTTP_TIMEOUT
 
 
 class VerificationStatus(str, Enum):
@@ -38,9 +39,15 @@ class VerificationResult(BaseModel):
 class VerificationEngine:
     """Verifies whether a source code modification actually resolved a finding."""
 
-    def __init__(self, repo_path: Path, target_url: str = "http://127.0.0.1:18080"):
+    def __init__(
+        self,
+        repo_path: Path,
+        target_url: str = DEFAULT_TARGET_URL,
+        timeout_seconds: float = SCAN_HTTP_TIMEOUT,
+    ):
         self.repo_path = repo_path.resolve()
         self.target_url = target_url
+        self.timeout_seconds = timeout_seconds
 
     def verify(self, finding_id: str) -> VerificationResult:
         store = FindingStore(self.repo_path / ".trace")
@@ -88,15 +95,16 @@ class VerificationEngine:
         # 4. Replay test pack against runtime
         scope_guard = ScopeGuard()
         scope_guard.allow_target(self.target_url)
-        client = ScopedHttpClient(scope_guard=scope_guard)
+        client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=self.timeout_seconds)
         context = TestContext(
             target_base_url=self.target_url,
-            active_tokens={"user-a": "user-a", "user-b": "user-b", "admin": "admin"},
+            active_tokens=dict(DEFAULT_TEST_TOKENS),
         )
 
         pack = default_registry.get(finding.category.lower())
         runtime_confirmed = False
         runtime_status = None
+        observations: list = []
         test_summary = "Test pack could not run."
 
         if pack:
@@ -116,8 +124,10 @@ class VerificationEngine:
                 res = pack.execute(dummy_hyp, client, context)
                 runtime_confirmed = res.confirmed
                 test_summary = res.summary
-                if res.observations:
-                    runtime_status = res.observations[0].response_status
+                observations = res.observations or []
+                nonzero = [o.response_status for o in observations if o.response_status != 0]
+                if nonzero:
+                    runtime_status = nonzero[-1]
             except Exception as e:
                 return VerificationResult(
                     finding_id=finding_id,
@@ -128,19 +138,36 @@ class VerificationEngine:
                     remediation_verified=False,
                 )
 
-        # 5. Formulate verification status
-        if not runtime_confirmed:
-            status = VerificationStatus.FIXED
-            differential = (
-                f"Remediation confirmed: Runtime test no longer reproduces exploit. "
-                f"Observation summary: {test_summary}."
-            )
-            remediation_ok = True
-        else:
+        # 5. Formulate verification status. A dead or untested target must
+        # never read as FIXED; static re-index evidence breaks ties.
+        any_reachable = any(o.response_status != 0 for o in observations)
+        if runtime_confirmed:
             status = VerificationStatus.STILL_PRESENT
             differential = (
                 f"Remediation incomplete: Exploit still succeeds at runtime. "
                 f"Observation summary: {test_summary}."
+            )
+            remediation_ok = False
+        elif pack is None or not any_reachable:
+            status = VerificationStatus.INCONCLUSIVE
+            differential = (
+                f"Cannot confirm remediation: no live probe reached the target "
+                f"({test_summary}). Static re-index "
+                f"{'still flags this hypothesis' if hyp_still_present else 'no longer flags this hypothesis'}."
+            )
+            remediation_ok = False
+        elif not hyp_still_present:
+            status = VerificationStatus.FIXED
+            differential = (
+                f"Remediation confirmed: static re-index no longer flags the flaw and "
+                f"runtime test no longer reproduces the exploit. Observation summary: {test_summary}."
+            )
+            remediation_ok = True
+        else:
+            status = VerificationStatus.INCONCLUSIVE
+            differential = (
+                f"Ambiguous: runtime test no longer reproduces the exploit, but static "
+                f"re-index still flags this hypothesis. Observation summary: {test_summary}."
             )
             remediation_ok = False
 

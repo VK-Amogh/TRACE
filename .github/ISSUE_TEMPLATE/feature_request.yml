@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose an enhancement for TRACE
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What pain point does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Suggested behavior, CLI/API shape, and scope.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Engine (ingest/parse/APM)
+        - Detection (hypotheses/fusion/testpacks)
+        - MCP / harness / verify
+        - CLI / output (SARIF/MD/HTML)
+        - Packaging / install / CI
+        - Docs / contributor experience
+  - type: textarea
+    id: alt
+    attributes:
+      label: Alternatives considered

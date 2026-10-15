@@ -40,6 +40,16 @@ def _category_to_cwe(category: str) -> Optional[str]:
     return None
 
 
+def _tool_version() -> str:
+    """Single-source driver version (falls back gracefully outside installs)."""
+    try:
+        from trace_engine import __version__
+
+        return __version__
+    except Exception:
+        return "0.0.0"
+
+
 def generate_sarif_report(
     findings: List[Finding],
     project_name: str = "TRACE Application",
@@ -57,7 +67,7 @@ def generate_sarif_report(
             rule_def: Dict[str, Any] = {
                 "id": rule_id,
                 "name": f.category.replace("-", " ").title(),
-                "shortDescription": {"text": f.title},
+                "shortDescription": {"text": f"{f.category} vulnerability detected by TRACE"},
                 "fullDescription": {"text": f"Vulnerability in {f.category} detected by TRACE neuro-symbolic engine."},
                 "defaultConfiguration": {
                     "level": _severity_to_sarif_level(f.severity),
@@ -72,7 +82,9 @@ def generate_sarif_report(
                 rule_def["helpUri"] = f"https://cwe.mitre.org/data/definitions/{cwe.replace('CWE-', '')}.html"
             rules_dict[rule_id] = rule_def
 
-        # Build physical location
+        # Build physical location. Findings without a source file fall back
+        # to the repository root: GitHub code scanning rejects locationless
+        # results, and a root-anchored result is honest about that.
         locations: List[Dict[str, Any]] = []
         if f.source_location and f.source_location.file:
             file_path = f.source_location.file
@@ -104,14 +116,32 @@ def generate_sarif_report(
                     "text": f"Vulnerable code slice at {f.endpoint}",
                 },
             })
+        else:
+            locations.append({
+                "physicalLocation": {
+                    "artifactLocation": {
+                        "uri": ".",
+                        "uriBaseId": "%SRCROOT%",
+                    },
+                    "region": {"startLine": 1},
+                },
+                "message": {
+                    "text": f"Repository-level finding at {f.endpoint}",
+                },
+            })
 
-        # Build code flows / attack path if present
+        # Build code flows / attack path if present. GitHub code scanning
+        # requires every threadFlow location to carry a physicalLocation,
+        # so each hop reuses the finding's own location; without a known
+        # file we omit codeFlows rather than emit an invalid result.
         code_flows: List[Dict[str, Any]] = []
-        if f.attack_path:
+        if f.attack_path and locations:
+            hop_physical = locations[0]["physicalLocation"]
             thread_flow_locations = []
             for hop in f.attack_path:
                 thread_flow_locations.append({
                     "location": {
+                        "physicalLocation": hop_physical,
                         "message": {"text": f"Attack hop: {hop}"},
                     }
                 })
@@ -152,7 +182,7 @@ def generate_sarif_report(
                 "tool": {
                     "driver": {
                         "name": "TRACE Security Engine",
-                        "version": "2.0.0",
+                        "version": _tool_version(),
                         "informationUri": "https://github.com/VK-Amogh/TRACE",
                         "rules": list(rules_dict.values()),
                     }
