@@ -188,7 +188,7 @@ See [`CITATION.cff`](CITATION.cff).
 ## Star history
 
 <a href="https://star-history.com/#VK-Amogh/TRACE&Date">
-  <img src="https://api.star-history.com/svg?repos=VK-Amogh/TRACE&type=Date" alt="Star history of TRACE" width="600">
+  <img src="docs/assets/star-history.svg" alt="Star history of TRACE" width="600">
 </a>
 
 ## License
