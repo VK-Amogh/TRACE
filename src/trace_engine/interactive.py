@@ -578,22 +578,23 @@ def run_interactive_story() -> None:
         f"  [{GREEN}]✓ Act III (Security Hypotheses):[/{GREEN}] [{BOLD_WHITE}]Derived {len(hypotheses)} threat hypotheses[/{BOLD_WHITE}] [{DIM_WHITE}]{engine_label}[/{DIM_WHITE}]"
     )
 
-    # Phase 4: Dynamic Exploit Probes
-    target_online = False
+    # Phase 4: Dynamic Exploit Probes (scope-validated: unauthorized targets stay offline)
+    from trace_engine.policy.scope import ScopeViolationError as _ScopeViolationError
+    from trace_engine.runtime.client import probe_target_online as _probe_online
+
+    scope_guard = ScopeGuard()
     if not is_offline:
         try:
-            import httpx
-            with httpx.Client(timeout=1.5) as chk:
-                chk.get(target_url)
-                target_online = True
-        except Exception:
-            target_online = False
+            scope_guard.allow_target(target_url)
+        except _ScopeViolationError as e:
+            console.print(f"  [{ORANGE}]• Scope policy:[/{ORANGE}] target refused ({e}). Continuing static-only.")
+    target_online = False
+    if not is_offline:
+        target_online = _probe_online(scope_guard, target_url, timeout_seconds=1.5)
 
     status_str = f"[{GREEN}]ONLINE[/{GREEN}] ({target_url})" if target_online else f"[{DIM_WHITE}]OFFLINE / STATIC-ONLY (Safe Mode)[/{DIM_WHITE}]"
     console.print(f"  [{GREEN}]• Dynamic Runtime Status:[/{GREEN}] {status_str}")
 
-    scope_guard = ScopeGuard()
-    scope_guard.allow_target(target_url)
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=4.0)
     context = TestContext(target_base_url=target_url, active_tokens={"user-a": "user-a", "user-b": "user-b", "admin": "admin"})
 

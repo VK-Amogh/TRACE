@@ -83,3 +83,27 @@ class ScopedHttpClient:
                 latency_ms=round(latency_ms, 2),
                 observation_notes=[f"Execution exception: {e}"],
             )
+
+
+def probe_target_online(
+    scope_guard: ScopeGuard,
+    url: str,
+    timeout_seconds: float = 1.5,
+) -> bool:
+    """Guarded liveness probe: validate the URL before any request is sent.
+
+    Returns True when the target answers, False when it is offline,
+    unreachable, or rejected by the scope policy. Scope rejections fail
+    safe (False) instead of raising so scan flows degrade to static-only
+    mode rather than crashing -- or fetching -- an unauthorized target.
+    """
+    try:
+        scope_guard.validate_url(url)
+    except ScopeViolationError:
+        return False
+    try:
+        with httpx.Client(timeout=timeout_seconds) as client:
+            client.get(url)
+            return True
+    except Exception:
+        return False

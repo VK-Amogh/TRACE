@@ -10,9 +10,13 @@ from trace_engine.ingest.hashing import hash_file
 class RepositoryScanner:
     """Discovers and catalogs source code files across a project directory."""
 
-    def __init__(self, repo_path: Path):
+    def __init__(
+        self,
+        repo_path: Path,
+        exclude_patterns: List[str] = None,
+    ):
         self.repo_path = repo_path.resolve()
-        self.ignore_filter = IgnoreFilter(self.repo_path)
+        self.ignore_filter = IgnoreFilter(self.repo_path, custom_patterns=exclude_patterns)
 
     def scan(self) -> List[SourceFile]:
         """Scans the repository and returns discovered source files."""
