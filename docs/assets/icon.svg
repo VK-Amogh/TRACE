@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" fill="none" shape-rendering="crispEdges">
-  <!-- Dark chip: legible on light and dark headers, both site schemes -->
+  <!-- Dark chip keeps the white mark legible on light and dark headers alike.
+       (A prefers-color-scheme query would follow the OS, not the site toggle.) -->
   <rect x="2" y="2" width="96" height="96" rx="22" fill="#0B0F17"/>
   <g transform="translate(14, 14) scale(0.72)" fill="#F8FAFC">
     <!-- Center Crosshairs -->
