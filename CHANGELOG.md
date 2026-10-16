@@ -9,6 +9,10 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - Dev-line integration branch (`dev`) for staging fork work before upstream PRs.
+- Explicit scan scopes (`--scope full|app|fixtures`) with per-finding provenance labels and honest zero-endpoint reporting.
+- ScopeGuard hardening: DNS-rebind rechecks, alt-IP/metadata blocks, port-0 rejection, register/allow separation with per-host rollback, guarded liveness probes.
+- Patcher hardening: cross-platform absolute/UNC/drive rejection, null-byte and symlink handling, backup-dir containment.
+- Hypothesis evidence gating: unsafe-SQL/template-sink requirements, stricter BFLA admin evidence, unregistered-route gate; Django decorator-method precedence and evidence-based database flags.
 
 ### Fixed
 
@@ -31,6 +35,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Explicit scan scopes (`--scope full|app|fixtures`): fixture/test trees can be excluded or isolated, with per-finding provenance labels and honest zero-endpoint reporting.
 - Canary oracles (owner-marker leaks, SSRF fetch signatures, mass-assignment persist-and-reread) and a weighted multi-signal verdict engine gating BOLA confirmations.
 - Declarative sink catalog (`security/sinks.toml` + sanitizer-aware matcher), consulted by the FastAPI adapter.
 - Chain-mode escalation (`--chain`, capped at 10 probes): harvested leaks re-injected into other routes as `TR-CHAIN` findings.

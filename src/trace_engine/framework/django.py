@@ -49,18 +49,29 @@ class DjangoFrameworkAdapter(FrameworkAdapter):
         return url_eps + deduped_views
 
     def _decorator_methods(self, parsed_file: ParsedFile) -> Dict[str, List[str]]:
-        """Map function name -> @api_view HTTP methods declared in this file."""
+        """Map function name -> @api_view HTTP methods declared in this file.
+
+        Accepts list, tuple, and single-string forms:
+        ``@api_view(['GET', 'POST'])``, ``@api_view(('GET',))``,
+        ``@api_view('GET')``.
+        """
         methods_by_fn: Dict[str, List[str]] = {}
         for fn in parsed_file.functions:
             for dec in fn.decorators:
                 dec_text = dec.raw_text.strip()
                 api_match = re.search(r"""@?api_view\s*\(\s*\[([^\]]+)\]""", dec_text, re.IGNORECASE)
-                if api_match:
-                    methods_by_fn[fn.name] = [
-                        m.strip().strip("'\"").upper()
-                        for m in api_match.group(1).split(",")
-                        if m.strip()
-                    ]
+                if api_match is None:
+                    api_match = re.search(r"""@?api_view\s*\(\s*\(([^)]+)\)""", dec_text, re.IGNORECASE)
+                if api_match is None:
+                    single = re.search(r"""@?api_view\s*\(\s*['"]([A-Za-z]+)['"]\s*\)""", dec_text, re.IGNORECASE)
+                    if single:
+                        methods_by_fn[fn.name] = [single.group(1).upper()]
+                    continue
+                methods_by_fn[fn.name] = [
+                    m.strip().strip("'\"").upper()
+                    for m in api_match.group(1).split(",")
+                    if m.strip()
+                ]
         return methods_by_fn
 
     def _handler_db_evidence(self, parsed_file: ParsedFile, handler_name: str) -> bool:

@@ -31,10 +31,18 @@ def test_testpack_registry_contains_new_packs():
         assert pack.name == pack_name
 
 
-def test_hypothesis_engine_derives_new_categories():
+def test_hypothesis_engine_derives_new_categories(tmp_path):
     engine = HypothesisEngine()
     apm = AttackPathModel()
     src = SourceLocation(file="test.py", line_start=1, line_end=5)
+    # SSTI now requires template-engine sink evidence (not just a
+    # template-ish route name); provide it via a disposable fixture file.
+    ssti_src = tmp_path / "ssti_handler.py"
+    ssti_src.write_text(
+        "from jinja2 import Template\ndef render_template(name):\n    return Template(name).render()\n",
+        encoding="utf-8",
+    )
+    ssti_loc = SourceLocation(file=str(ssti_src), line_start=1, line_end=3)
 
     endpoints = [
         Endpoint(
@@ -61,7 +69,7 @@ def test_hypothesis_engine_derives_new_categories():
             sensitive_data=False,
             database_access=False,
             external_network=False,
-            source=src,
+            source=ssti_loc,
         ),
         Endpoint(
             id="ep-cors",

@@ -213,12 +213,15 @@ class FastAPIFrameworkAdapter(FrameworkAdapter):
                         EndpointParameter(name=p, location="path", required=True)
                         for p in path_params
                     ],
-                    database_access=True,
+                    # Unknown is uncertainty, not proof of database access.
+                    database_access=False,
                     object_identifier=has_obj_id,
                     state_changing=method in ("POST", "PUT", "DELETE", "PATCH"),
                     external_network=False,
                     sensitive_data="admin" in path.lower() or "user" in path.lower() or "session" in path.lower() or "story" in path.lower(),
                     source=SourceLocation(file=parsed_file.file_path, line_start=line_no, line_end=line_no),
+                    registered=True,
+                    confidence="low",
                 )
             )
 
