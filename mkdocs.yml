@@ -6,6 +6,9 @@ repo_name: VK-Amogh/TRACE
 edit_uri: edit/main/docs/
 copyright: TRACE is released under Apache-2.0
 
+extra_css:
+  - stylesheets/extra.css
+
 theme:
   name: material
   custom_dir: overrides
@@ -62,6 +65,7 @@ nav:
   - Project:
       - FAQ: faq.md
       - Troubleshooting: troubleshooting.md
+      - Releases: releases.md
       - Changelog: changelog.md
 
 plugins:
