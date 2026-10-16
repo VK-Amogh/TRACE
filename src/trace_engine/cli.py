@@ -773,7 +773,7 @@ def test_all(
     from trace_engine.policy.scope import ScopeGuard as _ScopeGuard2
     from trace_engine.runtime.client import probe_target_online as _probe_online2
 
-    _pre_guard = _ScopeGuard(
+    _pre_guard = _ScopeGuard2(
         allowed_hosts=config.target.allowed_hosts,
         allowed_ports=config.target.allowed_ports,
         mode=config.target.scope_mode,
