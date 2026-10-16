@@ -40,6 +40,26 @@ Every command on one page: **[CLI reference](https://VK-Amogh.github.io/TRACE/cl
 AI agents start at [`AGENTS.md`](AGENTS.md) and the
 [security harness skill](https://VK-Amogh.github.io/TRACE/harness/).
 
+## Quick install
+
+Install globally in one command — runtimes and dependencies configure automatically:
+
+```bash
+# Global CLI via npm (available globally as 'trace' in any terminal)
+npm install -g trace-sec
+
+# Or instant zero-install execution via npx
+npx trace-sec
+
+# Windows PowerShell one-liner
+irm https://raw.githubusercontent.com/VK-Amogh/TRACE/main/install.ps1 | iex
+
+# macOS & Linux one-liner
+curl -fsSL https://raw.githubusercontent.com/VK-Amogh/TRACE/main/install.sh | bash
+```
+
+Once installed, simply open any terminal or CMD and type `trace` to launch!
+
 ## Agent skills
 
 Install TRACE skills into any coding agent with the
@@ -143,15 +163,13 @@ From a source checkout without installing, the `trace.bat` / `trace.cmd` /
 or the bundled fixtures (`testbed_hardcore/`, `test-repository/`, `labs/`).
 
 ## Releases
-
-TRACE ships through GitHub releases:
-
-- Pushing a `v*` tag (or publishing a release) runs `npm-publish.yml`, which
-  tests, then publishes `trace-sec` to NPM and GitHub Packages.
-- Python installs track git tags directly — there is no PyPI upload yet:
-  `pip install git+https://github.com/VK-Amogh/TRACE.git@v2.1.18`.
-- The single version source is `src/trace_engine/__init__.py:__version__`
-  (read dynamically by `pyproject.toml`). Bump it together with `package.json`.
+ 
+TRACE ships through automated GitHub Actions releases:
+ 
+- Tagging and pushing `v*` (e.g. `v2.1.19`) triggers `release.yml`, which runs
+  the full cross-OS test suite, builds attested sdist/wheel/npm packages,
+  and publishes to PyPI and npm with provenance.
+- For full details and manual dry runs, see [docs/releases.md](docs/releases.md).
 
 ## Documentation
 

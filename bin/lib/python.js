@@ -51,6 +51,42 @@ export function findSystemPython(isWin) {
   return null;
 }
 
+function hasCommand(cmd) {
+  try {
+    execSync(`${process.platform === 'win32' ? 'where' : 'command -v'} ${cmd}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find a suitable Python, installing one via the OS package manager when
+ * none exists (winget on Windows, Homebrew on macOS). Returns null when it
+ * cannot be provisioned without elevated privileges (e.g. Linux apt).
+ * Opt out with TRACE_SKIP_PYTHON_INSTALL=1.
+ */
+export function ensurePython(isWin) {
+  const found = findSystemPython(isWin);
+  if (found || process.env.TRACE_SKIP_PYTHON_INSTALL === '1') return found;
+  const [major, minor] = MIN_PYTHON;
+  try {
+    if (isWin && hasCommand('winget')) {
+      console.log(`  \x1b[38;2;255;158;59m›\x1b[0m Installing Python ${major}.12 (one-time, via winget)...`);
+      execSync(
+        `winget install -e --id Python.Python.${major}.12 --silent --scope user --accept-package-agreements --accept-source-agreements`,
+        { stdio: 'ignore' },
+      );
+    } else if (process.platform === 'darwin' && hasCommand('brew')) {
+      console.log(`  \x1b[38;2;255;158;59m›\x1b[0m Installing Python ${major}.${minor}+ (one-time, via Homebrew)...`);
+      execSync('brew install python', { stdio: 'ignore' });
+    }
+  } catch {
+    // fall through to re-detection / hint
+  }
+  return findSystemPython(isWin);
+}
+
 /**
  * Resolve a usable Python in priority order:
  * TRACE_PYTHON > dedicated venv > ./​.venv > project .venv > system.

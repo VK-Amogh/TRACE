@@ -9,6 +9,9 @@
     "trace-sec": "bin/trace.js",
     "trace-security": "bin/trace.js"
   },
+  "scripts": {
+    "postinstall": "node bin/postinstall.js"
+  },
   "files": [
     "bin",
     "src",

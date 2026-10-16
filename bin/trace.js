@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { MIN_PYTHON } from './lib/config.js';
-import { resolvePython, hasTraceDeps, installHint } from './lib/python.js';
+import { resolvePython, hasTraceDeps, installHint, ensurePython } from './lib/python.js';
 import { dedicatedPaths, ensureVenv } from './lib/venv.js';
 import { installSkills } from './lib/skills.js';
 import { parseGlobalFlags, applyFormat } from './lib/flags.js';
@@ -62,6 +62,7 @@ const { python: dedicatedPython } = dedicatedPaths(userHome, isWin);
 const reqFile = join(projectRoot, 'requirements.txt');
 
 let { bin: pythonBin } = resolvePython({ isWin, dedicatedPython, projectRoot });
+if (!pythonBin) pythonBin = ensurePython(isWin);
 
 if (!pythonBin) {
   console.error(`\n\x1b[31m\x1b[1m[TRACE ERROR]\x1b[0m Python ${minMajor}.${minMinor}+ is required to execute TRACE.`);
