@@ -92,9 +92,22 @@ class VerificationEngine:
             for h in new_hypotheses
         )
 
-        # 4. Replay test pack against runtime
+        # 4. Replay test pack against runtime (explicit operator target only;
+        #    a refused target fails safe to INCONCLUSIVE instead of probing it)
+        from trace_engine.policy.scope import ScopeViolationError
+
         scope_guard = ScopeGuard()
-        scope_guard.allow_target(self.target_url)
+        try:
+            scope_guard.allow_target(self.target_url)
+        except ScopeViolationError as e:
+            return VerificationResult(
+                finding_id=finding_id,
+                endpoint=finding.endpoint,
+                status=VerificationStatus.INCONCLUSIVE,
+                summary=f"Target refused by scope policy: {e}",
+                differential_analysis="Verification target is outside the authorized scope; no request was sent.",
+                remediation_verified=False,
+            )
         client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=self.timeout_seconds)
         context = TestContext(
             target_base_url=self.target_url,
