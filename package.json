@@ -13,6 +13,8 @@
     "bin",
     "src",
     "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
     "pyproject.toml",
     "requirements.txt",
     "!**/__pycache__",
@@ -27,8 +29,12 @@
     "url": "https://github.com/VK-Amogh/TRACE/issues"
   },
   "homepage": "https://github.com/VK-Amogh/TRACE#readme",
+  "engines": {
+    "node": ">=18"
+  },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "keywords": [
     "security",
