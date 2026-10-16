@@ -1,7 +1,7 @@
 """Django and Django REST Framework adapter for endpoint and route discovery."""
 
 import re
-from typing import List, Set, Optional
+from typing import Dict, List, Set, Optional
 from trace_engine.parsing.parser import ParsedFile
 from trace_engine.parsing.locations import SourceLocation
 from trace_engine.framework.base import FrameworkAdapter, Endpoint, EndpointParameter
@@ -24,15 +24,56 @@ class DjangoFrameworkAdapter(FrameworkAdapter):
         return False
 
     def extract_endpoints(self, parsed_file: ParsedFile, content: str) -> List[Endpoint]:
-        endpoints: List[Endpoint] = []
-
         # 1. Parse urls.py patterns: path('api/v1/orders/<int:order_id>/', views.get_order)
-        endpoints.extend(self._extract_from_urlpatterns(parsed_file, content))
+        url_eps = self._extract_from_urlpatterns(parsed_file, content)
 
         # 2. Parse views.py: Class-Based Views (APIView, View, ViewSet) and function views (@api_view)
-        endpoints.extend(self._extract_from_views(parsed_file, content))
+        #    These are low-confidence inventory only: a decorated function is
+        #    not proof of a registered route.
+        view_eps = self._extract_from_views(parsed_file, content)
+        for ep in view_eps:
+            ep.registered = False
+            ep.confidence = "low"
 
-        return endpoints
+        # 3. Prefer real registrations: drop inferred endpoints whose handler
+        #    is referenced by a URL-pattern endpoint in the same file.
+        referenced = set()
+        for ep in url_eps:
+            referenced.add(ep.handler_name.split(".")[-1].replace("()", ""))
+            referenced.add(ep.handler_name)
+        deduped_views = [
+            ep for ep in view_eps
+            if ep.handler_name not in referenced
+            and ep.handler_name.split(".")[-1] not in referenced
+        ]
+        return url_eps + deduped_views
+
+    def _decorator_methods(self, parsed_file: ParsedFile) -> Dict[str, List[str]]:
+        """Map function name -> @api_view HTTP methods declared in this file."""
+        methods_by_fn: Dict[str, List[str]] = {}
+        for fn in parsed_file.functions:
+            for dec in fn.decorators:
+                dec_text = dec.raw_text.strip()
+                api_match = re.search(r"""@?api_view\s*\(\s*\[([^\]]+)\]""", dec_text, re.IGNORECASE)
+                if api_match:
+                    methods_by_fn[fn.name] = [
+                        m.strip().strip("'\"").upper()
+                        for m in api_match.group(1).split(",")
+                        if m.strip()
+                    ]
+        return methods_by_fn
+
+    def _handler_db_evidence(self, parsed_file: ParsedFile, handler_name: str) -> bool:
+        """Database evidence from the referenced handler's own body (same file)."""
+        short = handler_name.split(".")[-1].replace("()", "")
+        for fn in parsed_file.functions:
+            if fn.name == short or fn.qualified_name == handler_name:
+                body = (fn.body_text or "").lower()
+                return any(
+                    term in body
+                    for term in ("objects.", "filter(", ".raw(", "execute(", "raw_sql", "db.")
+                )
+        return False
 
     def _extract_from_urlpatterns(self, parsed_file: ParsedFile, content: str) -> List[Endpoint]:
         endpoints: List[Endpoint] = []
@@ -57,10 +98,21 @@ class DjangoFrameworkAdapter(FrameworkAdapter):
             clean_path = re.sub(r"[\^\$\?]+", "", clean_path).rstrip("/")
             norm_path = clean_path if clean_path.startswith("/") else f"/{clean_path}"
 
-            # Infer methods: standard Django views typically handle GET or POST
+            # Prefer the handler's own @api_view declaration (same file) over
+            # name guessing; fall back to a conservative GET default marked
+            # medium confidence when the name gives no method signal.
             methods = ["GET"]
-            if any(term in handler_name.lower() for term in ("create", "delete", "update", "post", "mutation", "reset", "patch")):
+            method_confidence = "high"
+            decorator_methods = self._decorator_methods(parsed_file)
+            short_handler = handler_name.split(".")[-1].replace("()", "")
+            if short_handler in decorator_methods:
+                methods = decorator_methods[short_handler]
+            elif handler_name in decorator_methods:
+                methods = decorator_methods[handler_name]
+            elif any(term in handler_name.lower() for term in ("create", "delete", "update", "post", "mutation", "reset", "patch")):
                 methods = ["POST"]
+            else:
+                method_confidence = "medium"
 
             auth_required = any(
                 term in content.lower()
@@ -71,6 +123,7 @@ class DjangoFrameworkAdapter(FrameworkAdapter):
             line_no = content[: match.start()].count("\n") + 1
             src_loc = SourceLocation(file=parsed_file.file_path, line_start=line_no, line_end=line_no, column_start=0, column_end=0)
 
+            db_evidence = self._handler_db_evidence(parsed_file, handler_name)
             for m in methods:
                 ep_id = f"ep_django_{parsed_file.file_path}_{handler_name}_{m}".replace("/", "_").replace(".", "_")
                 endpoints.append(
@@ -85,12 +138,15 @@ class DjangoFrameworkAdapter(FrameworkAdapter):
                             EndpointParameter(name=p, location="path", required=True)
                             for p in path_params
                         ],
-                        database_access=True,  # Django views almost universally access ORM models
+                        # Evidence-based: unknown is False (uncertainty), not proof.
+                        database_access=db_evidence,
                         object_identifier=bool(path_params),
                         state_changing=m in ("POST", "PUT", "DELETE", "PATCH"),
                         external_network=False,
                         sensitive_data="admin" in norm_path.lower() or "auth" in norm_path.lower() or "user" in norm_path.lower(),
                         source=src_loc,
+                        registered=True,
+                        confidence=method_confidence,
                     )
                 )
 
