@@ -14,6 +14,7 @@ import sys
 import gzip
 import time
 import json
+import shutil
 import zipfile
 import logging
 from pathlib import Path

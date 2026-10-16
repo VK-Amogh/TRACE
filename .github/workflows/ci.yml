@@ -47,11 +47,15 @@ jobs:
       - name: "Syntax check (compileall)"
         run: python -m compileall -q src tests
 
-      - name: "Lint (ruff, non-blocking on first rollout)"
+      - name: "Lint - correctness (blocking: syntax errors, undefined names)"
+        shell: bash
+        run: ruff check src tests scripts --select E9,F63,F7,F82
+
+      - name: "Lint - style (advisory)"
         shell: bash
         run: |
-          ruff check src tests || echo "::warning::ruff found issues"
-          ruff format --check src tests || echo "::warning::ruff format drift"
+          ruff check src tests scripts || echo "::warning::ruff style findings (advisory)"
+          ruff format --check src tests scripts || echo "::warning::ruff format drift (advisory)"
 
       - name: "Run pytest (lite, no model downloads)"
         run: python -m pytest tests/ -q -rf

@@ -186,6 +186,8 @@ def run_architecture_guide() -> None:
         console.print(f"  [{DIM_GREEN}]{'─' * 76}[/{DIM_GREEN}]")
 
         if q_choice == "1":
+            import trace_engine
+
             curr_ver = getattr(trace_engine, "__version__", "0.0.0")
             console.print(f"  [{GREEN}]Q1: What actually is TRACE?[/{GREEN}]\n")
             console.print(f"  [{BOLD_WHITE}]Threat Reconnaissance & Attack-path Correlation Engine (TRACE v{curr_ver})[/{BOLD_WHITE}]")
@@ -684,6 +686,8 @@ def run_interactive_story() -> None:
             matched = next((f for f in findings if f.id.lower() == f_id.lower()), None)
             if matched:
                 console.print()
+                from trace_engine.output.terminal import print_finding_detail
+
                 print_finding_detail(matched)
             else:
                 console.print(f"  [{ORANGE}]Finding '{f_id}' not found.[/{ORANGE}]")
