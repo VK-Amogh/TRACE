@@ -5,11 +5,9 @@ description: TRACE audits any backend in under a second on local CPU, correlates
 
 # TRACE
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-wordmark-dark.svg">
-    <img src="assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="420">
-  </picture>
+<p align="center" class="trace-hero">
+  <img class="trace-logo-light" src="assets/logo-wordmark.svg" alt="TRACE — Security radar for agents" width="420">
+  <img class="trace-logo-dark" src="assets/logo-wordmark-dark.svg" alt="TRACE — Security radar for agents" width="420">
 </p>
 
 TRACE reads a backend repository and tells you, in under a second and

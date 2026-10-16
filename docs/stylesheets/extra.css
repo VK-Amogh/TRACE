@@ -1,0 +1,15 @@
+/* TRACE docs extras: theme-aware hero logo.
+   Material's palette toggle is independent of the OS color scheme, so the
+   hero swaps on [data-md-color-scheme] instead of prefers-color-scheme. */
+
+.trace-hero .trace-logo-dark {
+  display: none;
+}
+
+[data-md-color-scheme="slate"] .trace-hero .trace-logo-light {
+  display: none;
+}
+
+[data-md-color-scheme="slate"] .trace-hero .trace-logo-dark {
+  display: inline;
+}
