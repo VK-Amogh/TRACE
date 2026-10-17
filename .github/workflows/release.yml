@@ -148,15 +148,21 @@ jobs:
       name: release
       url: https://pypi.org/project/trace-sec/
     permissions:
+      # Mandatory for OIDC trusted publishing to PyPI.
       id-token: write
+      contents: read
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: python-dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - name: "Publish to PyPI (OIDC trusted publishing, or PYPI_API_TOKEN)"
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # Empty password => the action uses OIDC trusted publishing instead.
+          # Token takes precedence when set; otherwise OIDC is used.
+          # Configure the PyPI trusted publisher as:
+          #   owner: VK-Amogh, repo: TRACE,
+          #   workflow: release.yml, environment: release.
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
 
@@ -170,32 +176,36 @@ jobs:
       name: release
       url: https://www.npmjs.com/package/trace-sec
     permissions:
+      # OIDC trusted publishing to npm needs id-token; attestations
+      # need contents + the package.json provenance flag (already set).
       contents: read
       id-token: write
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: false
       - uses: actions/setup-node@v4
         with:
+          # OIDC trusted publishing requires npm >= 11.5.1.
           node-version: "20.x"
           registry-url: "https://registry.npmjs.org"
-      - name: "Publish (skipped when NPM_TOKEN is not configured)"
+      - name: "Update npm for OIDC support"
+        run: npm install -g "npm@>=11.5.1"
+      - name: "Publish to npm (OIDC trusted publishing, or NPM_TOKEN)"
         run: |
-          if [ -z "${NPM_TOKEN}" ]; then
-            echo "::warning::NPM_TOKEN not configured - skipping npm publish."
-            exit 0
-          fi
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "trace-sec@${VERSION}" version >/dev/null 2>&1; then
-            echo "trace-sec@${VERSION} already on npm - skipping."
+          if npm view "trace-sec@$(node -p "require('./package.json').version)" version >/dev/null 2>&1; then
+            echo "trace-sec@$(node -p "require('./package.json').version") already on npm - skipping."
             exit 0
           fi
           TAG=latest
-          case "${VERSION}" in *-*) TAG=next ;; esac
-          npm publish --access public --provenance --tag "${TAG}"
+          case "$(node -p "require('./package.json').version")" in *-*) TAG=next ;; esac
+          if [ -n "${NPM_TOKEN}" ]; then
+            echo "NPM_TOKEN is set - publishing with token auth."
+            npm publish --access public --provenance --tag "${TAG}"
+          else
+            echo "NPM_TOKEN unset - publishing with OIDC trusted publishing."
+            npm publish --access public --provenance --tag "${TAG}"
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
