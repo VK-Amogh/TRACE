@@ -7,7 +7,7 @@ One version, two manifests: `src/trace_engine/__init__.py:__version__` and
 `CHANGELOG.md` `[Unreleased]` section into the new version:
 
 ```bash
-python scripts/release_tools.py bump 2.2.1
+python scripts/release_tools.py bump 2.2.2
 python scripts/release_tools.py check          # manifests and skills agree
 ```
 
@@ -15,7 +15,7 @@ python scripts/release_tools.py check          # manifests and skills agree
 fails when any skill drifts, so the skills published inside the npm package
 and the wheel always match the tool version.
 
-Versions follow [SemVer](https://semver.org/). A suffix such as `2.2.0-rc1`
+Versions follow [SemVer](https://semver.org/). A suffix such as `2.2.2-rc1`
 publishes as a GitHub pre-release and under the npm `next` tag.
 
 ## Cutting a release
@@ -24,8 +24,8 @@ publishes as a GitHub pre-release and under the npm `next` tag.
 2. Tag and push:
 
    ```bash
-   git tag v2.2.0
-   git push origin v2.2.0
+   git tag v2.2.2
+   git push origin v2.2.2
    ```
 
 3. Approve the run in the `release` environment when GitHub asks.
@@ -89,7 +89,7 @@ above applies with the fork substituted for `origin`:
 2. Tag the commit on the fork's `main` and push the tag there:
 
    ```bash
-   git push origin v2.2.0
+   git push origin v2.2.2
    ```
 
 3. If the tag is pushed before secrets exist, delete and re-push it — publish
