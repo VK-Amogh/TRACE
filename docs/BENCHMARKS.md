@@ -1,6 +1,6 @@
 # TRACE Performance Benchmark & System Latency Scorecard
 **Empirical Verification & Hardware Telemetry Report**  
-*Threat Reconnaissance & Attack-path Correlation Engine (TRACE v2.1.18)*
+*Threat Reconnaissance & Attack-path Correlation Engine (TRACE v2.2.0)*
 
 ---
 
@@ -164,7 +164,7 @@ TRACE's Dual-Ground-Truth Triangulation requires:
 
 ## 7. Head-to-Head Comparison
 
-| Capability | **TRACE v2.1.18** | **Snyk / SonarQube** | **Semgrep / Bandit** | **LLM Agents Alone** |
+| Capability | **TRACE v2.2.0** | **Snyk / SonarQube** | **Semgrep / Bandit** | **LLM Agents Alone** |
 |---|---|---|---|---|
 | **Scan Speed** | **0.016s – 0.26s** | 30s – 120s | 5s – 20s | 45s – 180s |
 | **Cost Per Scan** | **$0.00** | Paid Tier / SaaS | Freemium / License | $0.20 – $1.50 (tokens) |
