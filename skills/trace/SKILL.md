@@ -5,7 +5,7 @@ license: Apache-2.0
 compatibility: Needs Node 18+ (or Python 3.11+ with pip). TRACE installs and configures itself on first use; live probes need the app running on localhost.
 metadata:
   author: TRACE Core Team
-  version: "2.2.1"
+  version: "2.2.2"
 ---
 
 # TRACE: set up, configure, run

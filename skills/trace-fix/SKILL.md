@@ -5,7 +5,7 @@ license: Apache-2.0
 compatibility: Needs TRACE findings (get them with the trace skill). Verification needs the app running locally. Patterns cover Python, Node, Java, Go and more.
 metadata:
   author: TRACE Core Team
-  version: "2.2.1"
+  version: "2.2.2"
 ---
 
 # TRACE fix: what to do with findings

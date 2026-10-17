@@ -531,7 +531,7 @@ def run_interactive_story() -> None:
     model_metrics: Dict[str, Any] = {}
     act3_status = "Evaluating SecureBERT 2.0 & Laya System 1 Neural Models..." if models_ready else "Evaluating Security Hypotheses with AST Semantic Engine..."
     with console.status(f"  [{GREEN}]Act III:[/{GREEN}] [{WHITE}]{act3_status}[/{WHITE}]", spinner="dots"):
-        engine = HypothesisEngine()
+        engine = HypothesisEngine(root=project_dir)
         all_hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
 
         if selected_packs:

@@ -284,6 +284,10 @@ class TraceMCPServer:
                         "endpoint": f.endpoint,
                         "short_action": f.short_action,
                         "source": str(f.source_location) if f.source_location else None,
+                        "fingerprint": f.fingerprint,
+                        "priority_score": f.priority_score,
+                        "priority_tier": f.priority_tier,
+                        "cwe": f.cwe,
                     }
                     for f in page
                 ],
@@ -318,6 +322,12 @@ class TraceMCPServer:
                 "attack_path": finding.attack_path,
                 "root_cause": finding.root_cause,
                 "short_action": finding.short_action,
+                "fingerprint": finding.fingerprint,
+                "priority_score": finding.priority_score,
+                "priority_tier": finding.priority_tier,
+                "score_factors": finding.score_factors,
+                "cwe": finding.cwe,
+                "owasp": finding.owasp,
                 "static_evidence": _preview(finding.static_evidence),
                 "runtime_evidence": _preview(finding.runtime_evidence),
                 "correlation_notes": finding.correlation_notes,
@@ -390,7 +400,7 @@ class TraceMCPServer:
             builder = APMBuilder(project_name=repo_path.name)
             apm = builder.build(repo_path, source_files, parsed_files, discovered_endpoints)
 
-            engine = HypothesisEngine()
+            engine = HypothesisEngine(root=repo_path)
             hypotheses = engine.derive_hypotheses(apm, discovered_endpoints)
 
             client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=SCAN_HTTP_TIMEOUT)

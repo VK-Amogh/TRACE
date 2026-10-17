@@ -348,7 +348,7 @@ def analyze(
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
 
-    engine = HypothesisEngine()
+    engine = HypothesisEngine(root=project_dir)
     hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
 
     console.print()
@@ -385,7 +385,7 @@ def test(
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
 
-    engine = HypothesisEngine()
+    engine = HypothesisEngine(root=project_dir)
     hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
 
     # Setup ScopedHttpClient
@@ -469,20 +469,195 @@ def test(
     console.print(f"[dim]Total findings identified: {len(findings)} (Saved to {trace_dir / 'findings.json'})[/dim]\n")
 
 
+def _checks_run(secrets: bool, cve: bool, iac: bool) -> List[str]:
+    return [name for name, on in (("secrets", secrets), ("cve", cve), ("iac", iac)) if on]
+
+
+def _extra_checks(secrets, cve, iac, detectors, all_checks, sarif_in):
+    from trace_engine.service import ExtraChecks
+
+    if all_checks:
+        return ExtraChecks.all_checks(sarif_in=list(sarif_in or []))
+    return ExtraChecks(
+        secrets=secrets, cve=cve, iac=iac, detectors=detectors, sarif_in=list(sarif_in or [])
+    )
+
+
+def _runtime_setup(config, trace_dir, target, discovery, *, max_requests, stateful, probing=True):
+    """Validate ``target`` against ScopeGuard, then build client, context and evidence log."""
+    from types import SimpleNamespace
+
+    from trace_engine.config.identities import build_context
+    from trace_engine.policy.scope import ScopeViolationError
+    from trace_engine.runtime.client import probe_target_online
+    from trace_engine.runtime.evidence import EvidenceLog
+    from trace_engine.runtime.soft404 import probe_catch_all
+
+    scope_guard = ScopeGuard(
+        allowed_hosts=config.target.allowed_hosts,
+        allowed_ports=config.target.allowed_ports,
+        mode=config.target.scope_mode,
+    )
+    online = False
+    try:
+        scope_guard.allow_target(target)
+    except ScopeViolationError as e:
+        progress_console.print(f"  [yellow]Scope policy:[/yellow] target {target} refused ({e}). Continuing static-only.")
+    else:
+        online = bool(probing) and probe_target_online(scope_guard, target, timeout_seconds=1.5)
+    if online:
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({target}) - executing active test packs")
+    else:
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({target}) - static boundary correlation")
+
+    evidence = EvidenceLog(trace_dir / "evidence")
+    budget = max_requests if max_requests is not None else config.runtime.max_requests
+    client = ScopedHttpClient(
+        scope_guard=scope_guard,
+        timeout_seconds=config.runtime.timeout_seconds,
+        max_requests=budget,
+        recorder=evidence.record,
+    )
+    context, warnings = build_context(target, config)
+    for w in warnings:
+        progress_console.print(f"  [yellow]Identity:[/yellow] {w}")
+    context.stateful = bool(stateful)
+    context.api_hints = dict(discovery.spec.hints) if discovery.spec else {}
+    catch_all = probe_catch_all(client, target) if online else None
+    if catch_all is not None:
+        progress_console.print("  [yellow]Catch-all target:[/yellow] unknown paths answer 2xx; confirmations that match that page are discounted.")
+    return SimpleNamespace(online=online, client=client, context=context, evidence=evidence, catch_all=catch_all)
+
+
+def _prune_evidence(trace_dir: Path, keep: int = 20) -> None:
+    try:
+        files = sorted((trace_dir / "evidence").glob("*.jsonl"))
+        for old in files[:-keep]:
+            old.unlink()
+    except OSError:
+        pass
+
+
+def _print_dry_run(hypotheses, target: str) -> None:
+    from rich.table import Table
+
+    from trace_engine.service import plan_probes
+
+    plan = plan_probes(hypotheses)
+    table = Table(title="Planned probes (nothing is sent in --dry-run)", show_lines=False)
+    for col in ("Hypothesis", "Category", "Pack", "Endpoint", "Max requests"):
+        table.add_column(col)
+    for item in plan:
+        table.add_row(item.hypothesis, item.category, item.pack, item.endpoint, str(item.max_requests))
+    console.print(table)
+    total = sum(i.max_requests for i in plan)
+    console.print(f"[bold]{len(plan)}[/bold] probe(s) against [white]{target}[/white], up to [bold]{total}[/bold] request(s). Nothing was sent.\n")
+
+
+def _print_final_notes(final, discovery, evidence=None, outcome=None) -> None:
+    for note in list(discovery.notes) + list(final.notes) + list(getattr(outcome, "notes", []) or []):
+        progress_console.print(f"  [yellow]Note:[/yellow] {note}")
+    if final.suppressed:
+        progress_console.print(f"  [dim]• Suppressed:[/dim] {len(final.suppressed)} finding(s) via .trace-suppress.toml")
+    if final.diff is not None:
+        s = final.diff.summary()
+        progress_console.print(
+            f"  [dim]• Baseline:[/dim] [bold red]{s['new']} new[/bold red], {s['persisted']} persisted, "
+            f"[bold green]{s['resolved']} resolved[/bold green]"
+        )
+    if discovery.inventory and (discovery.inventory.get("documented_not_in_code") or discovery.inventory.get("in_code_not_documented")):
+        inv = discovery.inventory
+        progress_console.print(
+            f"  [dim]• API inventory:[/dim] {len(inv.get('documented_not_in_code', []))} documented route(s) not found in code, "
+            f"{len(inv.get('in_code_not_documented', []))} code route(s) missing from the spec"
+        )
+        for m in inv.get("auth_mismatch", [])[:3]:
+            progress_console.print(f"    [yellow]auth mismatch:[/yellow] {m}")
+    if evidence is not None and evidence.count:
+        progress_console.print(f"  [dim]• Evidence log:[/dim] {evidence.path} ({evidence.count} request(s), credentials redacted)")
+
+
+def _write_formatted(fmt, output, findings, *, project_dir, scope_result, endpoints_count, checks_run, blocking):
+    """Emit sarif/json/markdown/junit output. Returns False when the table view should be used."""
+    import json
+
+    from trace_engine.output.junit import generate_junit_report
+    from trace_engine.output.markdown import generate_markdown_report
+    from trace_engine.output.sarif import generate_sarif_report
+
+    fmt = (fmt or "table").lower()
+    out_s = str(output) if output else ""
+    if fmt == "sarif" or out_s.endswith(".sarif"):
+        payload = json.dumps(generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir)), indent=2)
+        label = "OASIS SARIF v2.1.0 report"
+        as_json = True
+    elif fmt == "json" or out_s.endswith(".json"):
+        payload = json.dumps([f.model_dump() for f in findings], indent=2, default=str)
+        label = "JSON findings"
+        as_json = True
+    elif fmt == "junit" or out_s.endswith(".xml"):
+        payload = generate_junit_report(findings, project_name=project_dir.name, blocking=blocking or None)
+        label = "JUnit report"
+        as_json = False
+    elif fmt == "markdown" or out_s.endswith(".md"):
+        payload = generate_markdown_report(
+            findings, project_name=project_dir.name, scope_summary=scope_result,
+            endpoints_count=endpoints_count, checks_run=checks_run,
+        )
+        label = "Markdown report"
+        as_json = False
+    else:
+        return False
+    if output:
+        out_path = Path(output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(payload, encoding="utf-8")
+        progress_console.print(f"[bold green]{label} exported:[/bold green] [white]{out_path}[/white]\n")
+    elif as_json:
+        console.print_json(payload)
+    else:
+        console.print(payload, markup=False, highlight=False, soft_wrap=True)
+    return True
+
+
+def _gate_or_exit(final, fail_on) -> None:
+    if not final.blocking:
+        return
+    top = ", ".join(f"{f.id} ({f.severity.value}/{f.confidence.value})" for f in final.blocking[:5])
+    more = f" and {len(final.blocking) - 5} more" if len(final.blocking) > 5 else ""
+    progress_console.print(
+        f"\n[bold red]Gate failed:[/bold red] {len(final.blocking)} finding(s) at or above {fail_on.upper()}: {top}{more}"
+    )
+    raise typer.Exit(code=1)
+
+
 @app.command()
 def scan(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
     target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
-    format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
+    format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, sarif, or junit"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
     chain: bool = typer.Option(True, "--chain/--no-chain", help="Re-inject harvested leaks into other routes (bounded)"),
     models: bool = typer.Option(True, "--models/--no-models", help="Check and provision AI intelligence models (Laya System 1 & SecureBERT 2.0) before scanning"),
     scope: str = typer.Option("full", "--scope", help="Scan scope: full (everything), app (exclude fixture/test dirs), fixtures (fixtures only)"),
+    spec: Optional[Path] = typer.Option(None, "--spec", help="OpenAPI/Swagger file (auto-detected in the repo root or docs/ when omitted)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the probes that would be sent; send and save nothing"),
+    stateful: bool = typer.Option(False, "--stateful", help="Let probes create and delete their own test data on the local target"),
+    max_requests: Optional[int] = typer.Option(None, "--max-requests", help="Cap on probe requests (default: [runtime] max_requests)"),
+    secrets: bool = typer.Option(False, "--secrets", help="Also scan repository files for hardcoded secrets"),
+    cve: bool = typer.Option(False, "--cve", help="Also check pinned dependencies against OSV advisories (contacts api.osv.dev)"),
+    iac: bool = typer.Option(False, "--iac", help="Also check Dockerfile, Compose, CI workflow, Terraform and Kubernetes config"),
+    detectors: bool = typer.Option(False, "--detectors", help="Also run JWT, TLS, debug-flag and open-redirect detectors"),
+    all_checks: bool = typer.Option(False, "--all-checks", help="Enable --secrets --cve --iac --detectors"),
+    sarif_in: Optional[List[Path]] = typer.Option(None, "--sarif-in", help="SARIF from another analyzer to fold in (repeatable)"),
+    suppress: bool = typer.Option(True, "--suppress/--no-suppress", help="Apply .trace-suppress.toml"),
+    baseline: Optional[Path] = typer.Option(None, "--baseline", help="Previous findings JSON; report new/persisted/resolved findings"),
+    fail_on: Optional[str] = typer.Option(None, "--fail-on", help="Exit 1 when findings at/above this severity exist (new ones only with --baseline)"),
+    fail_confidence: str = typer.Option("medium", "--fail-confidence", help="Minimum confidence counted by --fail-on"),
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
     import time
-    from trace_engine.output.markdown import generate_markdown_report
-    from trace_engine.output.sarif import generate_sarif_report
+    from trace_engine import service
 
     t_start = time.perf_counter()
     project_dir = path.resolve()
@@ -500,25 +675,18 @@ def scan(
     t_stage = time.perf_counter()
     scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
     source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
-    parsed_files = []
-    discovered_endpoints = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
-
-    progress_console.print(f"  [dim]✓ Ingestion:[/dim] {len(source_files)} files, {len(discovered_endpoints)} endpoints discovered [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    discovery = service.discover(project_dir, source_files, spec=spec)
+    discovered_endpoints = discovery.endpoints
+    skipped = sum(scanner.skipped_by_language.values())
+    skipped_note = f" [dim](skipped {skipped} non-code files)[/dim]" if skipped else ""
+    progress_console.print(f"  [dim]✓ Ingestion:[/dim] {len(source_files)} files, {len(discovered_endpoints)} endpoints discovered{skipped_note} [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    if discovery.spec:
+        progress_console.print(f"  [dim]✓ API Spec:[/dim] {discovery.spec.path} ({len(discovery.spec.endpoints)} operations)")
     t_stage = time.perf_counter()
 
     # 2. Attack-Path Model
     builder = APMBuilder(project_name=project_dir.name)
-    graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
+    graph_model = builder.build(project_dir, source_files, discovery.parsed_files, discovered_endpoints)
     trace_dir = init_trace_dir(project_dir)
     save_apm_sqlite(graph_model, trace_dir / "graph.db")
     progress_console.print(f"  [dim]✓ Attack-Path Model:[/dim] {graph_model.graph.number_of_nodes()} nodes, {graph_model.graph.number_of_edges()} edges [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
@@ -530,63 +698,41 @@ def scan(
     if choke:
         top = ", ".join(f"{c['label']} ({c['betweenness']})" for c in choke[:3])
         progress_console.print(f"  [dim]✓ Choke Points:[/dim] fix these first — [white]{top}[/white]")
+    try:
+        mitigation = graph_model.mitigation_plan(limit=3)
+    except Exception:
+        mitigation = {"fixes": [], "total_paths": 0}
+    if mitigation["fixes"]:
+        best = mitigation["fixes"][0]
+        progress_console.print(
+            f"  [dim]✓ Best Single Fix:[/dim] [white]{best['label']}[/white] removes {best['paths_removed']} of {mitigation['total_paths']} attack paths"
+        )
 
     # 3. Hypotheses
-    engine = HypothesisEngine()
-    hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
+    engine = HypothesisEngine(root=project_dir)
+    hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints, include_runtime_checks=True)
     progress_console.print(f"  [dim]✓ Security Hypotheses:[/dim] {len(hypotheses)} derived attack hypotheses [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
     t_stage = time.perf_counter()
 
+    if dry_run:
+        _print_dry_run(hypotheses, target)
+        return
+
     # 4. Runtime Validation
-    from trace_engine.policy.scope import ScopeViolationError
-
-    scope_guard = ScopeGuard(
-        allowed_hosts=config.target.allowed_hosts,
-        allowed_ports=config.target.allowed_ports,
-        mode=config.target.scope_mode,
+    rt = _runtime_setup(config, trace_dir, target, discovery, max_requests=max_requests, stateful=stateful)
+    outcome = service.run_probes(
+        hypotheses, graph_model, rt.client, rt.context, online=rt.online, catch_all=rt.catch_all
     )
-    try:
-        scope_guard.allow_target(target)
-    except ScopeViolationError as e:
-        progress_console.print(f"  [yellow]Scope policy:[/yellow] target {target} refused ({e}). Continuing static-only.")
-
-    from trace_engine.runtime.client import probe_target_online
-    target_online = probe_target_online(scope_guard, target, timeout_seconds=1.5)
-    if target_online:
-        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({target}) - executing active test packs")
-    else:
-        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({target}) - static boundary correlation")
-
-    client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
-    context = TestContext(
-        target_base_url=target,
-        active_tokens={"user-a": "user-a", "user-b": "user-b", "admin": "admin"},
-    )
-
-    correlator = EvidenceCorrelator()
-    findings: List[Finding] = []
-
-    for hyp in hypotheses:
-        pack = default_registry.get(hyp.recommended_test_pack)
-        test_res = None
-        if pack and target_online:
-            try:
-                test_res = pack.execute(hyp, client, context)
-            except Exception:
-                test_res = None
-
-        finding = correlator.correlate(hyp, test_res, graph_model)
-        if finding:
-            findings.append(finding)
+    findings: List[Finding] = list(outcome.findings)
 
     # 4b. Chain-mode escalation: re-inject harvested leaks into other routes.
-    if chain and findings and target_online:
+    if chain and findings and rt.online and not outcome.budget_exhausted:
         from trace_engine.testpacks.chain import escalate_chains
         from trace_engine.findings.model import Severity, FindingConfidence
 
         try:
             routes = [(ep.method, ep.path) for ep in discovered_endpoints]
-            chained = escalate_chains(routes, findings, client, context)
+            chained = escalate_chains(routes, findings, rt.client, rt.context)
             for i, hit in enumerate(chained, start=1):
                 findings.append(
                     Finding(
@@ -618,62 +764,29 @@ def scan(
         except Exception:
             pass
 
-    # 5. Persist Findings
-    store = FindingStore(trace_dir)
-    store.save_findings(findings)
+    # 5. Opt-in analyzers, suppression, baseline, persistence
+    extras = _extra_checks(secrets, cve, iac, detectors, all_checks, sarif_in)
+    final = service.finalize(
+        findings, project_dir, discovery, extras=extras, suppress=suppress, baseline=baseline,
+        fail_on=fail_on, fail_confidence=fail_confidence,
+    )
+    service.persist(project_dir, trace_dir, final)
+    _prune_evidence(trace_dir)
+    active = final.active
 
-    try:
-        root_trace = Path(".trace")
-        root_trace.mkdir(parents=True, exist_ok=True)
-        (root_trace / "last_scan_repo.txt").write_text(str(project_dir), encoding="utf-8")
-        if project_dir != Path(".").resolve():
-            root_store = FindingStore(root_trace)
-            root_store.save_findings(findings)
-    except Exception:
-        pass
+    progress_console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(active)}[/bold white] correlated findings [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]\n")
+    _print_final_notes(final, discovery, rt.evidence, outcome)
 
-    progress_console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]\n")
-    
-    if format.lower() == "sarif" or (output and str(output).endswith(".sarif")):
-        sarif_payload = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
-        import json
-        if output:
-            out_path = output
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(json.dumps(sarif_payload, indent=2), encoding="utf-8")
-            progress_console.print(f"[bold green]OASIS SARIF v2.1.0 report exported:[/bold green] [white]{out_path}[/white]\n")
-        else:
-            # No file requested: SARIF goes to stdout for pipes (`trace scan --format sarif | ...`).
-            console.print_json(json.dumps(sarif_payload))
-    elif format.lower() == "json" or (output and str(output).endswith(".json")):
-        import json
-        payload = [f.model_dump() for f in findings]
-        if output:
-            out_path = output
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-            progress_console.print(f"[bold green]JSON findings exported:[/bold green] [white]{out_path}[/white]\n")
-        else:
-            console.print_json(json.dumps(payload, default=str))
-    elif format.lower() == "markdown" or (output and str(output).endswith(".md")):
-        md = generate_markdown_report(
-            findings,
-            project_name=project_dir.name,
-            scope_summary=scope_result,
-            endpoints_count=len(discovered_endpoints),
-        )
-        if output:
-            out_path = output
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_text(md, encoding="utf-8")
-            progress_console.print(f"[bold green]Markdown report exported:[/bold green] [white]{out_path}[/white]\n")
-        else:
-            console.print(md)
-    else:
-        print_findings_table(findings, scope_profile=scope, endpoints_count=len(discovered_endpoints))
+    checks_run = _checks_run(extras.secrets, extras.cve, extras.iac)
+    if not _write_formatted(
+        format, output, active, project_dir=project_dir, scope_result=scope_result,
+        endpoints_count=len(discovered_endpoints), checks_run=checks_run, blocking=final.blocking,
+    ):
+        print_findings_table(active, scope_profile=scope, endpoints_count=len(discovered_endpoints))
 
     progress_console.print(f"  [dim]Total scan time:[/dim] [bold white]{time.perf_counter() - t_start:.2f}s[/bold white]")
     _maybe_update_notice(format)
+    _gate_or_exit(final, fail_on or "")
 
 
 def _maybe_update_notice(format: str, prompt_update: bool = False) -> None:
@@ -712,16 +825,29 @@ def _maybe_update_notice(format: str, prompt_update: bool = False) -> None:
 def test_all(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
     target: Optional[str] = typer.Option(None, "--target", "-t", help="Target runtime URL (must be localhost or authorized lab)"),
-    format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json"),
+    format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, sarif, or junit"),
     models: bool = typer.Option(True, "--models/--no-models", help="Run AI intelligence models (Laya System 1 & SecureBERT 2.0)"),
     scope: str = typer.Option("full", "--scope", help="Scan scope: full (everything), app (exclude fixture/test dirs), fixtures (fixtures only)"),
+    spec: Optional[Path] = typer.Option(None, "--spec", help="OpenAPI/Swagger file (auto-detected in the repo root or docs/ when omitted)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the probes that would be sent; send and save nothing"),
+    stateful: bool = typer.Option(False, "--stateful", help="Let probes create and delete their own test data on the local target"),
+    max_requests: Optional[int] = typer.Option(None, "--max-requests", help="Cap on probe requests (default: [runtime] max_requests)"),
+    secrets: bool = typer.Option(False, "--secrets", help="Also scan repository files for hardcoded secrets"),
+    cve: bool = typer.Option(False, "--cve", help="Also check pinned dependencies against OSV advisories (contacts api.osv.dev)"),
+    iac: bool = typer.Option(False, "--iac", help="Also check Dockerfile, Compose, CI workflow, Terraform and Kubernetes config"),
+    detectors: bool = typer.Option(False, "--detectors", help="Also run JWT, TLS, debug-flag and open-redirect detectors"),
+    all_checks: bool = typer.Option(False, "--all-checks", help="Enable --secrets --cve --iac --detectors"),
+    sarif_in: Optional[List[Path]] = typer.Option(None, "--sarif-in", help="SARIF from another analyzer to fold in (repeatable)"),
+    suppress: bool = typer.Option(True, "--suppress/--no-suppress", help="Apply .trace-suppress.toml"),
+    baseline: Optional[Path] = typer.Option(None, "--baseline", help="Previous findings JSON; report new/persisted/resolved findings"),
+    fail_on: Optional[str] = typer.Option(None, "--fail-on", help="Exit 1 when findings at/above this severity exist (new ones only with --baseline)"),
+    fail_confidence: str = typer.Option("medium", "--fail-confidence", help="Minimum confidence counted by --fail-on"),
 ):
     """Execute end-to-end full audit across all languages, test packs, and AI models."""
     import time
     import json
+    from trace_engine import service
     from trace_engine.intelligence.orchestrator import IntelligenceOrchestrator
-    from trace_engine.output.markdown import generate_markdown_report
-    from trace_engine.output.sarif import generate_sarif_report
 
     project_dir = path.resolve()
     if models:
@@ -744,27 +870,20 @@ def test_all(
     t_stage = time.perf_counter()
     scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
     source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
+    discovery = service.discover(project_dir, source_files, spec=spec)
+    discovered_endpoints = discovery.endpoints
     languages = set(sf.language for sf in source_files)
+    skipped = sum(scanner.skipped_by_language.values())
+    skipped_note = f" [dim](skipped {skipped} non-code files)[/dim]" if skipped else ""
 
-    parsed_files = []
-    discovered_endpoints = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
-
-    progress_console.print(f"  [dim]✓ Ingestion:[/dim] [bold white]{len(source_files)}[/bold white] files across {len(languages)} languages ([dim]{', '.join(sorted(languages))}[/dim]), [bold white]{len(discovered_endpoints)}[/bold white] endpoints discovered [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    progress_console.print(f"  [dim]✓ Ingestion:[/dim] [bold white]{len(source_files)}[/bold white] files across {len(languages)} languages ([dim]{', '.join(sorted(languages))}[/dim]), [bold white]{len(discovered_endpoints)}[/bold white] endpoints discovered{skipped_note} [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    if discovery.spec:
+        progress_console.print(f"  [dim]✓ API Spec:[/dim] {discovery.spec.path} ({len(discovery.spec.endpoints)} operations)")
     t_stage = time.perf_counter()
 
     # 2. Attack-Path Model
     builder = APMBuilder(project_name=project_dir.name)
-    graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
+    graph_model = builder.build(project_dir, source_files, discovery.parsed_files, discovered_endpoints)
     trace_dir = init_trace_dir(project_dir)
     save_apm_sqlite(graph_model, trace_dir / "graph.db")
     progress_console.print(f"  [dim]✓ Attack-Path Model:[/dim] [bold white]{graph_model.graph.number_of_nodes()}[/bold white] nodes, [bold white]{graph_model.graph.number_of_edges()}[/bold white] directed edges [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
@@ -776,27 +895,38 @@ def test_all(
     if choke_points:
         top = ", ".join(f"{c['label']} ({c['betweenness']})" for c in choke_points[:3])
         progress_console.print(f"  [dim]✓ Choke Points:[/dim] fix these first — [white]{top}[/white]")
+    try:
+        mitigation = graph_model.mitigation_plan(limit=3)
+    except Exception:
+        mitigation = {"fixes": [], "total_paths": 0}
+    if mitigation["fixes"]:
+        best = mitigation["fixes"][0]
+        progress_console.print(
+            f"  [dim]✓ Best Single Fix:[/dim] [white]{best['label']}[/white] removes {best['paths_removed']} of {mitigation['total_paths']} attack paths"
+        )
 
     # 3. Security Hypotheses
-    engine = HypothesisEngine()
-    hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
+    engine = HypothesisEngine(root=project_dir)
+    hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints, include_runtime_checks=True)
     progress_console.print(f"  [dim]✓ Security Hypotheses:[/dim] [bold white]{len(hypotheses)}[/bold white] derived attack hypotheses [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
     t_stage = time.perf_counter()
 
     # 4. Intelligence Stack Evaluation (Laya System 1 & SecureBERT 2.0)
     model_metrics = {}
+    neural: Dict = {}
     if models and discovered_endpoints:
         try:
             print("  [AI] Loading SecureBERT 2.0 & Laya System 1 (first run may take a minute)...", file=sys.stderr, flush=True)
             with console.status("  [bold green]Running AI Models:[/bold green] Evaluating SecureBERT 2.0 & Laya System 1..."):
                 orchestrator = IntelligenceOrchestrator()
                 code_slices = [f"{ep.method} {ep.path}" for ep in discovered_endpoints]
-                
+
                 t0 = time.perf_counter()
                 recommendations = orchestrator.evaluate_endpoints_batch(
                     discovered_endpoints, code_slices, graph_model, hypotheses
                 )
                 total_time_ms = (time.perf_counter() - t0) * 1000
+                neural = service.neural_scores_from(recommendations)
 
                 category_counts: Dict[str, int] = {}
                 for rec in recommendations:
@@ -823,84 +953,44 @@ def test_all(
         except Exception as e:
             progress_console.print(f"  [dim]• AI Intelligence:[/dim] [dim]Bypassed ({e})[/dim]")
 
+    if dry_run:
+        _print_dry_run(hypotheses, resolved_target)
+        return
+
     # 5. Runtime Validation & Test Pack Execution (scope-validated probe)
-    from trace_engine.policy.scope import ScopeGuard as _ScopeGuard2
-    from trace_engine.runtime.client import probe_target_online as _probe_online2
-
-    _pre_guard = _ScopeGuard2(
-        allowed_hosts=config.target.allowed_hosts,
-        allowed_ports=config.target.allowed_ports,
-        mode=config.target.scope_mode,
-    )
-    target_online = _probe_online2(_pre_guard, resolved_target, timeout_seconds=1.5)
-
-    if target_online:
-        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({resolved_target}) - executing active test packs")
-    else:
-        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({resolved_target}) - static boundary correlation")
-
-    scope_guard = ScopeGuard(
-        allowed_hosts=config.target.allowed_hosts,
-        allowed_ports=config.target.allowed_ports,
-        mode=config.target.scope_mode,
-    )
-    from trace_engine.policy.scope import ScopeViolationError
-
-    try:
-        scope_guard.allow_target(resolved_target)
-    except ScopeViolationError as e:
-        progress_console.print(f"  [yellow]Scope policy:[/yellow] target {resolved_target} refused ({e}). Continuing static-only.")
-        target_online = False
-    client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
-    context = TestContext(
-        target_base_url=resolved_target,
-        active_tokens={"user-a": "user-a", "user-b": "user-b", "admin": "admin"},
-    )
-
-    correlator = EvidenceCorrelator()
-    findings: List[Finding] = []
-    confirmed_count = 0
-
+    rt = _runtime_setup(config, trace_dir, resolved_target, discovery, max_requests=max_requests, stateful=stateful)
     with console.status("  [bold green]Correlating Evidence:[/bold green] Executing test packs & correlating graph paths..."):
-        for hyp in hypotheses:
-            test_res = None
-            if target_online:
-                pack = default_registry.get(hyp.recommended_test_pack)
-                if pack:
-                    try:
-                        test_res = pack.execute(hyp, client, context)
-                        if test_res and test_res.confirmed:
-                            confirmed_count += 1
-                    except Exception:
-                        test_res = None
+        outcome = service.run_probes(
+            hypotheses, graph_model, rt.client, rt.context, online=rt.online, catch_all=rt.catch_all, neural=neural
+        )
+    confirmed_count = outcome.confirmed
+    findings: List[Finding] = list(outcome.findings)
 
-            finding = correlator.correlate(hyp, test_res, graph_model)
-            if finding:
-                findings.append(finding)
+    extras = _extra_checks(secrets, cve, iac, detectors, all_checks, sarif_in)
+    final = service.finalize(
+        findings, project_dir, discovery, extras=extras, suppress=suppress, baseline=baseline,
+        fail_on=fail_on, fail_confidence=fail_confidence,
+    )
+    active = final.active
 
-    progress_console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(findings)}[/bold white] correlated findings, [bold {'red' if confirmed_count > 0 else 'white'}]{confirmed_count}[/bold {'red' if confirmed_count > 0 else 'white'}] runtime confirmed [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
+    progress_console.print(f"  [dim]✓ Evidence Correlation:[/dim] [bold white]{len(active)}[/bold white] correlated findings, [bold {'red' if confirmed_count > 0 else 'white'}]{confirmed_count}[/bold {'red' if confirmed_count > 0 else 'white'}] runtime confirmed [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
 
     # 6. Persist Findings & Report
-    store = FindingStore(trace_dir)
-    store.save_findings(findings)
-
-    try:
-        root_trace = Path(".trace")
-        root_trace.mkdir(parents=True, exist_ok=True)
-        (root_trace / "last_scan_repo.txt").write_text(str(project_dir), encoding="utf-8")
-        if project_dir != Path(".").resolve():
-            root_store = FindingStore(root_trace)
-            root_store.save_findings(findings)
-    except Exception:
-        pass
+    service.persist(project_dir, trace_dir, final)
+    _prune_evidence(trace_dir)
+    _print_final_notes(final, discovery, rt.evidence, outcome)
 
     report_payload = {
         "project": project_dir.name,
         "endpoints_count": len(discovered_endpoints),
         "hypotheses_count": len(hypotheses),
-        "findings_count": len(findings),
+        "findings_count": len(active),
         "confirmed_count": confirmed_count,
-        "findings": [f.model_dump() for f in findings],
+        "findings": [f.model_dump() for f in active],
+        "suppressed_count": len(final.suppressed),
+        "baseline": final.diff.summary() if final.diff else None,
+        "mitigation": mitigation,
+        "inventory": discovery.inventory,
         "model_metrics": model_metrics,
     }
     (trace_dir / "test_all_report.json").write_text(
@@ -908,22 +998,15 @@ def test_all(
     )
 
     # 7. Print Terminal Output or Requested Format
+    checks_run = _checks_run(extras.secrets, extras.cve, extras.iac)
     if format == "json":
         console.print_json(json.dumps(report_payload, default=str))
-    elif format == "markdown":
-        md = generate_markdown_report(
-            findings,
-            project_name=project_dir.name,
-            scope_summary=scope_result,
-            endpoints_count=len(discovered_endpoints),
-        )
-        console.print(md)
-    elif format == "sarif":
-        sarif_payload = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
-        console.print_json(json.dumps(sarif_payload))
-    else:
+    elif not _write_formatted(
+        format, None, active, project_dir=project_dir, scope_result=scope_result,
+        endpoints_count=len(discovered_endpoints), checks_run=checks_run, blocking=final.blocking,
+    ):
         print_test_all_report(
-            findings=findings,
+            findings=active,
             endpoints_count=len(discovered_endpoints),
             hypotheses_count=len(hypotheses),
             confirmed_count=confirmed_count,
@@ -932,6 +1015,7 @@ def test_all(
         )
 
     _maybe_update_notice(format, prompt_update=True)
+    _gate_or_exit(final, fail_on or "")
 
 
 

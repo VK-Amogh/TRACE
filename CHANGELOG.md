@@ -6,24 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-17
+
 ### Added
 
-- Two agent skills with clear roles. `trace` is the setup skill: a user installs only it, and the agent installs, configures (runtime, MCP, local target, scan scope), runs and troubleshoots TRACE. New `trace-fix` covers what to do with findings: triage, prioritization, per-language remediation playbooks, verification and reporting, plus OWASP/CWE mapping, coverage limits and CI gating.
-- Skills are published through npm and PyPI: `skills` is in the npm `files` list with `agent-skill` keywords, and the wheel bundles them under `trace_engine/plugin/bundle/published-skills/`. `npx skills add` keeps working from git.
-- `install-skill` is harness-agnostic: it writes the shared `.agents/skills/` directory plus `.claude/skills/`, and accepts `--global`, `--agents`, `--no-mcp`, `--skills-only` and `--list`; the Python installer installs the same skills.
-- `release_tools.py bump` and `check` keep every skill's `metadata.version` in sync with the package version.
-- Docs: new "What TRACE scans" page; refreshed CLI reference, cheat sheet, quick start, MCP, FAQ, troubleshooting, skills and release pages for current commands, the eighth MCP tool (`trace_status`) and `INCONCLUSIVE` verification.
-
-### Changed
-
-- Ingestion skips file formats no parser or adapter can use (HTML, CSS, JSON, YAML, TOML, SQL, Swift, C/C++) before opening them, so they cost no I/O, hashing or graph nodes. Callers can opt formats back in with `RepositoryScanner(languages=...)`; skipped counts are exposed as `skipped_by_language`.
-- Ingestion also prunes more tool-cache and package-store directories (`.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.tox`, `.gradle`, `.dart_tool`, `Pods`, `site-packages`, ...) and skips `*.d.ts`, `*.bundle.js`, `*.chunk.js` and `*.egg-info`.
+- **CI-ready findings.** Stable fingerprints, a committed suppression file (`.trace-suppress.toml`), `--baseline` diffs (new/persisted/resolved), `--fail-on` exit gate, JUnit output, CWE/OWASP tags, an explainable 0-100 priority score, a replayable redacted evidence log, `--dry-run` and a probe request budget.
+- **Better detection.** Taint analysis for Python and JS/TS handlers (injection, SSRF, traversal, deserialization, SSTI, open redirect), OpenAPI/Swagger ingestion with a spec-vs-code inventory, configurable real test identities, owner-aware BOLA probes with an ID-shape catalog (opt-in `--stateful`), a rate-limit test pack, a catch-all (soft-404) guard, and a "best single fix" attack-path simulation.
+- **Opt-in analyzers.** `--secrets`, `--cve` (OSV), `--iac`, `--detectors` and `--sarif-in` (fold in Semgrep/CodeQL results); the report's coverage table shows which ran.
+- **Agent skills.** Two harness-agnostic skills, `trace` (the agent installs, configures and runs TRACE) and `trace-fix` (triage, prioritize, fix, verify, report), shipped in the npm package and wheel; `install-skill` is harness-agnostic and keeps existing MCP servers. Scans now skip file formats no adapter can analyze (HTML, CSS, JSON, YAML, SQL, ...).
 
 ### Fixed
 
-- `install-skill` no longer overwrites existing `.mcp.json` / `.cursor/mcp.json`; it merges the `trace` server and keeps other servers.
-- The installed Claude Code skill directory no longer mismatches its `name` (it was `trace-security` for `trace-security-harness`); the separate harness runbook is no longer installed as a skill, since `trace-fix` covers it.
-- The bundled harness runbook documents the real verification statuses (`FIXED`, `STILL_PRESENT`, `INCONCLUSIVE`) instead of a non-existent `RESOLVED`.
+- Handler source is now read relative to the scanned repository, so source-based rules no longer depend on the current directory.
+- `install-skill` no longer overwrites `.mcp.json` / `.cursor/mcp.json`; the harness runbook documents the real `FIXED` / `STILL_PRESENT` / `INCONCLUSIVE` statuses.
 
 ## [2.2.1] - 2026-10-17
 

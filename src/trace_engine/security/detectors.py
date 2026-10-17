@@ -53,6 +53,7 @@ def scan_detectors(
         except OSError:
             continue
         texts[sf.absolute_path] = text
+        texts[sf.path] = text
         for category, title, rx, severity, confidence, evidence, _ in _RULES:
             for lineno, line in enumerate(text.splitlines(), start=1):
                 if len(line) > 1000 or not rx.search(line):

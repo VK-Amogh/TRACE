@@ -31,6 +31,7 @@ class EvidenceCorrelator:
         hypothesis: SecurityHypothesis,
         test_result: Optional[TestExecutionResult],
         apm: AttackPathModel,
+        neural_score: Optional[float] = None,
     ) -> Optional[Finding]:
         from trace_engine.security.fusion import NeuroSymbolicConfidenceEngine, ConfidenceEvidence
 
@@ -38,6 +39,7 @@ class EvidenceCorrelator:
 
         # Calculate combined confidence using Neuro-Symbolic Bayesian Fusion
         evidence = ConfidenceEvidence(
+            neural_score=neural_score,
             symbolic_ast_score=hypothesis.confidence_prior,
             dynamic_test_score=test_result.confidence if test_result else None,
             is_dynamically_confirmed=bool(test_result and test_result.confirmed),

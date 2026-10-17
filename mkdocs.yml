@@ -94,7 +94,7 @@ markdown_extensions:
   - pymdownx.tabbed: {alternate_style: true}
 
 extra:
-  version: 2.2.1
+  version: 2.2.2
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/VK-Amogh/TRACE

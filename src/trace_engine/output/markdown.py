@@ -1,7 +1,7 @@
 """Markdown security report generator."""
 
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Iterable, List, Optional
 from trace_engine.findings.model import Finding
 
 
@@ -10,6 +10,7 @@ def generate_markdown_report(
     project_name: str = "Application",
     scope_summary=None,
     endpoints_count: Optional[int] = None,
+    checks_run: Optional[Iterable[str]] = None,
 ) -> str:
     lines = [
         f"# TRACE Security Assessment Report — {project_name}",
@@ -51,9 +52,17 @@ def generate_markdown_report(
         lines.append("| Endpoint & Route Invariants | **NOT APPLICABLE** | 0 HTTP routes detected in target scope |")
     else:
         lines.append(f"| Endpoint & Route Invariants | **ASSESSED** | Evaluated {effective_endpoints} HTTP route(s) (Auth, BOLA, BFLA, Injection, CORS) |")
-    lines.append("| Hardcoded Secrets / API Keys | *NOT ASSESSED* | Secret scanning analyzer not configured |")
-    lines.append("| Software Dependencies / CVEs | *NOT ASSESSED* | SCA package manifest audit not executed |")
-    lines.append("| Cloud & Infrastructure Config | *NOT ASSESSED* | IaC / container posture assessment not in scope |")
+    ran = set(checks_run or [])
+
+    def _row(label: str, key: str, done: str, pending: str) -> None:
+        if key in ran:
+            lines.append(f"| {label} | **ASSESSED** | {done} |")
+        else:
+            lines.append(f"| {label} | *NOT ASSESSED* | {pending} |")
+
+    _row("Hardcoded Secrets / API Keys", "secrets", "Pattern and entropy scan of repository files", "Run with --secrets to enable")
+    _row("Software Dependencies / CVEs", "cve", "Pinned lockfile versions checked against OSV advisories", "Run with --cve to enable")
+    _row("Cloud & Infrastructure Config", "iac", "Dockerfile, Compose, CI workflow, Terraform and Kubernetes rules", "Run with --iac to enable")
     lines.append("")
 
     if endpoints_count == 0 or (endpoints_count is None and not findings):
@@ -102,6 +111,12 @@ def generate_markdown_report(
         lines.append(f"- **Severity:** {f.severity.value}")
         lines.append(f"- **Confidence:** {f.confidence.value}")
         lines.append(f"- **Provenance:** {prov_label}")
+        if getattr(f, "priority_tier", ""):
+            lines.append(f"- **Priority:** {f.priority_tier} (score {f.priority_score}/100)")
+        if getattr(f, "cwe", None):
+            lines.append(f"- **Classification:** {f.cwe}" + (f", OWASP {f.owasp}" if getattr(f, "owasp", None) else ""))
+        if getattr(f, "fingerprint", ""):
+            lines.append(f"- **Fingerprint:** `{f.fingerprint}`")
         lines.append(f"- **Endpoint:** `{f.endpoint}`")
         if f.source_location:
             lines.append(f"- **Source:** `{f.source_location}`")

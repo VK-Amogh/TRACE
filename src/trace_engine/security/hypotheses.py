@@ -2,6 +2,7 @@
 
 import os
 import re
+from pathlib import Path
 from enum import Enum
 from typing import List, Dict, Any, Optional, Set
 from pydantic import BaseModel, Field
@@ -141,7 +142,15 @@ _TAINT_ID_PREFIX = {
 
 
 class HypothesisEngine:
-    """Analyzes APM and endpoints to derive actionable security hypotheses."""
+    """Analyzes APM and endpoints to derive actionable security hypotheses.
+
+    ``root`` is the repository directory: endpoint source paths are stored
+    relative to it, so handler source can only be read (for evidence-gated
+    rules and taint analysis) when the engine knows where the repository is.
+    """
+
+    def __init__(self, root: Optional[Path] = None):
+        self.root = Path(root) if root is not None else None
 
     @staticmethod
     def _flows_for(ep: Endpoint, file_src: str, cache: Dict[str, List[TaintFlow]]) -> List[TaintFlow]:
@@ -186,14 +195,18 @@ class HypothesisEngine:
             if not fpath:
                 return ""
             if fpath not in file_cache:
-                try:
-                    if os.path.exists(fpath):
-                        with open(fpath, "r", encoding="utf-8", errors="replace") as f:
-                            file_cache[fpath] = f.read()
-                    else:
-                        file_cache[fpath] = ""
-                except Exception:
-                    file_cache[fpath] = ""
+                candidates = [fpath]
+                if self.root is not None and not os.path.isabs(fpath):
+                    candidates.insert(0, os.path.join(str(self.root), fpath))
+                file_cache[fpath] = ""
+                for candidate in candidates:
+                    try:
+                        if os.path.exists(candidate):
+                            with open(candidate, "r", encoding="utf-8", errors="replace") as f:
+                                file_cache[fpath] = f.read()
+                            break
+                    except Exception:
+                        continue
             return file_cache[fpath]
 
         # Collect unique source files

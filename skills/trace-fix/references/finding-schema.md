@@ -22,6 +22,9 @@ Source of truth: `src/trace_engine/findings/model.py` (`Finding`).
 | `remediation` | Concrete steps | Starting point, not the patch |
 | `short_action` | One-line action | Plan table cells |
 | `reproduction_steps` | Ordered HTTP steps | `trace replay <ID>` prints them |
+| `fingerprint` | 16-hex identity of the flaw, stable across scans; use it (not `id`) for suppression and baselines | Track a finding over time |
+| `priority_score` / `priority_tier` / `score_factors` | 0-100 fix-order score, tier P0-P3 and the named factors behind it | Order the work |
+| `cwe` / `owasp` | Classification | Report and map |
 | `provenance` / `is_fixture` | `application` or `fixture/test` | Filter test assets |
 
 `remediation` and `root_cause` are generated from the endpoint, title and

@@ -230,3 +230,5 @@ See [`CITATION.cff`](CITATION.cff).
 ## License
 
 Apache-2.0 — see [`LICENSE`](LICENSE).
+
+*We are discontinuing this project.*

@@ -38,6 +38,25 @@ Common `scan` / `audit` options:
 | `--models` / `--no-models` | Provision or skip the neural models (skip for speed and CI) |
 | `--chain` / `--no-chain` | `scan` only: re-inject harvested leaks into other routes (bounded) |
 
+Additional `scan` / `audit` options:
+
+| Option | Effect |
+|---|---|
+| `--spec <file>` | OpenAPI/Swagger description (auto-detected in the repo root or `docs/`); reports spec-vs-code route differences |
+| `--dry-run` | list the probes that would be sent; send nothing |
+| `--stateful` | allow probes to create and delete their own test data on the local target |
+| `--max-requests N` | cap probe traffic (default `[runtime] max_requests`) |
+| `--secrets` `--cve` `--iac` `--detectors` `--all-checks` | opt-in analyzers (`--cve` contacts api.osv.dev with package names and versions only) |
+| `--sarif-in <file>` | fold in SARIF from Semgrep, CodeQL or similar (repeatable) |
+| `--baseline <json>` | classify findings as new, persisted or resolved |
+| `--fail-on <severity>` | exit 1 on findings at or above it (new ones only with `--baseline`); `--fail-confidence` sets the minimum confidence |
+| `--no-suppress` | ignore `.trace-suppress.toml` |
+| `--format junit` | JUnit XML for CI test reports |
+
+Real test identities go in `.trace/config.toml` under `[identities.<name>]`
+(bearer, api_key, cookie, basic; secrets as `${ENV_VAR}`). Accepted risk goes
+in a committed `.trace-suppress.toml`, each entry with a `reason`.
+
 Which files are read, and which formats are skipped: [Ingestion](ingestion.md).
 
 Both commands exit 0 even when findings exist. To gate CI, inspect the JSON

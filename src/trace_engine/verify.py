@@ -83,7 +83,7 @@ class VerificationEngine:
         apm = builder.build(self.repo_path, source_files, parsed_files, discovered_endpoints)
 
         # 3. Re-evaluate hypotheses
-        engine = HypothesisEngine()
+        engine = HypothesisEngine(root=self.repo_path)
         new_hypotheses = engine.derive_hypotheses(apm, discovered_endpoints)
 
         # Check if the specific hypothesis still triggers statically
