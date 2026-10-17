@@ -193,12 +193,13 @@ jobs:
         run: npm install -g "npm@>=11.5.1"
       - name: "Publish to npm (OIDC trusted publishing, or NPM_TOKEN)"
         run: |
-          if npm view "trace-sec@$(node -p "require('./package.json').version)" version >/dev/null 2>&1; then
-            echo "trace-sec@$(node -p "require('./package.json').version") already on npm - skipping."
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "trace-sec@${VERSION}" version >/dev/null 2>&1; then
+            echo "trace-sec@${VERSION} already on npm - skipping."
             exit 0
           fi
           TAG=latest
-          case "$(node -p "require('./package.json').version")" in *-*) TAG=next ;; esac
+          case "${VERSION}" in *-*) TAG=next ;; esac
           if [ -n "${NPM_TOKEN}" ]; then
             echo "NPM_TOKEN is set - publishing with token auth."
             npm publish --access public --provenance --tag "${TAG}"

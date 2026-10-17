@@ -7,7 +7,7 @@ One version, two manifests: `src/trace_engine/__init__.py:__version__` and
 `CHANGELOG.md` `[Unreleased]` section into the new version:
 
 ```bash
-python scripts/release_tools.py bump 2.1.19
+python scripts/release_tools.py bump 2.2.0
 python scripts/release_tools.py check          # manifests agree
 ```
 
@@ -20,8 +20,8 @@ publishes as a GitHub pre-release and under the npm `next` tag.
 2. Tag and push:
 
    ```bash
-   git tag v2.1.19
-   git push origin v2.1.19
+   git tag v2.2.0
+   git push origin v2.2.0
    ```
 
 3. Approve the run in the `release` environment when GitHub asks.
