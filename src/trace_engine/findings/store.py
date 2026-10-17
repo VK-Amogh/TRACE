@@ -46,8 +46,17 @@ class FindingStore:
             return []
 
     def get_finding_by_id(self, finding_id: str) -> Optional[Finding]:
-        """Retrieve finding by ID."""
+        """Retrieve finding by ID with case-insensitive and prefix-tolerant matching."""
+        if not finding_id:
+            return None
+        target = finding_id.strip().lower().replace("_", "-")
         for f in self.load_findings():
-            if f.id.lower() == finding_id.lower():
+            fid = f.id.strip().lower().replace("_", "-")
+            if fid == target:
+                return f
+            if fid.startswith("tr-") and fid[3:] == target:
+                return f
+            if target.startswith("tr-") and fid == target[3:]:
                 return f
         return None
+

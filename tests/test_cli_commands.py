@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -157,7 +158,7 @@ def test_node_launcher_flag_normalization():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is not installed on PATH")
-    env = {**os.environ, "PYTHONPATH": "src", "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, "PYTHONPATH": "src", "PYTHONIOENCODING": "utf-8", "TRACE_PYTHON": sys.executable}
 
     res_upg = subprocess.run(
         [node, "bin/trace.js", "--upgrade"],
@@ -192,6 +193,10 @@ def test_cli_upgrade_when_update_available(runner, monkeypatch):
             "command": "npm install -g trace-sec@latest",
         },
     )
+    monkeypatch.setattr(
+        "trace_engine.updater.perform_update",
+        lambda *args, **kwargs: True,
+    )
     res = runner.invoke(app, ["--upgrade"])
     assert res.exit_code == 0
     assert "9.9.9" in res.output or "Update Available" in res.output
@@ -205,7 +210,7 @@ def test_node_launcher_doctor():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is not installed on PATH")
-    env = {**os.environ, "PYTHONPATH": "src", "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, "PYTHONPATH": "src", "PYTHONIOENCODING": "utf-8", "TRACE_PYTHON": sys.executable}
     res = subprocess.run(
         [node, "bin/trace.js", "--doctor"],
         capture_output=True,
@@ -216,3 +221,90 @@ def test_node_launcher_doctor():
     )
     assert res.returncode == 0
     assert "Doctor" in res.stdout
+
+
+@pytest.fixture
+def sample_finding_repo(tmp_path):
+    from trace_engine.findings.model import Finding, Severity, FindingConfidence
+    from trace_engine.findings.store import FindingStore
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    trace_dir = repo / ".trace"
+    trace_dir.mkdir()
+    f = Finding(
+        id="TR-AUTH-001",
+        title="Unauthenticated Sensitive Route Exposure on POST /api/v1/analytics/query",
+        category="AUTHENTICATION",
+        severity=Severity.HIGH,
+        confidence=FindingConfidence.HIGH,
+        endpoint="POST /api/v1/analytics/query",
+        attack_path=["ep_1", "db_1"],
+        static_evidence=["No auth middleware detected"],
+        runtime_evidence=["Static Attack-Path Model verified"],
+        correlation_notes="Sensitive endpoint missing auth",
+        remediation="Protect route with Depends(get_current_user)",
+        reproduction_steps=["curl -X POST http://localhost:8000/api/v1/analytics/query"],
+        observations=[],
+        root_cause="Sensitive endpoint does not enforce authentication.",
+        short_action="Protect route with Depends(get_current_user)",
+    )
+    FindingStore(trace_dir).save_findings([f])
+    return repo
+
+
+def test_cli_explain_command_with_id(runner, sample_finding_repo, monkeypatch):
+    monkeypatch.chdir(sample_finding_repo)
+    res = runner.invoke(app, ["explain", "TR-AUTH-001"])
+    assert res.exit_code == 0
+    assert "Finding TR-AUTH-001" in res.output
+    assert "Root Cause & Exploit Mechanics" in res.output
+
+    res_prefix = runner.invoke(app, ["explain", "auth-001"])
+    assert res_prefix.exit_code == 0
+    assert "Finding TR-AUTH-001" in res_prefix.output
+
+
+def test_cli_explain_bare(runner, sample_finding_repo, monkeypatch):
+    monkeypatch.chdir(sample_finding_repo)
+    res = runner.invoke(app, ["explain"])
+    assert res.exit_code == 0
+    assert "Specify a finding ID" in res.output or "Available findings" in res.output
+
+
+def test_cli_finding_and_findings_with_id(runner, sample_finding_repo, monkeypatch):
+    monkeypatch.chdir(sample_finding_repo)
+    for cmd in ["finding", "findings"]:
+        res = runner.invoke(app, [cmd, "TR-AUTH-001"])
+        assert res.exit_code == 0
+        assert "Finding TR-AUTH-001" in res.output
+        assert "Concrete Remediation Action Plan" in res.output
+
+
+def test_cli_report_with_finding_id(runner, sample_finding_repo, monkeypatch):
+    monkeypatch.chdir(sample_finding_repo)
+    res = runner.invoke(app, ["report", "TR-AUTH-001"])
+    assert res.exit_code == 0
+    assert "Finding TR-AUTH-001" in res.output
+
+
+def test_node_launcher_finding_and_report_id(sample_finding_repo):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js is not installed on PATH")
+    root_dir = Path(__file__).resolve().parent.parent
+    trace_js = root_dir / "bin" / "trace.js"
+    env = {**os.environ, "PYTHONPATH": str(root_dir / "src"), "PYTHONIOENCODING": "utf-8", "TRACE_PYTHON": sys.executable}
+    for cmd in ["explain", "finding", "report"]:
+        res = subprocess.run(
+            [node, str(trace_js), cmd, "TR-AUTH-001"],
+            cwd=str(sample_finding_repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        assert res.returncode == 0
+        assert "Finding TR-AUTH-001" in res.stdout
+

@@ -46,7 +46,14 @@ if (['--upgrade', '--update'].includes(args[0])) {
   args[0] = 'doctor';
 } else if (['help'].includes(args[0])) {
   args[0] = '--help';
+} else if (['--explain'].includes(args[0])) {
+  args[0] = 'explain';
+} else if (['--finding', '--findings'].includes(args[0])) {
+  args[0] = 'findings';
+} else if (['--report'].includes(args[0])) {
+  args[0] = 'report';
 }
+
 
 // --version: instant, no Python needed.
 if (['--version', '-v', '-V', 'version'].includes(args[0])) {

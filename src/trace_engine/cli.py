@@ -937,6 +937,9 @@ def test_all(
 
 def resolve_finding_store(project_dir: Path) -> Tuple[FindingStore, Path]:
     """Resolves finding store from direct path, last scan pointer, or known subdirectories."""
+    if not project_dir.is_dir():
+        project_dir = Path(".").resolve()
+
     direct_store = FindingStore(get_trace_dir(project_dir))
     if direct_store.load_findings():
         return direct_store, project_dir
@@ -946,30 +949,82 @@ def resolve_finding_store(project_dir: Path) -> Tuple[FindingStore, Path]:
     if workspace_last_scan.exists():
         try:
             last_repo = Path(workspace_last_scan.read_text(encoding="utf-8").strip())
-            if last_repo.exists():
+            if last_repo.exists() and last_repo.is_dir():
                 candidate = FindingStore(get_trace_dir(last_repo))
                 if candidate.load_findings():
                     return candidate, last_repo
         except Exception:
             pass
 
-    # Check test-repository subdirectory
-    sub_test = project_dir / "test-repository"
-    if sub_test.exists():
-        sub_store = FindingStore(get_trace_dir(sub_test))
-        if sub_store.load_findings():
-            return sub_store, sub_test
+    # Check known subdirectories (testbed_hardcore, test-repository, backend, test)
+    for sub_name in ["testbed_hardcore", "test-repository", "backend", "test"]:
+        sub_dir = project_dir / sub_name
+        if sub_dir.exists() and sub_dir.is_dir():
+            sub_store = FindingStore(get_trace_dir(sub_dir))
+            if sub_store.load_findings():
+                return sub_store, sub_dir
+
+    # Check any immediate subdirectory with a populated .trace/findings.json
+    try:
+        for child in project_dir.iterdir():
+            if child.is_dir() and not child.name.startswith("."):
+                candidate = FindingStore(get_trace_dir(child))
+                if candidate.load_findings():
+                    return candidate, child
+    except Exception:
+        pass
+
+    # Check parent directory if we are inside a subfolder
+    try:
+        if project_dir.parent and project_dir.parent != project_dir:
+            parent_store = FindingStore(get_trace_dir(project_dir.parent))
+            if parent_store.load_findings():
+                return parent_store, project_dir.parent
+    except Exception:
+        pass
 
     return direct_store, project_dir
 
 
-@app.command()
+@app.command(name="findings")
+@app.command(name="finding")
 def findings(
-    path: Path = typer.Argument(Path("."), help="Path to project repository")
+    target_or_id: Optional[str] = typer.Argument(
+        None, help="Path to project repository, or finding ID (e.g. TR-BOLA-001) to view detailed report"
+    ),
+    path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
-    """Display stored vulnerability findings from previous scan."""
-    project_dir = path.resolve()
-    store, resolved_dir = resolve_finding_store(project_dir)
+    """Display stored vulnerability findings, or deep-dive into a specific finding ID."""
+    target_path = path
+    finding_id = None
+    if target_or_id:
+        pot_dir = Path(target_or_id)
+        if pot_dir.is_dir():
+            target_path = pot_dir
+        else:
+            finding_id = target_or_id
+
+    store, resolved_dir = resolve_finding_store(target_path.resolve())
+
+    # If finding ID is provided, display its detailed card
+    if finding_id:
+        finding = store.get_finding_by_id(finding_id)
+        if finding:
+            console.print()
+            print_finding_detail(finding)
+            console.print()
+            return
+        all_findings = store.load_findings()
+        avail_str = ", ".join(f.id for f in all_findings) if all_findings else "None"
+        console.print(f"\n[bold red]Finding '{finding_id}' not found.[/bold red]")
+        if all_findings:
+            console.print(
+                f"[dim]Available findings in [white]{resolved_dir.name}[/white]:[/dim] [green]{avail_str}[/green]\n"
+            )
+        else:
+            console.print("[dim]No findings stored. Run [bold green]trace test-all[/bold green] first.[/dim]\n")
+        return
+
     findings_list = store.load_findings()
     console.print()
     if not findings_list:
@@ -981,20 +1036,32 @@ def findings(
 
 @app.command()
 def explain(
-    finding_id: str = typer.Argument(..., help="ID of the finding to explain (e.g. TR-BFLA-001)"),
+    finding_id: Optional[str] = typer.Argument(None, help="ID of the finding to explain (e.g. TR-BFLA-001)"),
     repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
 ):
     """Deep-dive into a finding with root cause analysis and reproduction details."""
     target_path = repo or path
     store, resolved_dir = resolve_finding_store(target_path.resolve())
+    all_findings = store.load_findings()
+
+    if not finding_id:
+        if all_findings:
+            console.print("\n[bold green]TRACE Vulnerability Details[/bold green]")
+            console.print("Specify a finding ID to inspect: [bold white]trace explain <FINDING_ID>[/bold white]\n")
+            print_findings_table(all_findings)
+        else:
+            console.print("[dim]No findings stored. Run [bold green]trace test-all[/bold green] first.[/dim]\n")
+        return
+
     finding = store.get_finding_by_id(finding_id)
     if not finding:
-        all_findings = store.load_findings()
         avail_str = ", ".join(f.id for f in all_findings) if all_findings else "None"
         console.print(f"\n[bold red]Finding '{finding_id}' not found.[/bold red]")
         if all_findings:
-            console.print(f"[dim]Available findings in [white]{resolved_dir.name}[/white]:[/dim] [green]{avail_str}[/green]\n")
+            console.print(
+                f"[dim]Available findings in [white]{resolved_dir.name}[/white]:[/dim] [green]{avail_str}[/green]\n"
+            )
         else:
             console.print("[dim]No findings stored. Run [bold green]trace test-all[/bold green] first.[/dim]\n")
         return
@@ -1019,7 +1086,9 @@ def replay(
         avail_str = ", ".join(f.id for f in all_findings) if all_findings else "None"
         console.print(f"\n[bold red]Finding '{finding_id}' not found.[/bold red]")
         if all_findings:
-            console.print(f"[dim]Available findings in [white]{resolved_dir.name}[/white]:[/dim] [green]{avail_str}[/green]\n")
+            console.print(
+                f"[dim]Available findings in [white]{resolved_dir.name}[/white]:[/dim] [green]{avail_str}[/green]\n"
+            )
         return
 
     if not finding.reproduction_steps:
@@ -1034,19 +1103,46 @@ def replay(
 
 @app.command()
 def report(
-    repo: Optional[Path] = typer.Argument(None, help="Path to project repository (optional positional)"),
+    target: Optional[str] = typer.Argument(
+        None, help="Path to project repository or finding ID (e.g. TR-BOLA-001)"
+    ),
     format: str = typer.Option("markdown", "--format", "-f", help="Output format: markdown, html, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
     path: Path = typer.Option(Path("."), "--path", "-p", help="Path to project repository"),
+    finding_id: Optional[str] = typer.Option(None, "--finding", "-i", help="Filter report to a specific vulnerability ID"),
 ):
-    """Export comprehensive security assessment report."""
+    """Export comprehensive security assessment report or detailed finding report."""
     from trace_engine.output.html import generate_html_report
     from trace_engine.output.markdown import generate_markdown_report
     from trace_engine.output.sarif import generate_sarif_report
 
-    project_dir = (repo or path).resolve()
-    store, resolved_dir = resolve_finding_store(project_dir)
+    fid = finding_id
+    project_path = path
+    if target:
+        pot_dir = Path(target)
+        if pot_dir.is_dir():
+            project_path = pot_dir
+        else:
+            fid = target
+
+    store, resolved_dir = resolve_finding_store(project_path.resolve())
     findings_list = store.load_findings()
+
+    if fid:
+        single_finding = store.get_finding_by_id(fid)
+        if not single_finding:
+            console.print(f"\n[bold red]Finding '{fid}' not found.[/bold red]")
+            avail = ", ".join(f.id for f in findings_list) if findings_list else "None"
+            console.print(f"[dim]Available findings: {avail}[/dim]\n")
+            return
+
+        if not output and format.lower() in {"markdown", "terminal", "detail"}:
+            console.print()
+            print_finding_detail(single_finding)
+            console.print()
+            return
+
+        findings_list = [single_finding]
 
     if format.lower() == "html":
         content = generate_html_report(findings_list, project_name=resolved_dir.name)
@@ -1057,7 +1153,9 @@ def report(
         ext = ".json"
     elif format.lower() == "sarif":
         import json
-        sarif_dict = generate_sarif_report(findings_list, project_name=resolved_dir.name, workspace_root=str(resolved_dir))
+        sarif_dict = generate_sarif_report(
+            findings_list, project_name=resolved_dir.name, workspace_root=str(resolved_dir)
+        )
         content = json.dumps(sarif_dict, indent=2)
         ext = ".sarif"
     else:
