@@ -39,6 +39,15 @@ try {
   process.exit(2);
 }
 
+// Normalize flag-as-command aliases for root flags
+if (['--upgrade', '--update'].includes(args[0])) {
+  args[0] = 'upgrade';
+} else if (['--doctor'].includes(args[0])) {
+  args[0] = 'doctor';
+} else if (['help'].includes(args[0])) {
+  args[0] = '--help';
+}
+
 // --version: instant, no Python needed.
 if (['--version', '-v', '-V', 'version'].includes(args[0])) {
   try {

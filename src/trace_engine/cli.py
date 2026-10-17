@@ -91,6 +91,12 @@ def main(
     version: Optional[bool] = typer.Option(
         None, "--version", "-v", "-V", help="Show TRACE version and exit."
     ),
+    upgrade: Optional[bool] = typer.Option(
+        None, "--upgrade", "--update", help="Check for updates and automatically upgrade TRACE."
+    ),
+    doctor_flag: Optional[bool] = typer.Option(
+        None, "--doctor", help="Verify local environment, Tree-sitter, SQLite, Ollama, and security tool adapters."
+    ),
 ):
     """If no command is provided, launch the interactive TRACE security terminal."""
     if os.environ.get("TRACE_VERBOSE") == "1":
@@ -102,6 +108,12 @@ def main(
         import trace_engine
         curr_ver = getattr(trace_engine, "__version__", "0.0.0")
         console.print(f"[bold white]TRACE[/bold white] [bold #10B981]v{curr_ver}[/bold #10B981]")
+        raise typer.Exit()
+    if upgrade:
+        update_cmd(force=False)
+        raise typer.Exit()
+    if doctor_flag:
+        doctor()
         raise typer.Exit()
 
     try:
@@ -123,12 +135,34 @@ def main(
         run_interactive_story()
 
 
+@app.command(name="version")
+def version_cmd(
+    json_format: bool = typer.Option(False, "--json", help="Output version as JSON."),
+):
+    """Show TRACE version and environment metadata."""
+    import trace_engine
+    curr_ver = getattr(trace_engine, "__version__", "0.0.0")
+    if json_format:
+        import json
+        console.print(json.dumps({"version": curr_ver, "package": "trace-sec"}))
+    else:
+        console.print(f"[bold white]TRACE[/bold white] [bold #10B981]v{curr_ver}[/bold #10B981]")
+
+
+@app.command(name="help")
+def help_cmd(ctx: typer.Context):
+    """Show help and available commands."""
+    root_ctx = ctx.find_root()
+    console.print(root_ctx.get_help())
+
+
 @app.command(name="update")
 @app.command(name="upgrade")
 def update_cmd(
     force: bool = typer.Option(False, "--force", "-f", help="Force check and reinstall even if up to date."),
 ):
     """Check for updates and automatically upgrade TRACE to the newest release."""
+    force_enabled = bool(force) if isinstance(force, bool) else False
     from trace_engine.updater import check_for_updates, perform_update, get_current_version
     curr_ver = get_current_version()
     console.print(f"\n[bold #10B981]Checking for TRACE updates...[/bold #10B981] [dim](current: v{curr_ver})[/dim]")
@@ -138,7 +172,7 @@ def update_cmd(
         console.print(f"[bold green]New update found:[/bold green] [bold white]v{latest}[/bold white]")
         perform_update(target_version=latest)
     else:
-        if force:
+        if force_enabled:
             console.print("[dim white]Forcing reinstallation of latest package...[/dim white]")
             perform_update()
         else:
@@ -213,11 +247,20 @@ def index(
     console.print(f"  [dim]• Classes identified:[/dim] [white]{total_classes}[/white]\n")
 
 
-@app.command()
+@app.command(name="endpoints")
+@app.command(name="epics")
+@app.command(name="eps")
+@app.command(name="routes")
 def endpoints(
     path: Path = typer.Argument(Path("."), help="Path to project repository")
 ):
     """Discover application endpoints, parameters, and authentication gates."""
+    if str(path).strip().lower() in ("version", "--version", "-v", "-V") and not path.exists():
+        import trace_engine
+        curr_ver = getattr(trace_engine, "__version__", "0.0.0")
+        console.print(f"[bold white]TRACE Endpoints[/bold white] [dim](v{curr_ver})[/dim]\n")
+        path = Path(".")
+
     project_dir = path.resolve()
     scanner = RepositoryScanner(project_dir)
     source_files = scanner.scan()
@@ -1027,7 +1070,9 @@ def report(
     console.print(f"[bold green]Report generated:[/bold green] [white]{out_file}[/white]\n")
 
 
-@app.command()
+@app.command(name="doctor")
+@app.command(name="diagnose")
+@app.command(name="health")
 def doctor():
     """Verify local environment, Tree-sitter, SQLite, Ollama, and security tool adapters."""
     from trace_engine.doctor import run_doctor
