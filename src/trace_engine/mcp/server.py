@@ -360,6 +360,14 @@ class TraceMCPServer:
             scope = str(args.get("scope", "full") or "full").lower()
             if scope not in VALID_PROFILES:
                 return {"status": "error", "error": f"Unknown scan scope profile: {scope}."}
+
+            # Refuse out-of-scope targets before touching the repository.
+            scope_guard = ScopeGuard()
+            try:
+                scope_guard.allow_target(target_url)
+            except ScopeViolationError:
+                return {"status": "refused", "error": f"Target {target_url} is outside the authorized scope; no requests were sent."}
+
             scanner, _scope_result = scoped_scanner(repo_path, scope)
             source_files = scanner.scan()
             parser = CodeParser()
@@ -385,11 +393,6 @@ class TraceMCPServer:
             engine = HypothesisEngine()
             hypotheses = engine.derive_hypotheses(apm, discovered_endpoints)
 
-            scope_guard = ScopeGuard()
-            try:
-                scope_guard.allow_target(target_url)
-            except ScopeViolationError:
-                return {"status": "refused", "error": f"Target {target_url} is outside the authorized scope; no requests were sent."}
             client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=SCAN_HTTP_TIMEOUT)
             context = TestContext(
                 target_base_url=target_url,

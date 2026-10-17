@@ -1,6 +1,7 @@
 """SecureBERT 2.0 vulnerability classifier and semantic encoder."""
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 import math
@@ -46,7 +47,7 @@ class SecureBERTClassifier:
         for cand in candidates:
             weight_file = cand / "model.safetensors"
             if weight_file.exists():
-                if weight_file.stat().st_size < 10000:
+                if weight_file.stat().st_size < 10000 and os.environ.get("TRACE_ALLOW_LFS_PULL") == "1":
                     try:
                         import subprocess
                         subprocess.run(["git", "lfs", "pull"], cwd=repo_root, capture_output=True, timeout=60)
@@ -205,6 +206,7 @@ class SecureBERTClassifier:
             scores = self._semantic_scoring(code_text, endpoint)
 
         self.cache.set(code_text, scores)
+        self.cache.flush()
         return scores
 
     def _semantic_scoring(self, code_text: str, endpoint: Endpoint) -> Dict[str, float]:

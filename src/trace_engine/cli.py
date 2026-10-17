@@ -433,6 +433,7 @@ def scan(
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
     chain: bool = typer.Option(True, "--chain/--no-chain", help="Re-inject harvested leaks into other routes (bounded)"),
+    models: bool = typer.Option(True, "--models/--no-models", help="Check and provision AI intelligence models (Laya System 1 & SecureBERT 2.0) before scanning"),
     scope: str = typer.Option("full", "--scope", help="Scan scope: full (everything), app (exclude fixture/test dirs), fixtures (fixtures only)"),
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
@@ -442,9 +443,10 @@ def scan(
 
     t_start = time.perf_counter()
     project_dir = path.resolve()
-    from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
-    if not prompt_and_bootstrap_models(interactive=True):
-        console.print("[yellow]Continuing without neural models — deterministic AST analysis with heuristic scoring.[/yellow]\n")
+    if models:
+        from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
+        if not prompt_and_bootstrap_models(interactive=True):
+            console.print("[yellow]Continuing without neural models — deterministic AST analysis with heuristic scoring.[/yellow]\n")
 
     config = load_config(project_dir)
 
@@ -504,6 +506,14 @@ def scan(
         scope_guard.allow_target(target)
     except ScopeViolationError as e:
         progress_console.print(f"  [yellow]Scope policy:[/yellow] target {target} refused ({e}). Continuing static-only.")
+
+    from trace_engine.runtime.client import probe_target_online
+    target_online = probe_target_online(scope_guard, target, timeout_seconds=1.5)
+    if target_online:
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({target}) - executing active test packs")
+    else:
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({target}) - static boundary correlation")
+
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
     context = TestContext(
         target_base_url=target,
@@ -516,7 +526,7 @@ def scan(
     for hyp in hypotheses:
         pack = default_registry.get(hyp.recommended_test_pack)
         test_res = None
-        if pack:
+        if pack and target_online:
             try:
                 test_res = pack.execute(hyp, client, context)
             except Exception:
@@ -527,7 +537,7 @@ def scan(
             findings.append(finding)
 
     # 4b. Chain-mode escalation: re-inject harvested leaks into other routes.
-    if chain and findings:
+    if chain and findings and target_online:
         from trace_engine.testpacks.chain import escalate_chains
         from trace_engine.findings.model import Severity, FindingConfidence
 
@@ -734,6 +744,7 @@ def test_all(
     model_metrics = {}
     if models and discovered_endpoints:
         try:
+            print("  [AI] Loading SecureBERT 2.0 & Laya System 1 (first run may take a minute)...", file=sys.stderr, flush=True)
             with console.status("  [bold green]Running AI Models:[/bold green] Evaluating SecureBERT 2.0 & Laya System 1..."):
                 orchestrator = IntelligenceOrchestrator()
                 code_slices = [f"{ep.method} {ep.path}" for ep in discovered_endpoints]

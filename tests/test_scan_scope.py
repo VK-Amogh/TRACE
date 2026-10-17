@@ -102,14 +102,24 @@ def test_mcp_rejects_unknown_scope_without_traceback():
     assert "bogus" in res["error"]
 
 
-def test_mcp_refuses_out_of_scope_target_without_fetch():
+def test_mcp_refuses_out_of_scope_target_without_fetch(tmp_path):
+    """Refusal must happen before any repository scan or HTTP fetch."""
     from unittest.mock import patch
 
+    from trace_engine.ingest.repository import RepositoryScanner
     from trace_engine.mcp.server import TraceMCPServer
 
-    with patch("httpx.Client") as cli:
+    (tmp_path / "app.py").write_text(
+        "from fastapi import FastAPI\napp = FastAPI()\n", encoding="utf-8"
+    )
+
+    def _boom(self):
+        raise AssertionError("repository must not be scanned for a refused target")
+
+    with patch.object(RepositoryScanner, "scan", _boom), patch("httpx.Client") as cli:
         res = TraceMCPServer().execute_tool(
-            "trace_scan", {"repository": ".", "scope": "full", "target": "http://evil.com/"}
+            "trace_scan",
+            {"repository": str(tmp_path), "scope": "full", "target": "http://evil.com/"},
         )
         assert res["status"] == "refused"
         cli.assert_not_called()

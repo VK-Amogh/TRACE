@@ -63,7 +63,7 @@ def test_scan_sarif_output_parses(tmp_path: Path):
     src = Path(__file__).parent.parent / "testbed_hardcore"
     work = tmp_path / "tb"
     shutil.copytree(src, work)
-    res = runner.invoke(app, ["scan", str(work), "--format", "sarif"])
+    res = runner.invoke(app, ["scan", str(work), "--format", "sarif", "--no-models"])
     assert res.exit_code == 0, res.output[-2000:]
     payload = json.loads(res.stdout)
     assert payload["version"] == "2.1.0"

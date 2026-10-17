@@ -5,6 +5,9 @@ from typing import List, Dict, Any, Optional, Set
 from trace_engine.apm.nodes import APMNode, NodeType
 from trace_engine.apm.edges import APMEdge, EdgeType
 
+_EXACT_BETWEENNESS_MAX_NODES = 2000
+_BETWEENNESS_SAMPLE_SOURCES = 256
+
 
 class AttackPathModel:
     """Core Attack-Path Model representing application architecture and attack surface."""
@@ -106,7 +109,18 @@ class AttackPathModel:
         if self.graph.number_of_nodes() == 0:
             return []
         try:
-            centrality = nx.betweenness_centrality(self.graph)
+            node_count = self.graph.number_of_nodes()
+            if node_count > _EXACT_BETWEENNESS_MAX_NODES:
+                # Exact Brandes is O(V*E) and dominates runtime on large
+                # real-world graphs; sample a seeded set of sources instead.
+                # Deterministic and preserves the top rankings.
+                centrality = nx.betweenness_centrality(
+                    self.graph,
+                    k=min(node_count, _BETWEENNESS_SAMPLE_SOURCES),
+                    seed=42,
+                )
+            else:
+                centrality = nx.betweenness_centrality(self.graph)
         except Exception:
             return []
         ranked = sorted(centrality.items(), key=lambda kv: kv[1], reverse=True)

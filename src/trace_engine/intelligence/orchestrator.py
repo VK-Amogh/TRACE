@@ -92,6 +92,10 @@ class IntelligenceOrchestrator:
         """Evaluates a batch of endpoints through SecureBERT and Laya System 1."""
         items = list(zip(code_slices, endpoints))
         bert_scores_list = self.securebert.classify_batch(items)
+        try:
+            self.securebert.cache.flush()
+        except Exception:
+            pass
 
         recommendations: List[TestPlanRecommendation] = []
         for ep, code_slice, bert_scores in zip(endpoints, code_slices, bert_scores_list):
