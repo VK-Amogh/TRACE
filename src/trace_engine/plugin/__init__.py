@@ -77,6 +77,23 @@ class TraceHarnessPlugin:
         module_plugin = Path(__file__).resolve().parent / "bundle"
         return module_plugin
 
+    @staticmethod
+    def published_skills() -> Dict[str, Path]:
+        """Locate shipped skills: ``{name: dir}`` for every dir holding a SKILL.md.
+
+        Wheels carry them under ``bundle/published-skills`` (see pyproject);
+        source checkouts and npm installs keep them in the top-level ``skills/``.
+        """
+        here = Path(__file__).resolve().parent
+        for root in (here / "bundle" / "published-skills", here.parents[2] / "skills"):
+            if root.is_dir():
+                return {
+                    d.name: d
+                    for d in sorted(root.iterdir())
+                    if d.is_dir() and (d / "SKILL.md").is_file()
+                }
+        return {}
+
     def install(self, workspace_mode: bool = True, global_mode: bool = False) -> Dict[str, Path]:
         """Installs the TRACE plugin into workspace .agents/plugins/ or global ~/.gemini/config/plugins/."""
         installed_locations: Dict[str, Path] = {}
@@ -91,20 +108,13 @@ class TraceHarnessPlugin:
             self._copy_bundle(bundle_dir, ws_dest)
             installed_locations["workspace"] = ws_dest
 
-            # Direct agent skill directory (.agents/skills/trace-security-harness/)
-            skill_src = bundle_dir / "skills" / "trace-security-harness"
-            if skill_src.exists():
-                skill_dest = self.repo_path / ".agents" / "skills" / "trace-security-harness"
-                skill_dest.mkdir(parents=True, exist_ok=True)
-                self._copy_bundle(skill_src, skill_dest)
-                installed_locations["agent_skill"] = skill_dest
-
-            # Claude Code skill integration (.claude/skills/trace-security/)
-            claude_skill_dest = self.repo_path / ".claude" / "skills" / "trace-security"
-            if skill_src.exists():
-                claude_skill_dest.mkdir(parents=True, exist_ok=True)
-                self._copy_bundle(skill_src, claude_skill_dest)
-                installed_locations["claude_skill"] = claude_skill_dest
+            # Published skills (trace, trace-fix) in the shared and Claude Code locations.
+            for name, src in self.published_skills().items():
+                for rel in (".agents/skills", ".claude/skills"):
+                    dest = self.repo_path / rel / name
+                    dest.mkdir(parents=True, exist_ok=True)
+                    self._copy_bundle(src, dest)
+                installed_locations[f"skill:{name}"] = self.repo_path / ".agents" / "skills" / name
 
             # Generate or update .mcp.json for Claude Code and Cursor
             from trace_engine.mcp.config import generate_mcp_json
@@ -126,13 +136,12 @@ class TraceHarnessPlugin:
             self._copy_bundle(bundle_dir, global_dest)
             installed_locations["global"] = global_dest
 
-            # Global Claude configuration (~/.claude/skills/trace-security/)
-            global_claude = home / ".claude" / "skills" / "trace-security"
-            skill_src = bundle_dir / "skills" / "trace-security-harness"
-            if skill_src.exists():
-                global_claude.mkdir(parents=True, exist_ok=True)
-                self._copy_bundle(skill_src, global_claude)
-                installed_locations["global_claude"] = global_claude
+            # Published skills in the home-level shared and Claude Code locations.
+            for name, src in self.published_skills().items():
+                for rel in (".agents/skills", ".claude/skills"):
+                    dest = home / rel / name
+                    dest.mkdir(parents=True, exist_ok=True)
+                    self._copy_bundle(src, dest)
 
         return installed_locations
 

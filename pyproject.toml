@@ -70,6 +70,9 @@ path = "src/trace_engine/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/trace_engine"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"skills" = "trace_engine/plugin/bundle/published-skills"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

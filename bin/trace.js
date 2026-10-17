@@ -68,7 +68,7 @@ if (['--version', '-v', '-V', 'version'].includes(args[0])) {
 
 // install-skill: instant, zero-dependency agent setup.
 if (['install-skill', 'setup-agent', 'install-agent'].includes(args[0])) {
-  installSkills(process.cwd(), projectRoot);
+  installSkills(process.cwd(), projectRoot, args.slice(1));
   process.exit(0);
 }
 

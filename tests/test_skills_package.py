@@ -58,6 +58,34 @@ def test_skill_bodies_concise():
         assert "trace" in body.lower(), f"{skill_dir}: body should mention trace"
 
 
+def test_sibling_skill_links_resolve():
+    """Cross-skill links (../other-skill/SKILL.md) must point at real skills."""
+    for skill_dir in _skill_dirs():
+        _, body = _load_skill(skill_dir)
+        for match in re.findall(r"\]\((\.\./[^)#]+)\)", body):
+            target = (skill_dir / match).resolve()
+            assert target.is_file(), f"{skill_dir.name}: dangling sibling link {match}"
+
+
+def test_nested_reference_files_resolve():
+    """Reference docs may link to each other and to sibling skills."""
+    for skill_dir in _skill_dirs():
+        for ref in (skill_dir / "references").glob("*.md") if (skill_dir / "references").is_dir() else []:
+            text = ref.read_text(encoding="utf-8")
+            for match in re.findall(r"\]\(((?!https?://|#)[^)\s]+)\)", text):
+                target = (ref.parent / match.split("#")[0]).resolve()
+                assert target.exists(), f"{ref.name}: dangling link {match}"
+
+
+def test_verify_statuses_documented_accurately():
+    """Skills must name the oracle's real statuses, never an invented one."""
+    for skill_dir in _skill_dirs():
+        for md in skill_dir.rglob("*.md"):
+            assert "RESOLVED" not in md.read_text(encoding="utf-8"), (
+                f"{md}: verify oracle returns FIXED/STILL_PRESENT/INCONCLUSIVE, not RESOLVED"
+            )
+
+
 def test_skill_references_resolve():
     for skill_dir in _skill_dirs():
         _, body = _load_skill(skill_dir)

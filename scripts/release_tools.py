@@ -2,8 +2,8 @@
 """Release helper: keep versions in sync and extract changelog notes.
 
 Usage:
-    python scripts/release_tools.py check [TAG]    # manifests agree (and match TAG if given)
-    python scripts/release_tools.py bump X.Y.Z     # bump __init__.py + package.json, roll CHANGELOG
+    python scripts/release_tools.py check [TAG]    # manifests + skills agree (and match TAG if given)
+    python scripts/release_tools.py bump X.Y.Z     # bump __init__.py, package.json, skills; roll CHANGELOG
     python scripts/release_tools.py notes X.Y.Z    # print the CHANGELOG section for a version
 """
 
@@ -34,6 +34,26 @@ def npm_version() -> str:
     return json.loads(PKG.read_text(encoding="utf-8"))["version"]
 
 
+SKILLS = ROOT / "skills"
+SKILL_VERSION_RE = re.compile(r'^(\s+version:\s*)"([^"]+)"', re.M)
+
+
+def skill_files() -> list[Path]:
+    """Every shipped ``skills/<name>/SKILL.md``."""
+    return sorted(SKILLS.glob("*/SKILL.md")) if SKILLS.is_dir() else []
+
+
+def skill_versions() -> dict[str, str]:
+    """``metadata.version`` per skill, read from the frontmatter only."""
+    versions: dict[str, str] = {}
+    for path in skill_files():
+        text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+        front = text.split("---", 2)[1] if text.startswith("---") else ""
+        m = SKILL_VERSION_RE.search(front)
+        versions[path.parent.name] = m.group(2) if m else "<missing>"
+    return versions
+
+
 def check(tag: str | None) -> None:
     py, npm = py_version(), npm_version()
     print(f"python={py} npm={npm} tag={tag or '-'}")
@@ -41,6 +61,9 @@ def check(tag: str | None) -> None:
         sys.exit(f"error: __version__ ({py}) != package.json ({npm})")
     if tag and tag.removeprefix("v") != py:
         sys.exit(f"error: tag ({tag}) != manifests ({py})")
+    stale = {n: v for n, v in skill_versions().items() if v != py}
+    if stale:
+        sys.exit(f"error: skill metadata.version != {py}: {stale}")
 
 
 def bump(new: str) -> None:
@@ -54,6 +77,12 @@ def bump(new: str) -> None:
         re.sub(r'("version"\s*:\s*)"[^"]+"', rf'\1"{new}"', PKG.read_text(encoding="utf-8"), count=1),
         encoding="utf-8",
     )
+    for path in skill_files():
+        raw = path.read_text(encoding="utf-8")
+        head, sep, rest = raw.partition("\n---")
+        path.write_text(
+            SKILL_VERSION_RE.sub(rf'\1"{new}"', head, count=1) + sep + rest, encoding="utf-8"
+        )
     text = CHANGELOG.read_text(encoding="utf-8")
     if f"## [{new}]" in text:
         sys.exit(f"error: CHANGELOG already has {new}")

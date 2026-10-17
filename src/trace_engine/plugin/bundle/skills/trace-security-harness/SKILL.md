@@ -115,4 +115,10 @@ Verify that the exploit vector is blocked and the endpoint remains healthy:
 2. **Evaluate Patch Quality:**
    - MCP Tool: `trace_eval_patch`
    
-The verification oracle will execute the active exploit test pack against the running target. A status of `RESOLVED` with `runtime_check_passed: true` confirms the fix is sound.
+The verification oracle re-indexes the code and replays the exploit test pack against the running target (restart the target after patching, and run verify before rescanning because scans renumber finding IDs). It returns one of:
+
+- `FIXED` (`remediation_verified: true`): a live probe reached the target, the exploit no longer reproduces, and the static re-index no longer flags the finding. This is the only success state.
+- `STILL_PRESENT`: the exploit still works at runtime. Return to Phase 2.
+- `INCONCLUSIVE`: target down or refused by scope policy, finding missing from the store, or static analysis still flags it. Never report this as fixed.
+
+The examples above use Kotlin for illustration; apply the same invariant in the project's own language. For triage, prioritization, per-language fix patterns and CI guidance, install the `trace-fix` skill (`npx skills add VK-Amogh/TRACE --skill trace-fix`); the `trace` skill covers setup.
