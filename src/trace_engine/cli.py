@@ -24,6 +24,8 @@ from rich.console import Console
 
 from trace_engine.config.loader import init_trace_dir, load_config, get_trace_dir
 from trace_engine.ingest.repository import RepositoryScanner
+from trace_engine.ingest.files import SourceFile
+from trace_engine.ingest.scan_scope import ScanScopeResult
 from trace_engine.parsing.parser import CodeParser, ParsedFile
 from trace_engine.framework import get_adapters
 from trace_engine.framework.base import Endpoint
@@ -83,6 +85,56 @@ def _scoped_repo_scanner(project_dir: Path, scope: str):
     scanner, scope_result = scoped_scanner(project_dir, scope)
     print_scope_summary(progress_console, scope_result)
     return scanner, scope_result
+
+
+def _scan_project_sources(
+    project_dir: Path, scope: str
+) -> Tuple[List[SourceFile], List[ParsedFile], List[Endpoint], ScanScopeResult, List[str]]:
+    """Run one ingest → parse → adapt pass shared by all scan commands.
+
+    Returns ``(source_files, parsed_files, endpoints, scope_result,
+    failed_files)``. Files that fail to read or parse are skipped and
+    reported by path (never silently swallowed). Matches AGENTS.md guidance:
+    shared scan logic lives here, not copy-pasted per command.
+    """
+    scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
+    source_files = scanner.scan()
+    parser = CodeParser()
+    adapters = get_adapters()
+
+    parsed_files: List[ParsedFile] = []
+    discovered_endpoints: List[Endpoint] = []
+    failed_files: List[str] = []
+    for sf in source_files:
+        try:
+            content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            failed_files.append(sf.path)
+            continue
+        try:
+            pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
+        except Exception:
+            failed_files.append(sf.path)
+            continue
+        parsed_files.append(pf)
+        for adapter in adapters:
+            if adapter.can_handle(pf):
+                try:
+                    discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
+                except Exception:
+                    failed_files.append(f"{sf.path} ({type(adapter).__name__})")
+    return source_files, parsed_files, discovered_endpoints, scope_result, failed_files
+
+
+def _report_skipped_files(failed_files: List[str]) -> None:
+    """Surface files skipped during ingest/parse so failures stay visible."""
+    if not failed_files:
+        return
+    shown = ", ".join(failed_files[:5])
+    more = f" (+{len(failed_files) - 5} more)" if len(failed_files) > 5 else ""
+    progress_console.print(
+        f"  [yellow]Skipped {len(failed_files)} unreadable files:[/yellow] [dim]{shown}{more}[/dim]"
+    )
 
 
 @app.callback()
@@ -262,19 +314,8 @@ def endpoints(
         path = Path(".")
 
     project_dir = path.resolve()
-    scanner = RepositoryScanner(project_dir)
-    source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
-    discovered_endpoints: List[Endpoint] = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                eps = adapter.extract_endpoints(pf, content)
-                discovered_endpoints.extend(eps)
+    _, _, discovered_endpoints, _, failed_files = _scan_project_sources(project_dir, "full")
+    _report_skipped_files(failed_files)
 
     if not discovered_endpoints:
         console.print("\n[yellow]No framework endpoints detected in scanned files.[/yellow]\n")
@@ -291,21 +332,10 @@ def apm(
 ):
     """Construct and inspect the Attack-Path Model (APM) graph."""
     project_dir = path.resolve()
-    scanner = RepositoryScanner(project_dir)
-    source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
-    parsed_files: List[ParsedFile] = []
-    discovered_endpoints: List[Endpoint] = []
-
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
+    source_files, parsed_files, discovered_endpoints, _, failed_files = _scan_project_sources(
+        project_dir, "full"
+    )
+    _report_skipped_files(failed_files)
 
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
@@ -330,20 +360,10 @@ def analyze(
 ):
     """Analyze static security signals and derive actionable attack-surface hypotheses."""
     project_dir = path.resolve()
-    scanner = RepositoryScanner(project_dir)
-    source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
-    parsed_files = []
-    discovered_endpoints = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
+    source_files, parsed_files, discovered_endpoints, _, failed_files = _scan_project_sources(
+        project_dir, "full"
+    )
+    _report_skipped_files(failed_files)
 
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
@@ -367,20 +387,10 @@ def test(
     config = load_config(project_dir)
 
     # Ingest and derive hypotheses (explicit scan scope; default full preserves behavior)
-    scanner, _scope_result = _scoped_repo_scanner(project_dir, scope)
-    source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
-    parsed_files = []
-    discovered_endpoints = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
+    source_files, parsed_files, discovered_endpoints, _, failed_files = _scan_project_sources(
+        project_dir, scope
+    )
+    _report_skipped_files(failed_files)
 
     builder = APMBuilder(project_name=project_dir.name)
     graph_model = builder.build(project_dir, source_files, parsed_files, discovered_endpoints)
@@ -498,20 +508,10 @@ def scan(
 
     # 1. Ingest (explicit scan scope; default full preserves behavior)
     t_stage = time.perf_counter()
-    scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
-    source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
-
-    parsed_files = []
-    discovered_endpoints = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
+    source_files, parsed_files, discovered_endpoints, scope_result, failed_files = (
+        _scan_project_sources(project_dir, scope)
+    )
+    _report_skipped_files(failed_files)
 
     progress_console.print(f"  [dim]✓ Ingestion:[/dim] {len(source_files)} files, {len(discovered_endpoints)} endpoints discovered [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
     t_stage = time.perf_counter()
@@ -742,22 +742,12 @@ def test_all(
 
     # 1. Ingestion across all supported languages (explicit scan scope)
     t_stage = time.perf_counter()
-    scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
-    source_files = scanner.scan()
-    parser = CodeParser()
-    adapters = get_adapters()
+    source_files, parsed_files, discovered_endpoints, scope_result, failed_files = (
+        _scan_project_sources(project_dir, scope)
+    )
+    _report_skipped_files(failed_files)
 
     languages = set(sf.language for sf in source_files)
-
-    parsed_files = []
-    discovered_endpoints = []
-    for sf in source_files:
-        content = Path(sf.absolute_path).read_text(encoding="utf-8", errors="replace")
-        pf = parser.parse(sf.path, content, sf.language, absolute_path=sf.absolute_path)
-        parsed_files.append(pf)
-        for adapter in adapters:
-            if adapter.can_handle(pf):
-                discovered_endpoints.extend(adapter.extract_endpoints(pf, content))
 
     progress_console.print(f"  [dim]✓ Ingestion:[/dim] [bold white]{len(source_files)}[/bold white] files across {len(languages)} languages ([dim]{', '.join(sorted(languages))}[/dim]), [bold white]{len(discovered_endpoints)}[/bold white] endpoints discovered [dim]({time.perf_counter() - t_stage:.2f}s)[/dim]")
     t_stage = time.perf_counter()
