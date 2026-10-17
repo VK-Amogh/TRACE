@@ -6,14 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-17
+
 ### Fixed
 
+- CLI root `--upgrade` / `--update`: adds options to Typer `main` callback and launcher normalization in `bin/trace.js`, resolving `No such option: --upgrade` when invoking `npx trace --upgrade` or `trace --upgrade`.
+- CLI root `--doctor`: adds `--doctor` flag and command aliases (`diagnose`, `health`), optimizes environment diagnostics with 0.5s local Ollama ping and lightweight weight verification, preventing heavy PyTorch model initialization or accidental downloads during diagnostics.
+- `version` subcommand: added first-class `trace version` command with `--json` output option, matching launcher behavior and complementing `--version`.
+- `endpoints` aliases: added `epics`, `eps`, and `routes` aliases to `endpoints`, plus graceful parameter handling for `epics version`.
+- `help` subcommand: added `trace help` command mapping to root Typer help output.
 - `trace scan` offline stall: adds `--models/--no-models` (matching `audit`),
   probes target liveness once (`probe_target_online`) and skips runtime
   testpacks + chain escalation when OFFLINE, so static-only scans never hang
   on dead targets.
 - Ingest walk pruning: `RepositoryScanner` prunes ignored trees
-  (`ref/`, `venv/`, `datasets/`, …) instead of `rglob("*")`-ing every file;
+  (`ref/`, `venv/`, `datasets/`, ...) instead of `rglob("*")`-ing every file;
   single-read file hashing, memoized `fnmatch`, `.traceignore` gains `ref/`.
 - Intelligence overhead: SecureBERT cache buffers writes (`set()` marks dirty,
   `flush()` persists once per batch + after single classify); APM
@@ -21,8 +28,7 @@ All notable changes to this project are documented here. The format follows
   256 sources); Laya/SecureBERT `git lfs pull` now gated behind
   `TRACE_ALLOW_LFS_PULL=1`.
 - MCP `trace_scan` refuses out-of-scope targets before repository scan.
-- Tests: `--no-models` SARIF path, ingest-pruning + SecureBERT-cache suites,
-  APM sampling determinism, stricter MCP refusal test.
+- Tests: added `tests/test_cli_commands.py` covering all CLI commands, aliases, and flags; `--no-models` SARIF path, ingest-pruning + SecureBERT-cache suites, APM sampling determinism, stricter MCP refusal test.
 
 ## [2.2.0] - 2026-10-17
 

@@ -32,11 +32,11 @@ class OllamaProvider(AIProvider):
         except Exception:
             return False
 
-    def is_available(self) -> bool:
+    def is_available(self, timeout: float = 0.5) -> bool:
         if not self._scope_ok("/api/tags"):
             return False
         try:
-            with httpx.Client(timeout=2.0) as client:
+            with httpx.Client(timeout=timeout) as client:
                 res = client.get(f"{self.endpoint}/api/tags")
                 return res.status_code == 200
         except Exception:

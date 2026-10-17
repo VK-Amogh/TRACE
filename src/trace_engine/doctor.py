@@ -200,18 +200,27 @@ def run_doctor(project_root=None) -> DoctorReport:
         )
     # 8. Laya System 1 Engine
     try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            from trace_engine.intelligence.laya.router import LayaDecisionEngine
-            laya = LayaDecisionEngine()
-        laya_avail = laya.is_available()
+        from trace_engine.intelligence.downloader import is_model_installed
+        from pathlib import Path
+        laya_avail = is_model_installed("laya-finetuned")
+        if not laya_avail:
+            repo_root = Path(__file__).resolve().parents[2]
+            candidates = [
+                Path.home() / ".trace/models/laya-finetuned",
+                Path("models/laya-finetuned"),
+                Path(".trace/models/laya-finetuned"),
+                repo_root / "models/laya-finetuned",
+            ]
+            laya_avail = any(
+                c.exists() and any((c / f).exists() for f in ["laya_dual_head.onnx", "laya_dual_head.pt"])
+                for c in candidates
+            )
         items.append(
             CheckItem(
                 name="Laya System 1",
                 status=laya_avail,
                 category="AI Inference",
-                details="Online (convaiinnovations/laya on CPU)" if laya_avail else "Standby (calibrated fallback active)",
+                details="Online (convaiinnovations/laya on CPU)" if laya_avail else "Standby (calibrated fallback active; run 'trace setup-models')",
                 critical=False,
             )
         )
@@ -228,21 +237,45 @@ def run_doctor(project_root=None) -> DoctorReport:
 
     # 9. SecureBERT 2.0 Classifier
     try:
-        from trace_engine.intelligence.securebert.classifier import SecureBERTClassifier
-        bert = SecureBERTClassifier()
+        from trace_engine.intelligence.downloader import is_model_installed, get_default_models_dir
+        from pathlib import Path
+        sb_installed = is_model_installed("securebert-finetuned")
+        sb_details = ""
+        if sb_installed:
+            model_dir = get_default_models_dir() / "securebert-finetuned"
+            sb_details = f"Model: {model_dir}"
+        else:
+            repo_root = Path(__file__).resolve().parents[2]
+            candidates = [
+                Path.home() / ".trace/models/securebert-finetuned",
+                Path("models/securebert-finetuned"),
+                Path(".trace/models/securebert-finetuned"),
+                repo_root / "models/securebert-finetuned",
+            ]
+            found = False
+            for c in candidates:
+                safetensors = c / "model.safetensors"
+                if c.exists() and safetensors.exists() and safetensors.stat().st_size >= 10000:
+                    found = True
+                    sb_details = f"Model: {c}"
+                    break
+            sb_installed = found
+            if not found:
+                sb_details = "Standby (semantic heuristic active; run 'trace setup-models')"
+
         items.append(
             CheckItem(
                 name="SecureBERT 2.0",
-                status=True,
+                status=sb_installed,
                 category="AI Inference",
-                details=f"Model: {bert.model_name}",
+                details=sb_details,
                 critical=False,
             )
         )
     except Exception as e:
         items.append(
             CheckItem(
-                name="SecureBERT 2.0 Semantic Classifier",
+                name="SecureBERT 2.0",
                 status=False,
                 category="AI Inference",
                 details=str(e),
