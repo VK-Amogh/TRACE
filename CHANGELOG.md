@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `trace scan` offline stall: adds `--models/--no-models` (matching `audit`),
+  probes target liveness once (`probe_target_online`) and skips runtime
+  testpacks + chain escalation when OFFLINE, so static-only scans never hang
+  on dead targets.
+- Ingest walk pruning: `RepositoryScanner` prunes ignored trees
+  (`ref/`, `venv/`, `datasets/`, …) instead of `rglob("*")`-ing every file;
+  single-read file hashing, memoized `fnmatch`, `.traceignore` gains `ref/`.
+- Intelligence overhead: SecureBERT cache buffers writes (`set()` marks dirty,
+  `flush()` persists once per batch + after single classify); APM
+  `betweenness_centrality` sampling caps large graphs (>2000 nodes, seeded
+  256 sources); Laya/SecureBERT `git lfs pull` now gated behind
+  `TRACE_ALLOW_LFS_PULL=1`.
+- MCP `trace_scan` refuses out-of-scope targets before repository scan.
+- Tests: `--no-models` SARIF path, ingest-pruning + SecureBERT-cache suites,
+  APM sampling determinism, stricter MCP refusal test.
+
 ## [2.2.0] - 2026-10-17
 
 ### Added
