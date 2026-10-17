@@ -181,7 +181,7 @@ or the bundled fixtures (`testbed_hardcore/`, `test-repository/`, `labs/`).
  
 TRACE ships through automated GitHub Actions releases:
  
-- Tagging and pushing `v*` (e.g. `v2.2.1`) triggers `release.yml`, which runs
+- Tagging and pushing `v*` (e.g. `v2.2.2`) triggers `release.yml`, which runs
   the full cross-OS test suite, builds attested sdist/wheel/npm packages,
   and publishes to PyPI and npm with provenance. The agent skills ship in
   both packages, and `release_tools.py` keeps their versions in sync.
