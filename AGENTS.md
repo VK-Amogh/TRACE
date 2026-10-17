@@ -28,3 +28,9 @@ pytest -q                              # pythonpath=src is set in pyproject.toml
 - Commit titles: conventional lowercase prefix (`fix:`, `feat:`, `docs:`, `ci:`), no body unless needed.
 - Never commit secrets, `.trace/` output, `*.sarif`, or model binaries (`*.pt`, `*.onnx`, `*.safetensors` go through Git LFS).
 - `ref/` holds ignored reference clones for inspiration — never import from it.
+
+## Pull Request Policy
+
+- Do NOT open PRs automatically or for every change. Only open PRs when explicitly requested.
+- When creating a PR, strictly follow the standardized template defined in `.github/pull_request_template.md` (Summary, Type of Change, Detailed Context, Verification & Test Evidence, and Security & Repository Guidelines Checklist).
+- Work on `auraflaa:main` and submit PRs to `VK-Amogh:main`. Never create separate branches on the target repository unless explicitly asked.
