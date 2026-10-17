@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec?color=black" alt="NPM"></a>
-  <a href="https://github.com/VK-Amogh/TRACE/actions/workflows/ci.yml"><img src="https://github.com/VK-Amogh/TRACE/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/trace-sec"><img src="https://img.shields.io/npm/v/trace-sec" alt="npm version"></a>
+  <a href="https://github.com/VK-Amogh/TRACE/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/VK-Amogh/TRACE/ci.yml?branch=main&label=CI" alt="CI"></a>
   <a href="https://VK-Amogh.github.io/TRACE/"><img src="https://img.shields.io/badge/docs-online-black" alt="docs"></a>
   <a href="https://github.com/VK-Amogh/TRACE/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-black" alt="license"></a>
   <a href="https://github.com/VK-Amogh/TRACE/stargazers"><img src="https://img.shields.io/github/stars/VK-Amogh/TRACE?style=social" alt="GitHub stars"></a>
