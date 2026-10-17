@@ -50,6 +50,23 @@ trace
 
 or zero-install: `npx trace-sec audit .`
 
+The install step provisions a Python environment under `~/.trace/venv`. Set
+`TRACE_SKIP_POSTINSTALL=1` (it is skipped automatically when `CI=true`) to
+skip it, for example when you only want the agent skills from the package.
+
+## Agent skills
+
+```bash
+npx skills add VK-Amogh/TRACE --skill trace   # universal: 75+ agent harnesses
+npx trace-sec install-skill                   # trace + trace-fix + MCP config
+```
+
+With the `trace` skill installed you do not need to install anything else
+yourself: the agent installs and configures TRACE.
+
+See [Agent skills](skills.md) for global installs, per-harness options and
+npm-based linking.
+
 ## Verify the install
 
 ```bash

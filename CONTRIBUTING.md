@@ -69,8 +69,16 @@ ruff check src tests
 ruff format --check src tests
 PYTHONPATH=src python -m pytest tests/ -q
 node --check bin/trace.js
-npm pack --dry-run
+npm pack --dry-run                      # confirm skills/ ships in the tarball
+python scripts/release_tools.py check   # package and skill versions agree
 ```
+
+Touching `skills/`? Keep each `SKILL.md` harness-neutral (no agent-specific
+tool names), the folder name equal to its `name`, and run
+`pytest tests/test_skills_package.py tests/test_skills_install.py`.
+Touching ingestion? Changing which file formats are read belongs in
+`src/trace_engine/ingest/files.py` (`ANALYZED_LANGUAGES`) with a test in
+`tests/test_ingest_formats.py`.
 
 Docs changes need one more check (installs `mkdocs` + `material` once):
 
@@ -98,8 +106,10 @@ Fuzzing and exploit PoCs must target `testbed_hardcore/` or `labs/`
 
 ## 7. Releases
 
-1. Bump `src/trace_engine/__init__.py:__version__` **and** `package.json`
-   together — CI fails the release if either drifts from the tag.
+1. Bump with `python scripts/release_tools.py bump X.Y.Z`, which keeps
+   `src/trace_engine/__init__.py:__version__`, `package.json` and every
+   skill's `metadata.version` together — CI fails the release if any
+   drifts from the tag.
 2. Commit, tag `v<version>`, push the tag, then publish a GitHub release.
 3. `release.yml` verifies the tag, then publishes to PyPI (one-time setup:
    add this repo as a trusted publisher at pypi.org) and NPM.

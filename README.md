@@ -62,16 +62,23 @@ Once installed, simply open any terminal or CMD and type `trace` to launch!
 
 ## Agent skills
 
-Install TRACE skills into any coding agent with the
-[`skills`](https://github.com/vercel-labs/skills) CLI — no npm publish needed:
+You don't have to install TRACE yourself: install the skill and your coding
+agent sets TRACE up. Two skills in the open `SKILL.md` format work in any agent
+harness (Claude Code, Codex, Cursor, Gemini CLI, Copilot, OpenCode,
+Antigravity, …):
 
 ```bash
-npx skills add VK-Amogh/TRACE --list
-npx skills add VK-Amogh/TRACE --skill trace
+npx skills add VK-Amogh/TRACE --skill trace   # universal installer, 75+ agents
+npx trace-sec install-skill                   # or: both skills + MCP config, zero-dependency
 ```
 
-One skill, three workflows: `trace` teaches the agent to run audits,
-fix findings with live verification, and connect over MCP.
+| Skill | What it is for |
+|---|---|
+| `trace` | **Setup**: the agent installs and configures TRACE (runtime, MCP, local target, scan scope), runs scans and fixes setup problems |
+| `trace-fix` | **Findings**: triage, prioritize, fix by category and language, verify, report, plus top security guidance (OWASP/CWE, coverage limits, CI) |
+
+They also ship inside the `trace-sec` npm package and the PyPI wheel, so they
+are versioned with the tool. Details: [Agent skills](https://VK-Amogh.github.io/TRACE/skills/).
 
 ## What it catches
 
@@ -86,6 +93,12 @@ fix findings with live verification, and connect over MCP.
 | `TR-TRAV` | Path traversal | File operation on an unsanitized user path |
 | `TR-SSTI` | Template injection | Unescaped user input rendered server-side |
 | `TR-CORS` | CORS misconfiguration | Wildcard origin reflected with credentials |
+| `TR-DESER` | Unsafe deserialization | Untrusted bytes fed to an object-graph deserializer |
+
+TRACE reads source code in Python, JavaScript/TypeScript, Java/Kotlin, Go, PHP,
+Ruby, Rust, C# and Dart, and skips markup, styles, data/config files and
+build output before opening them ([what TRACE scans](https://VK-Amogh.github.io/TRACE/ingestion/)).
+Secrets, dependency CVEs and cloud/IaC configuration are not assessed.
 
 ## Benchmarks
 
@@ -104,7 +117,7 @@ Hardcore multi-service testbed (15 endpoints, 12 planted flaws):
 Every `trace audit` prints per-stage timings, so these numbers are
 reproducible on your machine — no lab-only claims.
 
-Covered by **124 automated tests** (`pytest tests/`).
+Covered by **250+ automated tests** (`pytest tests/`).
 
 ## Lite or Full
 
@@ -130,6 +143,8 @@ Confidence = 1 − (1 − P_SecureBERT) × (1 − P_AST) × (1 − P_dynamic)
   suppressing false positives.
 - **Verification oracle**: after a patch, `trace verify` replays the exploit.
   `FIXED` means the attack is actually dead — not that a linter is happy.
+  `STILL_PRESENT` means it still works; `INCONCLUSIVE` (target down, refused,
+  or static analysis still flags it) is never reported as fixed.
 
 ## Runs everywhere
 
@@ -166,9 +181,10 @@ or the bundled fixtures (`testbed_hardcore/`, `test-repository/`, `labs/`).
  
 TRACE ships through automated GitHub Actions releases:
  
-- Tagging and pushing `v*` (e.g. `v2.2.0`) triggers `release.yml`, which runs
+- Tagging and pushing `v*` (e.g. `v2.2.1`) triggers `release.yml`, which runs
   the full cross-OS test suite, builds attested sdist/wheel/npm packages,
-  and publishes to PyPI and npm with provenance.
+  and publishes to PyPI and npm with provenance. The agent skills ship in
+  both packages, and `release_tools.py` keeps their versions in sync.
 - For full details and manual dry runs, see [docs/releases.md](docs/releases.md).
 
 ## Documentation
@@ -176,7 +192,9 @@ TRACE ships through automated GitHub Actions releases:
 [Installation](https://VK-Amogh.github.io/TRACE/installation/) ·
 [Quick start](https://VK-Amogh.github.io/TRACE/quickstart/) ·
 [CLI reference](https://VK-Amogh.github.io/TRACE/cli/) ·
+[What TRACE scans](https://VK-Amogh.github.io/TRACE/ingestion/) ·
 [MCP setup](https://VK-Amogh.github.io/TRACE/mcp/) ·
+[Agent skills](https://VK-Amogh.github.io/TRACE/skills/) ·
 [FAQ](https://VK-Amogh.github.io/TRACE/faq/) ·
 [Troubleshooting](https://VK-Amogh.github.io/TRACE/troubleshooting/)
 

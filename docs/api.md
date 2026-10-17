@@ -7,6 +7,8 @@
         - find_paths_from_endpoint
         - summary
 
+::: trace_engine.ingest.repository.RepositoryScanner
+
 ::: trace_engine.security.fusion.NeuroSymbolicConfidenceEngine
 
 ::: trace_engine.findings.model.Finding

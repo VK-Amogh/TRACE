@@ -18,7 +18,10 @@ proof to your coding agent to fix.
 
 1. [Install](installation.md) — lite on any machine, full where you want neural scoring.
 2. [Run your first audit](quickstart.md) — one command, 60 seconds.
-3. [Connect your agent](mcp.md) — seven tools over MCP, fixes proven by replay.
+3. [Connect your agent](mcp.md) — eight tools over MCP, fixes proven by replay.
+4. [Let your agent set it up](skills.md) — install the `trace` skill and the
+   agent configures TRACE itself; `trace-fix` handles triage, fixes and
+   verification. Works in any agent harness.
 
 ## How it works
 
@@ -29,7 +32,8 @@ source code → AST adapters → Attack-Path Model → hypotheses
 
 Static analysis proposes, live probes dispose, and the verification
 oracle replays each exploit after a patch. A finding marked `FIXED`
-means the attack is dead.
+means the attack is dead. Only source files TRACE can analyze are read;
+see [What TRACE scans](ingestion.md).
 
 Everyday commands live on the [cheat sheet](cheatsheet.md); agents can
 read the whole site from [llms.txt](llms.txt).

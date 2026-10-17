@@ -3,9 +3,10 @@
 > TRACE is an open-source security scanner (npm: trace-sec, CLI: trace) that audits a backend repository in under a
 > second on local CPU with zero tokens: multi-framework AST adapters build an in-memory Attack-Path Model, hypotheses
 > are tested with live OWASP testpacks, and SecureBERT 2.0 + AST dataflow + probe evidence fuse into calibrated
-> confidence. Findings (TR-BOLA, TR-BFLA, TR-AUTH, TR-SSRF, TR-INJ, TR-MASS, TR-TRAV, TR-SSTI, TR-CORS) are served to
-> AI coding agents over MCP, and a verification oracle replays exploits to prove fixes. Lite install runs on 4 GB
-> with no torch; full install adds neural scoring. Apache-2.0.
+> confidence. Findings (TR-BOLA, TR-BFLA, TR-AUTH, TR-SSRF, TR-INJ, TR-MASS, TR-TRAV, TR-SSTI, TR-CORS, TR-DESER) are
+> served to AI coding agents over MCP, and a verification oracle (FIXED / STILL_PRESENT / INCONCLUSIVE) replays exploits
+> to prove fixes. Only analyzable source languages are read; markup, styles and data/config files are skipped. Lite
+> install runs on 4 GB with no torch; full install adds neural scoring. Apache-2.0.
 
 Minimal use:
 
@@ -13,11 +14,14 @@ Minimal use:
 npx trace-sec audit .
 trace scan ./backend --target http://localhost:8000
 trace explain TR-BOLA-001
-trace verify TR-BOLA-001
+trace verify TR-BOLA-001 --target http://localhost:8000
 ```
 
-MCP: `claude mcp add trace -- npx -y trace-sec mcp` — tools `trace_scan`, `trace_findings`, `trace_explain`,
-`trace_attack_path`, `trace_verify`, `trace_harness_task`, `trace_eval_patch`.
+MCP: `claude mcp add trace -- npx -y trace-sec mcp` — tools `trace_scan`, `trace_status`, `trace_findings`,
+`trace_explain`, `trace_attack_path`, `trace_verify`, `trace_harness_task`, `trace_eval_patch`.
+
+Agent skills (any harness, open SKILL.md format): `npx skills add VK-Amogh/TRACE --skill trace`, or `npx trace-sec install-skill`.
+Skills: `trace` (set up, configure and run TRACE; the only one a user must install) and `trace-fix` (triage, prioritize, fix, verify, report).
 
 ## Docs
 
@@ -27,8 +31,10 @@ MCP: `claude mcp add trace -- npx -y trace-sec mcp` — tools `trace_scan`, `tra
 - [Cheat sheet](https://VK-Amogh.github.io/TRACE/cheatsheet/): every common task on one page
 - [Lite or Full](https://VK-Amogh.github.io/TRACE/lite-or-full/): which install to choose
 - [CLI reference](https://VK-Amogh.github.io/TRACE/cli/): every command
+- [What TRACE scans](https://VK-Amogh.github.io/TRACE/ingestion/): analyzed languages, skipped formats, .traceignore
 - [MCP setup](https://VK-Amogh.github.io/TRACE/mcp/): Claude Code, Cursor, Antigravity
 - [Security harness skill](https://VK-Amogh.github.io/TRACE/harness/): agent fix runbook
+- [Agent skills](https://VK-Amogh.github.io/TRACE/skills/): install, publish and author skills
 - [API reference](https://VK-Amogh.github.io/TRACE/api/)
 - [Troubleshooting](https://VK-Amogh.github.io/TRACE/troubleshooting/) and [FAQ](https://VK-Amogh.github.io/TRACE/faq/)
 

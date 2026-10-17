@@ -50,10 +50,11 @@ nav:
       - Cheat sheet: cheatsheet.md
       - Lite or Full: lite-or-full.md
       - CLI reference: cli.md
+      - What TRACE scans: ingestion.md
   - AI agents:
       - MCP setup: mcp.md
       - Security harness skill: harness.md
-      - Agent skills (npx): skills.md
+      - Agent skills: skills.md
   - Reference:
       - API reference: api.md
       - Benchmarks: BENCHMARKS.md
@@ -93,7 +94,7 @@ markdown_extensions:
   - pymdownx.tabbed: {alternate_style: true}
 
 extra:
-  version: 2.2.0
+  version: 2.2.1
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/VK-Amogh/TRACE

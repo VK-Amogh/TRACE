@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Two agent skills with clear roles. `trace` is the setup skill: a user installs only it, and the agent installs, configures (runtime, MCP, local target, scan scope), runs and troubleshoots TRACE. New `trace-fix` covers what to do with findings: triage, prioritization, per-language remediation playbooks, verification and reporting, plus OWASP/CWE mapping, coverage limits and CI gating.
+- Skills are published through npm and PyPI: `skills` is in the npm `files` list with `agent-skill` keywords, and the wheel bundles them under `trace_engine/plugin/bundle/published-skills/`. `npx skills add` keeps working from git.
+- `install-skill` is harness-agnostic: it writes the shared `.agents/skills/` directory plus `.claude/skills/`, and accepts `--global`, `--agents`, `--no-mcp`, `--skills-only` and `--list`; the Python installer installs the same skills.
+- `release_tools.py bump` and `check` keep every skill's `metadata.version` in sync with the package version.
+- Docs: new "What TRACE scans" page; refreshed CLI reference, cheat sheet, quick start, MCP, FAQ, troubleshooting, skills and release pages for current commands, the eighth MCP tool (`trace_status`) and `INCONCLUSIVE` verification.
+
+### Changed
+
+- Ingestion skips file formats no parser or adapter can use (HTML, CSS, JSON, YAML, TOML, SQL, Swift, C/C++) before opening them, so they cost no I/O, hashing or graph nodes. Callers can opt formats back in with `RepositoryScanner(languages=...)`; skipped counts are exposed as `skipped_by_language`.
+- Ingestion also prunes more tool-cache and package-store directories (`.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.tox`, `.gradle`, `.dart_tool`, `Pods`, `site-packages`, ...) and skips `*.d.ts`, `*.bundle.js`, `*.chunk.js` and `*.egg-info`.
+
+### Fixed
+
+- `install-skill` no longer overwrites existing `.mcp.json` / `.cursor/mcp.json`; it merges the `trace` server and keeps other servers.
+- The installed Claude Code skill directory no longer mismatches its `name` (it was `trace-security` for `trace-security-harness`); the separate harness runbook is no longer installed as a skill, since `trace-fix` covers it.
+- The bundled harness runbook documents the real verification statuses (`FIXED`, `STILL_PRESENT`, `INCONCLUSIVE`) instead of a non-existent `RESOLVED`.
+
 ## [2.2.1] - 2026-10-17
 
 ### Fixed
