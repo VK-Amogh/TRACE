@@ -44,6 +44,28 @@ EXTENSION_LANGUAGE_MAP = {
 }
 
 
+#: Languages some parser or framework adapter actually consumes. Everything
+#: else in ``EXTENSION_LANGUAGE_MAP`` (markup, styles, data/config, SQL, Swift,
+#: C/C++) yields no routes, symbols or sinks today, so reading, hashing and
+#: graphing those files is pure overhead. Callers that need them (for example a
+#: future OpenAPI/config analyzer) pass ``languages=`` to ``RepositoryScanner``.
+ANALYZED_LANGUAGES = frozenset(
+    {
+        "python",
+        "javascript",
+        "typescript",
+        "dart",
+        "kotlin",
+        "java",
+        "go",
+        "php",
+        "ruby",
+        "rust",
+        "csharp",
+    }
+)
+
+
 class SourceFile(BaseModel):
     """Represents an ingested source code file."""
     path: str
@@ -58,3 +80,11 @@ def detect_language(path: Path) -> Optional[str]:
     """Detect language based on extension and filename."""
     suffix = path.suffix.lower()
     return EXTENSION_LANGUAGE_MAP.get(suffix)
+
+
+def detect_language_by_name(filename: str) -> Optional[str]:
+    """Like :func:`detect_language` for a bare filename, without building a Path."""
+    dot = filename.rfind(".")
+    if dot <= 0:
+        return None
+    return EXTENSION_LANGUAGE_MAP.get(filename[dot:].lower())

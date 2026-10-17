@@ -2,26 +2,42 @@
 
 import hashlib
 import os
+from collections import Counter
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Collection, List, Dict, Optional
 from trace_engine.ingest.ignore import IgnoreFilter
-from trace_engine.ingest.files import SourceFile, detect_language
+from trace_engine.ingest.files import (
+    ANALYZED_LANGUAGES,
+    SourceFile,
+    detect_language_by_name,
+)
 
 
 class RepositoryScanner:
-    """Discovers and catalogs source code files across a project directory."""
+    """Discovers and catalogs source code files across a project directory.
+
+    Only languages that a parser or adapter can use are ingested
+    (``ANALYZED_LANGUAGES``). Markup, styles, data/config files and similar
+    formats are skipped before they are opened, so they cost no I/O, hashing
+    or graph nodes. Pass ``languages`` to widen or narrow the set.
+    """
 
     def __init__(
         self,
         repo_path: Path,
         exclude_patterns: List[str] = None,
+        languages: Optional[Collection[str]] = None,
     ):
         self.repo_path = repo_path.resolve()
         self.ignore_filter = IgnoreFilter(self.repo_path, custom_patterns=exclude_patterns)
+        self.languages = frozenset(languages) if languages is not None else ANALYZED_LANGUAGES
+        #: Known-but-not-analyzed files skipped by the last scan, keyed by language.
+        self.skipped_by_language: Counter = Counter()
 
     def scan(self) -> List[SourceFile]:
         """Scans the repository and returns discovered source files."""
         source_files: List[SourceFile] = []
+        self.skipped_by_language = Counter()
         if not self.repo_path.exists():
             return source_files
 
@@ -35,10 +51,13 @@ class RepositoryScanner:
                 if not self.ignore_filter.should_ignore(root / d, is_dir=True)
             ]
             for filename in filenames:
-                item = root / filename
-                lang = detect_language(item)
+                lang = detect_language_by_name(filename)
                 if lang is None or lang == "unknown":
                     continue
+                if lang not in self.languages:
+                    self.skipped_by_language[lang] += 1
+                    continue
+                item = root / filename
                 if self.ignore_filter.should_ignore(item, is_dir=False):
                     continue
                 try:
