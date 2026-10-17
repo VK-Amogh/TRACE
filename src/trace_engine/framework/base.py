@@ -37,6 +37,8 @@ class Endpoint(BaseModel):
     # produce vulnerability findings on its own.
     registered: bool = True
     confidence: str = "high"  # "high" | "medium" | "low"
+    # Where the route came from: "code" (framework adapter) or "spec" (API description).
+    origin: str = "code"
 
     def display_name(self) -> str:
         return f"{self.method.upper()} {self.path}"

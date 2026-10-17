@@ -9,6 +9,7 @@ from trace_engine.apm.model import AttackPathModel
 from trace_engine.framework.base import Endpoint
 from trace_engine.security.signals import SecuritySignal, SignalType
 from trace_engine.parsing.locations import SourceLocation
+from trace_engine.security.taint import LANGUAGE_BY_SUFFIX, TaintFlow, analyze_source
 
 
 class Severity(str, Enum):
@@ -120,14 +121,53 @@ def has_template_sink(file_src: str) -> bool:
     return any(sink.lower() in lowered for sink in _TEMPLATE_ENGINE_SINKS)
 
 
+# taint-flow kind -> (category, test pack, title, static prior, severity)
+_TAINT_KINDS = {
+    "sql": (VulnerabilityCategory.INJECTION, "injection", "SQL Injection (tainted data flow)", 0.85, Severity.CRITICAL),
+    "command": (VulnerabilityCategory.INJECTION, "injection", "Command Injection (tainted data flow)", 0.85, Severity.CRITICAL),
+    "code": (VulnerabilityCategory.INJECTION, "injection", "Code Injection (tainted data flow)", 0.85, Severity.CRITICAL),
+    "ssrf": (VulnerabilityCategory.SSRF, "ssrf", "SSRF (tainted data flow)", 0.85, Severity.HIGH),
+    "path": (VulnerabilityCategory.PATH_TRAVERSAL, "path_traversal", "Path Traversal (tainted data flow)", 0.80, Severity.HIGH),
+    "deserialization": (VulnerabilityCategory.DESERIALIZATION, "deserialization", "Unsafe Deserialization (tainted data flow)", 0.85, Severity.CRITICAL),
+    "ssti": (VulnerabilityCategory.SSTI, "ssti", "Template Injection (tainted data flow)", 0.85, Severity.CRITICAL),
+}
+_TAINT_ID_PREFIX = {
+    VulnerabilityCategory.INJECTION: "INJ",
+    VulnerabilityCategory.SSRF: "SSRF",
+    VulnerabilityCategory.PATH_TRAVERSAL: "TRAV",
+    VulnerabilityCategory.DESERIALIZATION: "DESER",
+    VulnerabilityCategory.SSTI: "SSTI",
+}
+
+
 class HypothesisEngine:
     """Analyzes APM and endpoints to derive actionable security hypotheses."""
+
+    @staticmethod
+    def _flows_for(ep: Endpoint, file_src: str, cache: Dict[str, List[TaintFlow]]) -> List[TaintFlow]:
+        """Taint flows inside the handler of ``ep`` (memoized per source file)."""
+        path = ep.source.file
+        if path not in cache:
+            suffix = os.path.splitext(path)[1].lower()
+            lang = LANGUAGE_BY_SUFFIX.get(suffix, "")
+            cache[path] = analyze_source(file_src, lang) if lang else []
+        name = (ep.handler_name or "").split(".")[-1]
+        line = ep.source.line_start
+        out: List[TaintFlow] = []
+        for flow in cache[path]:
+            if flow.function.startswith("handler@"):
+                if flow.region_start - 1 <= line <= flow.region_end:
+                    out.append(flow)
+            elif name and flow.function == name:
+                out.append(flow)
+        return out
 
     def derive_hypotheses(
         self,
         apm: AttackPathModel,
         endpoints: List[Endpoint],
         include_runtime_checks: bool = False,
+        use_taint: bool = True,
     ) -> List[SecurityHypothesis]:
         """Derive testable hypotheses.
 
@@ -140,6 +180,7 @@ class HypothesisEngine:
         admin_endpoint_ids: Set[str] = set()
         source_files: Set[str] = set()
         file_cache: Dict[str, str] = {}
+        flow_cache: Dict[str, List[TaintFlow]] = {}
 
         def read_file(fpath: str) -> str:
             if not fpath:
@@ -614,6 +655,39 @@ class HypothesisEngine:
                     )
                 )
                 hypo_idx += 1
+
+            # 6b. Data-flow hypotheses: request data provably reaches a dangerous
+            # argument inside the handler (no route-name heuristics needed).
+            if use_taint and file_src:
+                for flow in self._flows_for(ep, file_src, flow_cache):
+                    spec = _TAINT_KINDS.get(flow.kind)
+                    if spec is None:
+                        continue
+                    category, pack, title, prior, sev = spec
+                    if any(h.endpoint_id == ep.id and h.category == category for h in hypotheses):
+                        continue
+                    trail = " -> ".join([flow.source] + flow.trail) if flow.trail else flow.source
+                    hypotheses.append(
+                        SecurityHypothesis(
+                            id=f"HYP-{_TAINT_ID_PREFIX[category]}-{hypo_idx:03d}",
+                            category=category,
+                            endpoint_id=ep.id,
+                            endpoint_display=ep_disp,
+                            title=f"{title} on {ep_disp}",
+                            description=f"Request data flows into {flow.sink} without sanitization.",
+                            recommended_test_pack=pack,
+                            confidence_prior=prior,
+                            static_evidence=[
+                                f"Tainted data flow: {trail} (line {flow.source_line}) reaches {flow.sink} (line {flow.sink_line})",
+                                "No sanitizer or validating guard found on the path inside the handler",
+                            ],
+                            severity=sev,
+                            source_location=SourceLocation(
+                                file=ep.source.file, line_start=flow.sink_line, line_end=flow.sink_line
+                            ),
+                        )
+                    )
+                    hypo_idx += 1
 
             # 7. Path Traversal Hypothesis: Endpoints accepting genuine file or directory path parameters
             file_param_names = [
