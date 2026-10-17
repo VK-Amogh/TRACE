@@ -30,6 +30,7 @@ class VulnerabilityCategory(str, Enum):
     SSTI = "SSTI"
     CORS = "CORS"
     DESERIALIZATION = "DESERIALIZATION"
+    RATE_LIMIT = "RATE_LIMIT"
 
 
 class SecurityHypothesis(BaseModel):
@@ -95,6 +96,22 @@ _TEMPLATE_ENGINE_SINKS = (
 )
 
 
+_RATE_SENSITIVE_WORDS = (
+    "login", "signin", "sign-in", "token", "otp", "verify", "reset", "forgot",
+    "password", "signup", "register", "sms",
+)
+_RATE_LIMITER_SIGNALS = (
+    "ratelimit", "rate_limit", "rate-limit", "limiter", "throttle", "slowapi",
+    "bucket4j", "retry-after", "too many requests", "429",
+)
+
+
+def has_rate_limit_signal(file_src: str) -> bool:
+    """Evidence that a limiter is configured in the handler's source file."""
+    lowered = (file_src or "").lower()
+    return any(sig in lowered for sig in _RATE_LIMITER_SIGNALS)
+
+
 def has_template_sink(file_src: str) -> bool:
     """Evidence of a template-engine evaluation sink in handler source."""
     if not file_src:
@@ -107,8 +124,17 @@ class HypothesisEngine:
     """Analyzes APM and endpoints to derive actionable security hypotheses."""
 
     def derive_hypotheses(
-        self, apm: AttackPathModel, endpoints: List[Endpoint]
+        self,
+        apm: AttackPathModel,
+        endpoints: List[Endpoint],
+        include_runtime_checks: bool = False,
     ) -> List[SecurityHypothesis]:
+        """Derive testable hypotheses.
+
+        ``include_runtime_checks`` adds hypotheses that are only meaningful
+        when probed live (currently missing rate limiting); callers drop the
+        resulting findings unless the probe confirms them.
+        """
         hypotheses: List[SecurityHypothesis] = []
         hypo_idx = 1
         admin_endpoint_ids: Set[str] = set()
@@ -778,6 +804,37 @@ class HypothesisEngine:
                         confidence_prior=0.90,
                         static_evidence=evidence,
                         severity=Severity.CRITICAL if has_plaintext_fallback else Severity.HIGH,
+                    )
+                )
+                hypo_idx += 1
+
+        if include_runtime_checks:
+            for ep in endpoints:
+                if not ep.registered:
+                    continue
+                path_low = ep.path.lower()
+                if not any(w in path_low for w in _RATE_SENSITIVE_WORDS):
+                    continue
+                if ep.method.upper() not in ("POST", "PUT", "PATCH", "GET"):
+                    continue
+                file_src = read_file(ep.source.file) if ep.source and ep.source.file else ""
+                if has_rate_limit_signal(file_src):
+                    continue
+                hypotheses.append(
+                    SecurityHypothesis(
+                        id=f"HYP-RATE-{hypo_idx:03d}",
+                        category=VulnerabilityCategory.RATE_LIMIT,
+                        endpoint_id=ep.id,
+                        endpoint_display=ep.display_name(),
+                        title=f"Missing Rate Limiting on {ep.display_name()}",
+                        description="Credential or one-time-code endpoint with no throttling signal in its source.",
+                        recommended_test_pack="rate_limit",
+                        confidence_prior=0.42,
+                        static_evidence=[
+                            f"Sensitive flow route {ep.method} {ep.path}",
+                            "No rate-limiter or throttle configuration found in the handler's source file",
+                        ],
+                        severity=Severity.MEDIUM,
                     )
                 )
                 hypo_idx += 1

@@ -28,16 +28,14 @@ class BflaTestPack(TestPack):
 
         clean_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "1", raw_path)
         target_url = f"{base_url}{clean_path}"
-        token_user = context.active_tokens.get("user-a") or context.active_tokens.get("user-b", "")
+        low_priv = "user-a" if context.headers_for("user-a") else "user-b"
 
         observations = []
         confirmed = False
         summary = "No BFLA behavior observed."
         steps = []
 
-        headers = {}
-        if token_user:
-            headers["Authorization"] = f"Bearer {token_user}"
+        headers = context.headers_for(low_priv)
 
         # Probe with low-privileged token
         test_payload = {"order_id": "order-101", "amount": 50, "reason": "test"}

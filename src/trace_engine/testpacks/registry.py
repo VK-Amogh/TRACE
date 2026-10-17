@@ -12,6 +12,7 @@ from trace_engine.testpacks.path_traversal import PathTraversalTestPack
 from trace_engine.testpacks.ssti import SstiTestPack
 from trace_engine.testpacks.cors import CorsTestPack
 from trace_engine.testpacks.deserialization import DeserializationTestPack
+from trace_engine.testpacks.rate_limit import RateLimitTestPack
 
 
 class TestPackRegistry:
@@ -29,6 +30,7 @@ class TestPackRegistry:
             "ssti": SstiTestPack(),
             "cors": CorsTestPack(),
             "deserialization": DeserializationTestPack(),
+            "rate_limit": RateLimitTestPack(),
         }
 
     def get(self, name: str) -> Optional[TestPack]:

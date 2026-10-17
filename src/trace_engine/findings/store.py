@@ -50,7 +50,12 @@ class FindingStore:
         if not finding_id:
             return None
         target = finding_id.strip().lower().replace("_", "-")
-        for f in self.load_findings():
+        findings = self.load_findings()
+        if len(target) >= 8 and all(c in "0123456789abcdef" for c in target):
+            for f in findings:
+                if f.fingerprint.startswith(target):
+                    return f
+        for f in findings:
             fid = f.id.strip().lower().replace("_", "-")
             if fid == target:
                 return f

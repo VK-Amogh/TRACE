@@ -8,6 +8,13 @@ from trace_engine.runtime.client import ScopedHttpClient
 from trace_engine.runtime.observations import RuntimeObservation
 from trace_engine.testpacks.canary import attacker_sees_owner_markers
 from trace_engine.security.verdict import score_response_pair
+from trace_engine.testpacks.idshapes import mutations
+from trace_engine.testpacks.stateful import (
+    collection_path,
+    extract_created_id,
+    extract_ids,
+    trailing_param,
+)
 
 
 class BolaTestPack(TestPack):
@@ -30,26 +37,54 @@ class BolaTestPack(TestPack):
         method = parts[0] if len(parts) > 1 else "GET"
         raw_path = parts[1] if len(parts) > 1 else parts[0]
 
-        test_ids = ["order-101", "101", "1", "order-102", "order-user-a", "2", "3", "user-1", "doc-1"]
+        guess_ids = ["order-101", "101", "1", "order-102", "order-user-a", "2", "3", "user-1", "doc-1"]
         observations: List[RuntimeObservation] = []
         confirmed = False
         summary = "No BOLA behavior observed."
         steps: List[str] = []
 
-        token_a = context.active_tokens.get("user-a", "")
-        token_b = context.active_tokens.get("user-b", "")
+        # Owner discovery: the identities' own objects beat guessed IDs. List the
+        # parent collection as identity A (read-only) and, when the operator opted
+        # into stateful testing, create a throwaway object if none exists.
+        owner_ids: List[str] = []
+        created_id = None
+        collection = collection_path(raw_path)
+        param = trailing_param(raw_path)
+        if collection and context.headers_for("user-a"):
+            list_obs = client.execute(
+                method="GET", url=f"{base_url}{collection}", headers=context.headers_for("user-a")
+            )
+            observations.append(list_obs)
+            if list_obs.response_status == 200:
+                owner_ids = extract_ids(list_obs.response_body, param)
+            hint = context.api_hints.get(f"POST {collection}")
+            if not owner_ids and context.stateful and hint and hint.get("body") is not None:
+                create_obs = client.execute(
+                    method="POST", url=f"{base_url}{collection}",
+                    headers=context.headers_for("user-a"), json_body=hint["body"],
+                )
+                observations.append(create_obs)
+                if create_obs.response_status in (200, 201):
+                    created_id = extract_created_id(create_obs.response_body, param)
+                    if created_id:
+                        owner_ids = [created_id]
+        mutated: List[str] = []
+        for oid in owner_ids[:1]:
+            mutated.extend(mutations(oid))
+        test_ids = list(dict.fromkeys(owner_ids + mutated + guess_ids))
+
 
         for test_id in test_ids:
             probe_path = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: test_id, raw_path)
             target_url = f"{base_url}{probe_path}"
 
             # Differential Phase 1: Request with User A context
-            headers_a = {"Authorization": f"Bearer {token_a}"} if token_a else {}
+            headers_a = context.headers_for("user-a")
             obs_a = client.execute(method=method, url=target_url, headers=headers_a)
             observations.append(obs_a)
 
             # Differential Phase 2: Request with User B context (or unauthenticated)
-            headers_b = {"Authorization": f"Bearer {token_b}"} if token_b else {}
+            headers_b = context.headers_for("user-b")
             obs_b = client.execute(method=method, url=target_url, headers=headers_b)
             observations.append(obs_b)
 
@@ -114,6 +149,28 @@ class BolaTestPack(TestPack):
                     break
 
         any_reachable = any(obs.response_status != 0 for obs in observations)
+
+        # Existence oracle: a denied-but-existing object that answers differently
+        # from a missing one lets an attacker enumerate real identifiers.
+        if not confirmed and owner_ids and context.headers_for("user-b"):
+            real = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: owner_ids[0], raw_path)
+            fake = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: "trace-nonexistent-000", raw_path)
+            denied = client.execute(method=method, url=f"{base_url}{real}", headers=context.headers_for("user-b"))
+            missing = client.execute(method=method, url=f"{base_url}{fake}", headers=context.headers_for("user-b"))
+            observations.extend([denied, missing])
+            if denied.response_status in (401, 403) and missing.response_status == 404:
+                summary += (
+                    f" Existence oracle: foreign object returns HTTP {denied.response_status} but "
+                    f"a missing one returns 404, so valid identifiers can be enumerated."
+                )
+
+        # Teardown of any object this run created (stateful mode only).
+        if created_id and context.headers_for("user-a") and f"DELETE {raw_path}" in context.api_hints:
+            del_path = re.sub(r"\{[a-zA-Z0-9_]+\}", lambda _: created_id, raw_path)
+            observations.append(
+                client.execute(method="DELETE", url=f"{base_url}{del_path}", headers=context.headers_for("user-a"))
+            )
+
         if not confirmed and not any_reachable:
             summary = "Target host unreachable. Dynamic probe inconclusive."
 

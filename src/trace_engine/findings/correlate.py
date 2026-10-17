@@ -19,6 +19,7 @@ SEVERITY_BY_CATEGORY = {
     "SSTI": Severity.CRITICAL,
     "CORS": Severity.MEDIUM,
     "DESERIALIZATION": Severity.CRITICAL,
+    "RATE_LIMIT": Severity.LOW,
 }
 
 

@@ -21,7 +21,7 @@ allowed_hosts = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
 allowed_ports = [80, 443, 3000, 5000, 8000, 8080, 18080]
 
 [runtime]
-max_requests = 250
+max_requests = 1000
 concurrency = 2
 rate_limit_per_second = 5
 timeout_seconds = 8
@@ -45,4 +45,17 @@ enabled = [
 
 [tools]
 enabled = ["schemathesis", "nuclei", "zap", "trufflehog"]
+
+# Real test identities for live probes (recommended against apps that validate
+# real tokens). Use two non-admin users to test object-level authorization.
+# Reference secrets from the environment; never commit them.
+#
+# [identities.user-a]
+# kind = "bearer"            # bearer | api_key | cookie | basic | header
+# token = "${TRACE_TOKEN_A}"
+#
+# [identities.user-b]
+# kind = "cookie"
+# cookie = "session"
+# token = "${TRACE_SESSION_B}"
 """

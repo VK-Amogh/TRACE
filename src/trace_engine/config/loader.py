@@ -59,6 +59,6 @@ def save_config(repo_path: Path, config: TraceConfig) -> None:
     trace_dir.mkdir(parents=True, exist_ok=True)
     config_file = trace_dir / "config.toml"
     
-    data = config.model_dump()
+    data = config.model_dump(exclude_none=True)
     with open(config_file, "wb") as f:
         tomli_w.dump(data, f)

@@ -30,8 +30,7 @@ class MassAssignmentTestPack(TestPack):
         probe_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "user-a", raw_path)
         target_url = f"{base_url}{probe_path}"
 
-        token = context.active_tokens.get("user-a", "")
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        headers = context.headers_for("user-a")
 
         # Inject privileged fields plus a unique canary marker, then
         # re-read: a persisted canary proves the server bound our input.

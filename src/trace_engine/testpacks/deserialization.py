@@ -45,8 +45,7 @@ class DeserializationTestPack(TestPack):
         raw_path = parts[1] if len(parts) > 1 else parts[0]
 
         target_url = f"{base_url}{raw_path}"
-        token = context.active_tokens.get("user-a", "")
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        headers = context.headers_for("user-a")
 
         observations: List[RuntimeObservation] = []
         confirmed = False

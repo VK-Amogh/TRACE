@@ -13,6 +13,7 @@ W_STATUS = 0.30
 W_STRUCTURE = 0.35
 W_OVERLAP = 0.20
 W_SIZE = 0.05
+W_PRIVACY = 0.10  # privacy-bound fields (email, token, ...) present in the prober's copy
 DENIAL_PENALTY = 0.10
 
 THRESHOLD_CONFIRMED = 0.75
@@ -76,6 +77,26 @@ def _leaf_values(obj: Any) -> List[str]:
     return []
 
 
+PRIVACY_KEYS = (
+    "email", "ssn", "password", "passwd", "token", "secret", "api_key", "apikey",
+    "phone", "dob", "birth", "address", "card", "iban", "salary",
+)
+
+
+def _privacy_fields(obj, found=None):
+    """Names of privacy-bound keys anywhere in a decoded JSON document."""
+    found = set() if found is None else found
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if any(p in str(key).lower() for p in PRIVACY_KEYS):
+                found.add(str(key))
+            _privacy_fields(value, found)
+    elif isinstance(obj, list):
+        for item in obj[:20]:
+            _privacy_fields(item, found)
+    return found
+
+
 def score_response_pair(
     owner_status: int,
     owner_body: str,
@@ -105,6 +126,12 @@ def score_response_pair(
     breakdown["structure"] = round(s_struct, 4)
     breakdown["overlap"] = round(s_overlap, 4)
 
+    s_privacy = 0.0
+    if owner_status == 200 and prober_status == 200 and prober_doc is not None and s_overlap > 0:
+        if _privacy_fields(prober_doc):
+            s_privacy = W_PRIVACY
+    breakdown["privacy"] = round(s_privacy, 4)
+
     la, lb = len(owner_body or ""), len(prober_body or "")
     s_size = W_SIZE * max(0.0, 1.0 - abs(la - lb) / max(la, lb, 1))
     breakdown["size"] = round(s_size, 4)
@@ -113,7 +140,7 @@ def score_response_pair(
     penalty = DENIAL_PENALTY if any(k in lowered for k in DENIAL_KEYWORDS) else 0.0
     breakdown["denial_penalty"] = round(penalty, 4)
 
-    total = max(0.0, min(1.0, s_status + s_struct + s_overlap + s_size - penalty))
+    total = max(0.0, min(1.0, s_status + s_struct + s_overlap + s_size + s_privacy - penalty))
     if total >= THRESHOLD_CONFIRMED:
         verdict = "CONFIRMED"
     elif total >= THRESHOLD_LIKELY:

@@ -62,8 +62,7 @@ class InjectionTestPack(TestPack):
         raw_path = parts[1] if len(parts) > 1 else parts[0]
 
         clean_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "1", raw_path)
-        token = context.active_tokens.get("user-a", "")
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        headers = context.headers_for("user-a")
 
         observations: List[RuntimeObservation] = []
         confirmed = False

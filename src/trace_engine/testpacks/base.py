@@ -22,6 +22,21 @@ class TestContext(BaseModel):
     target_base_url: str
     identities: Dict[str, UserIdentity] = Field(default_factory=dict)
     active_tokens: Dict[str, str] = Field(default_factory=dict)
+    # Ready-made request headers per identity (bearer, api key, cookie, basic).
+    # Takes precedence over ``active_tokens`` so real credentials never need
+    # to be re-shaped into bearer tokens.
+    auth_headers: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    # Opt-in: allow packs to create and delete their own test data.
+    stateful: bool = False
+    # Hints from an API description, e.g. ``{"POST /things": {"body": {...}}}``.
+    api_hints: Dict[str, Any] = Field(default_factory=dict)
+
+    def headers_for(self, name: str) -> Dict[str, str]:
+        """Authentication headers for identity ``name`` (empty when unknown)."""
+        if name in self.auth_headers:
+            return dict(self.auth_headers[name])
+        token = self.active_tokens.get(name, "")
+        return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 class TestExecutionResult(BaseModel):

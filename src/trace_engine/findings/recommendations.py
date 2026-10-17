@@ -438,6 +438,90 @@ def get_detailed_remediation_and_root_cause(
         short_action = "Use parameterized SQL queries or ORM models; never concatenate raw user input."
         return root_cause, remediation, short_action
 
+    # 17. Missing rate limiting / resource consumption
+    if cat_upper == "RATE_LIMIT":
+        root_cause = (
+            f"`{endpoint}` performs a sensitive or expensive operation and accepted a burst of rapid requests without "
+            f"throttling (no HTTP 429 or rate-limit headers). Attackers can brute-force credentials or one-time codes, "
+            f"scrape data, or exhaust compute and quota."
+        )
+        remediation = (
+            "1. Add per-client and per-account rate limiting (token bucket or sliding window) at the gateway or middleware.\n"
+            "2. Return HTTP 429 with a `Retry-After` header when the limit is exceeded; lock or slow down repeated failures.\n"
+            "3. Cap request size, pagination and concurrency on expensive operations."
+        )
+        short_action = "Add per-client rate limiting returning 429 with Retry-After."
+        return root_cause, remediation, short_action
+
+    # 18. Hardcoded secrets
+    if cat_upper == "SECRETS":
+        root_cause = (
+            f"A credential-shaped secret is committed in source or configuration at `{endpoint}`. Anyone with repository "
+            f"access (or its history) can reuse it, and it cannot be revoked by changing code alone."
+        )
+        remediation = (
+            "1. Rotate the secret immediately; assume it is compromised.\n"
+            "2. Load it from the environment or a secret manager instead of the repository.\n"
+            "3. Remove it from git history if the repository is shared, and add a pre-commit secret scan."
+        )
+        short_action = "Rotate the secret, move it to the environment or a secret manager."
+        return root_cause, remediation, short_action
+
+    # 19. Vulnerable dependency
+    if cat_upper == "DEPENDENCY":
+        root_cause = (
+            f"The dependency `{endpoint}` has publicly known vulnerabilities (see the advisory IDs in the evidence). "
+            f"Exploitability depends on whether the vulnerable code path is reachable from your routes."
+        )
+        remediation = (
+            "1. Upgrade to the first fixed version listed in the advisory and rerun the tests.\n"
+            "2. If no fix exists, remove the dependency or isolate the vulnerable feature.\n"
+            "3. Pin versions with a lockfile and enable automated dependency updates."
+        )
+        short_action = "Upgrade to the advisory's fixed version and pin it in the lockfile."
+        return root_cause, remediation, short_action
+
+    # 20. Insecure configuration (IaC, containers, CI, debug flags, TLS)
+    if cat_upper == "MISCONFIG":
+        root_cause = (
+            f"Insecure configuration at `{endpoint}` weakens a security boundary (excess privilege, disabled verification, "
+            f"debug exposure or untrusted CI input)."
+        )
+        remediation = (
+            "1. Apply the least-privilege or secure-default setting named in the finding evidence.\n"
+            "2. Keep debug and verification-bypass flags out of production configuration.\n"
+            "3. Enforce the rule in review with a linter or policy check."
+        )
+        short_action = "Switch the flagged setting to its secure default."
+        return root_cause, remediation, short_action
+
+    # 21. JWT weaknesses
+    if cat_upper == "JWT":
+        root_cause = (
+            f"Token validation at `{endpoint}` is weak: signature verification is disabled, the `none` algorithm is "
+            f"accepted, or a guessable secret is used, so tokens can be forged."
+        )
+        remediation = (
+            "1. Always verify the signature and pin the expected algorithm list (no `none`).\n"
+            "2. Use a long random secret or an asymmetric key loaded from the environment.\n"
+            "3. Validate `exp`, `iss` and `aud` on every token."
+        )
+        short_action = "Verify JWT signatures with a pinned algorithm and a strong secret."
+        return root_cause, remediation, short_action
+
+    # 22. Open redirect
+    if cat_upper == "OPEN_REDIRECT":
+        root_cause = (
+            f"`{endpoint}` redirects to a destination taken from the request, enabling phishing links on your domain "
+            f"and OAuth token theft."
+        )
+        remediation = (
+            "1. Redirect only to relative paths or to hosts on an explicit allow-list.\n"
+            "2. Reject absolute URLs, `//host` and `\\host` forms before redirecting."
+        )
+        short_action = "Allow-list redirect destinations; reject absolute URLs."
+        return root_cause, remediation, short_action
+
     # Default fallback
     root_cause = f"Security vulnerability of category `{category}` identified in `{endpoint}`."
     remediation = "Apply strict authentication, tenant authorization boundaries, and input validation to this attack path."

@@ -81,8 +81,7 @@ def escalate_chains(
 
     hits: List[Dict[str, object]] = []
     probes = 0
-    token = (context.active_tokens or {}).get("user-b", "")
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers = context.headers_for("user-b")
     for method, path in routes:
         # Only routes with an injectable path parameter can chain.
         if "{" not in path and not re.search(r"/:[a-zA-Z0-9_]+", path):

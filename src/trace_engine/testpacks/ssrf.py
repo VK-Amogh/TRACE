@@ -30,8 +30,7 @@ class SsrfTestPack(TestPack):
 
         clean_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "1", raw_path)
         target_url = f"{base_url}{clean_path}"
-        token = context.active_tokens.get("user-a", "")
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        headers = context.headers_for("user-a")
 
         # Extract port from base_url for loopback mutations
         from urllib.parse import urlparse

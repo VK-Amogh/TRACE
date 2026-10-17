@@ -1,0 +1,54 @@
+# Identifier shapes for object-level authorization probes.
+#
+# Add a [[pattern]] block to teach TRACE a new ID format; no code change needed.
+# Patterns are tried in order, first match wins. `mutation` names a strategy in
+# idshapes.py that derives neighbouring IDs (used to check whether an
+# identity can reach objects it does not own).
+
+[[pattern]]
+name = "snowflake"
+kind = "enumerable"
+regex = "^[0-9]{17,20}$"
+mutation = "increment"
+
+[[pattern]]
+name = "sequential_int"
+kind = "enumerable"
+regex = "^[0-9]{1,16}$"
+mutation = "increment"
+
+[[pattern]]
+name = "prefixed_int"
+kind = "enumerable"
+regex = "^[A-Za-z][A-Za-z0-9_]*[-_][0-9]+$"
+mutation = "increment_suffix"
+
+[[pattern]]
+name = "uuid"
+kind = "opaque"
+regex = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+mutation = "flip_last_nibble"
+
+[[pattern]]
+name = "object_id"
+kind = "opaque"
+regex = "^[0-9a-fA-F]{24}$"
+mutation = "flip_last_nibble"
+
+[[pattern]]
+name = "hash_hex"
+kind = "opaque"
+regex = "^[0-9a-fA-F]{32,64}$"
+mutation = "flip_last_nibble"
+
+[[pattern]]
+name = "base64_int"
+kind = "enumerable"
+regex = "^[A-Za-z0-9+/]{4,}={0,2}$"
+mutation = "base64_increment"
+
+[[pattern]]
+name = "slug"
+kind = "enumerable"
+regex = "^[a-z0-9][a-z0-9_-]{2,63}$"
+mutation = "slug_neighbor"
