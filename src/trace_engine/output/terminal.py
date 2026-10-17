@@ -278,10 +278,13 @@ def print_finding_detail(f: Finding) -> None:
     content.append(f"{f.title}\n", style="bold white")
     content.append(f"Category: ", style="bold green")
     content.append(f"{f.category}  |  ", style="white")
-    content.append(f"Severity: ", style="bold green")
-    content.append(f"{f.severity.value}  |  ", style="bold red")
-    content.append(f"Confidence: ", style="bold green")
-    content.append(f"{f.confidence.value}\n", style="bold green")
+    content.append("Severity: ", style="bold green")
+    sev = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
+    content.append(f"{sev}  |  ", style="bold red")
+    content.append("Confidence: ", style="bold green")
+    conf = f.confidence.value if hasattr(f.confidence, "value") else str(f.confidence)
+    content.append(f"{conf}\n", style="bold green")
+
     content.append(f"Endpoint: ", style="bold green")
     content.append(f"{f.endpoint}\n", style="white")
 
