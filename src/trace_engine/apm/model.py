@@ -150,6 +150,12 @@ class AttackPathModel:
         except Exception:
             return None
 
+    def mitigation_plan(self, limit: int = 5) -> Dict[str, Any]:
+        """Which single fixes remove the most endpoint-to-sink attack paths."""
+        from trace_engine.apm.mitigation import mitigation_plan
+
+        return mitigation_plan(self, limit=limit)
+
     def summary(self) -> Dict[str, Any]:
         """Return a statistical overview of the graph."""
         type_counts: Dict[str, int] = {}
