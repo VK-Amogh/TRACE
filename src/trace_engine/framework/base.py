@@ -30,6 +30,13 @@ class Endpoint(BaseModel):
     external_network: bool = False
     sensitive_data: bool = False
     source: SourceLocation
+    # Route-establishment confidence. ``registered=True`` means the endpoint
+    # comes from an actual route registration (decorator, URL pattern, router
+    # call). ``registered=False`` marks inferred/low-confidence inventory
+    # (e.g. a decorated function with no route registration) that must not
+    # produce vulnerability findings on its own.
+    registered: bool = True
+    confidence: str = "high"  # "high" | "medium" | "low"
 
     def display_name(self) -> str:
         return f"{self.method.upper()} {self.path}"

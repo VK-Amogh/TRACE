@@ -22,7 +22,19 @@ class OllamaProvider(AIProvider):
     def name(self) -> str:
         return f"Ollama ({self.model})"
 
+    def _scope_ok(self, path: str = "/api/tags") -> bool:
+        """Fail-safe scope check for the configured AI endpoint."""
+        try:
+            from trace_engine.policy.scope import ScopeGuard
+
+            ScopeGuard().validate_url(f"{self.endpoint}{path}")
+            return True
+        except Exception:
+            return False
+
     def is_available(self) -> bool:
+        if not self._scope_ok("/api/tags"):
+            return False
         try:
             with httpx.Client(timeout=2.0) as client:
                 res = client.get(f"{self.endpoint}/api/tags")
@@ -31,6 +43,8 @@ class OllamaProvider(AIProvider):
             return False
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
+        if not self._scope_ok("/api/generate"):
+            return None
         try:
             payload = {
                 "model": self.model,

@@ -6,9 +6,46 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `trace scan` offline stall: adds `--models/--no-models` (matching `audit`),
+  probes target liveness once (`probe_target_online`) and skips runtime
+  testpacks + chain escalation when OFFLINE, so static-only scans never hang
+  on dead targets.
+- Ingest walk pruning: `RepositoryScanner` prunes ignored trees
+  (`ref/`, `venv/`, `datasets/`, …) instead of `rglob("*")`-ing every file;
+  single-read file hashing, memoized `fnmatch`, `.traceignore` gains `ref/`.
+- Intelligence overhead: SecureBERT cache buffers writes (`set()` marks dirty,
+  `flush()` persists once per batch + after single classify); APM
+  `betweenness_centrality` sampling caps large graphs (>2000 nodes, seeded
+  256 sources); Laya/SecureBERT `git lfs pull` now gated behind
+  `TRACE_ALLOW_LFS_PULL=1`.
+- MCP `trace_scan` refuses out-of-scope targets before repository scan.
+- Tests: `--no-models` SARIF path, ingest-pruning + SecureBERT-cache suites,
+  APM sampling determinism, stricter MCP refusal test.
+
+## [2.2.0] - 2026-10-17
+
 ### Added
 
 - Dev-line integration branch (`dev`) for staging fork work before upstream PRs.
+- Explicit scan scopes (`--scope full|app|fixtures`): fixture/test trees can be excluded or isolated, with per-finding provenance labels and honest zero-endpoint reporting.
+- ScopeGuard hardening: DNS-rebind rechecks, alt-IP/metadata blocks, port-0 rejection, register/allow separation with per-host rollback, guarded liveness probes.
+- Patcher hardening: cross-platform absolute/UNC/drive rejection, null-byte and symlink handling, backup-dir containment.
+- Hypothesis evidence gating: unsafe-SQL/template-sink requirements, stricter BFLA admin evidence, unregistered-route gate; Django decorator-method precedence and evidence-based database flags.
+- Canary oracles (owner-marker leaks, SSRF fetch signatures, mass-assignment persist-and-reread) and a weighted multi-signal verdict engine gating BOLA confirmations.
+- Declarative sink catalog (`security/sinks.toml` + sanitizer-aware matcher), consulted by the FastAPI adapter.
+- Chain-mode escalation (`--chain`, capped at 10 probes): harvested leaks re-injected into other routes as `TR-CHAIN` findings.
+- APM choke-point ranking plus minimum-cut size, surfaced in scan output and `trace_scan`.
+- NPX-installable agent skill (`skills/trace`: audit, remediate, MCP setup) following the Agent Skills spec, with a spec validator test; install via `npx skills add VK-Amogh/TRACE --skill trace`.
+- NPX global flags: `--verbose` (diagnostics + debug logs) and `--format` (validated injection for format-capable commands); launcher split into `bin/lib/` modules with lite-first provisioning.
+- Release pipeline (`release.yml`): tag-gated PyPI (trusted publishing) + npm publishing with provenance and version-tag consistency check; npm skips when unconfigured instead of failing.
+- Detailed CI matrix (`ci.yml`): Python 3.11–3.13 on Ubuntu/Windows/macOS, Node 18/20 shim checks, SARIF self-audit, plus a `testbed-full` job (CPU torch + LFS models) mirroring the hardcore suite.
+- Accelerator-aware inference: shared `intelligence/device.py` resolver (CUDA → MPS → CPU for torch, CUDA → CoreML → OpenVINO → CPU cascade for ONNX, fp16 autocast on CUDA), wired into Laya, SecureBERT, and a new `trace doctor` Accelerators row. Overrides: `TRACE_DEVICE`, `TRACE_DTYPE`, `TRACE_ORT_PROVIDERS`.
+- Docs site (`mkdocs.yml`, `docs/`) with `docs.yml` build/deploy workflow publishing to GitHub Pages.
+- OSS contributor kit: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `ACCESSIBILITY.md`, `LICENSE` (Apache-2.0), issue/PR templates, Dependabot, `AGENTS.md`, `CITATION.cff`.
+- Single-source versioning: `pyproject.toml` reads `__version__` from `src/trace_engine/__init__.py` dynamically.
+- Source launchers (`trace.bat`, `trace.cmd`, `trace.ps1`) fall back to `PYTHONPATH=<repo>/src` for uninstalled checkouts.
 
 ### Fixed
 
@@ -28,22 +65,7 @@ All notable changes to this project are documented here. The format follows
 - Removed hardcoded `D:/Startup/...` model paths; resolution is now `~/.trace/models`, `$TRACE_MODELS_DIR`, then repo-local `models/`.
 - Terminal renderer no longer forces ANSI output when piped (`force_terminal=None`), fixing noisy CI logs and part of the pytest colorama `atexit` noise.
 - `run_doctor()` accepts an optional project path so the interactive menu diagnostics no longer crash with `TypeError`.
-
-### Added
-
-- Canary oracles (owner-marker leaks, SSRF fetch signatures, mass-assignment persist-and-reread) and a weighted multi-signal verdict engine gating BOLA confirmations.
-- Declarative sink catalog (`security/sinks.toml` + sanitizer-aware matcher), consulted by the FastAPI adapter.
-- Chain-mode escalation (`--chain`, capped at 10 probes): harvested leaks re-injected into other routes as `TR-CHAIN` findings.
-- APM choke-point ranking plus minimum-cut size, surfaced in scan output and `trace_scan`.
-- NPX-installable agent skill (`skills/trace`: audit, remediate, MCP setup) following the Agent Skills spec, with a spec validator test; install via `npx skills add VK-Amogh/TRACE --skill trace`.
-- NPX global flags: `--verbose` (diagnostics + debug logs) and `--format` (validated injection for format-capable commands); launcher split into `bin/lib/` modules with lite-first provisioning.
-- Release pipeline (`release.yml`): tag-gated PyPI (trusted publishing) + NPM/GitHub Packages publishing with version-tag consistency check; NPM skips when unconfigured instead of failing.
-- Detailed CI matrix (`ci.yml`): Python 3.11–3.13 on Ubuntu/Windows/macOS, Node 18/20 shim checks, SARIF self-audit, plus a `testbed-full` job (CPU torch + LFS models) mirroring the hardcore suite.
-- Accelerator-aware inference: shared `intelligence/device.py` resolver (CUDA → MPS → CPU for torch, CUDA → CoreML → OpenVINO → CPU cascade for ONNX, fp16 autocast on CUDA), wired into Laya, SecureBERT, and a new `trace doctor` Accelerators row. Overrides: `TRACE_DEVICE`, `TRACE_DTYPE`, `TRACE_ORT_PROVIDERS`.
-- Docs site (`mkdocs.yml`, `docs/`) with `docs.yml` build/deploy workflow publishing to GitHub Pages.
-- OSS contributor kit: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `ACCESSIBILITY.md`, `LICENSE` (Apache-2.0), issue/PR templates, Dependabot, `AGENTS.md`, `CITATION.cff`.
-- Single-source versioning: `pyproject.toml` reads `__version__` from `src/trace_engine/__init__.py` dynamically.
-- Source launchers (`trace.bat`, `trace.cmd`, `trace.ps1`) fall back to `PYTHONPATH=<repo>/src` for uninstalled checkouts.
+- Verification returns INCONCLUSIVE (and sends nothing) when the target is outside authorized scope; IPv4-mapped IPv6 loopback forms fail closed.
 
 ## [2.1.18] - 2026-10-01
 

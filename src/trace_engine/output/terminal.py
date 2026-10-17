@@ -52,7 +52,7 @@ def get_styled_logo() -> Text:
 def print_banner() -> None:
     """Renders the sleek minimalist TRACE banner in Mint Green and Crisp White with Orange options."""
     import trace_engine
-    curr_ver = getattr(trace_engine, "__version__", "0.0.0")
+    curr_ver = getattr(trace_engine, "__version__", "2.1.15")
     console.print()
     console.print(get_styled_logo())
     console.print(f"  [bold white]Threat Reconnaissance & Attack-path Correlation Engine[/bold white]  [bold #10B981]v{curr_ver}[/bold #10B981]")
@@ -147,11 +147,79 @@ def print_hypotheses_table(hypotheses: List[SecurityHypothesis]) -> None:
     console.print(table)
 
 
-def print_findings_table(findings: List[Finding]) -> None:
-    """Renders table of correlated findings."""
-    if not findings:
-        console.print("[green]No correlated vulnerabilities detected.[/green]\n")
+def print_coverage_summary(console: Console, endpoints_count: int = 0) -> None:
+    """Renders an honest, explicit coverage summary of assessed vs unassessed dimensions."""
+    table = Table(
+        title="Security Assessment Coverage & Scope Status",
+        box=ROUNDED,
+        header_style="bold green",
+        border_style="dim",
+        padding=(0, 1),
+    )
+    table.add_column("Security Dimension", style="bold white")
+    table.add_column("Status", justify="center")
+    table.add_column("Coverage Details", style="dim")
+
+    if endpoints_count > 0:
+        table.add_row(
+            "Endpoint & Route Invariants",
+            "[bold green]ASSESSED[/bold green]",
+            f"Evaluated {endpoints_count} HTTP route(s) (Auth, BOLA, BFLA, Injection, CORS)",
+        )
+    else:
+        table.add_row(
+            "Endpoint & Route Invariants",
+            "[yellow]NOT APPLICABLE[/yellow]",
+            "0 HTTP routes detected in target scope",
+        )
+
+    table.add_row(
+        "Hardcoded Secrets / API Keys",
+        "[dim]NOT ASSESSED[/dim]",
+        "Secret scanning analyzer not configured",
+    )
+    table.add_row(
+        "Software Dependencies / CVEs",
+        "[dim]NOT ASSESSED[/dim]",
+        "SCA package manifest audit not executed",
+    )
+    table.add_row(
+        "Cloud & Infrastructure Config",
+        "[dim]NOT ASSESSED[/dim]",
+        "IaC / container posture assessment not in scope",
+    )
+    console.print(table)
+
+
+def print_findings_table(
+    findings: List[Finding],
+    scope_profile: Optional[str] = None,
+    endpoints_count: Optional[int] = None,
+) -> None:
+    """Renders table of correlated findings with explicit provenance and honest coverage."""
+    if endpoints_count == 0 or (endpoints_count is None and not findings):
+        console.print("\n[bold yellow]No endpoints detected in scanned target.[/bold yellow]")
+        console.print("  [dim]• Endpoint-based checks were not applicable (0 endpoints discovered).[/dim]")
+        console.print("  [bold yellow]• Notice:[/bold yellow] [yellow]Zero endpoint findings does NOT mean the target has no vulnerabilities or is secure.[/yellow]\n")
+        print_coverage_summary(console, endpoints_count=0)
+        console.print("  [bold white]Overall Summary:[/bold white] [dim]No findings in the checks performed (no endpoints detected)[/dim]\n")
         return
+
+    if not findings:
+        console.print(f"\n[bold green]✓ No findings in the checks performed across {endpoints_count} evaluated endpoint(s).[/bold green]\n")
+        print_coverage_summary(console, endpoints_count=endpoints_count)
+        console.print("  [bold white]Overall Summary:[/bold white] [green]No findings in the checks performed[/green]\n")
+        return
+
+    fixture_findings = [f for f in findings if getattr(f, "is_fixture", False) or getattr(f, "provenance", "application") == "fixture/test"]
+    app_findings = [f for f in findings if not (getattr(f, "is_fixture", False) or getattr(f, "provenance", "application") == "fixture/test")]
+
+    if fixture_findings:
+        console.print("\n[bold yellow]◆ Scan Scope & Finding Provenance Notice[/bold yellow]")
+        console.print(f"  [yellow]• {len(fixture_findings)} finding(s) originate from test/fixture directories (e.g. labs/, test-repository/, testbed_hardcore/, tests/).[/yellow]")
+        console.print("  [dim]• These establish detections in test/lab assets, NOT vulnerabilities in TRACE application code.[/dim]")
+        console.print(f"  [dim]• Application code findings: [bold white]{len(app_findings)}[/bold white][/dim]")
+        console.print("  [dim]• To audit application code exclusively, run with:[/dim] [bold green]trace scan <target> --scope app[/bold green]\n")
 
     table = Table(
         title=f"Correlated Vulnerability Findings ({len(findings)})",
@@ -163,6 +231,7 @@ def print_findings_table(findings: List[Finding]) -> None:
     table.add_column("Severity", justify="center", no_wrap=True)
     table.add_column("Confidence", justify="center", no_wrap=True)
     table.add_column("Category", style="bold white", no_wrap=True)
+    table.add_column("Provenance", justify="center", no_wrap=True)
     table.add_column("Endpoint", style="white")
     table.add_column("Title", style="dim white")
 
@@ -184,18 +253,22 @@ def print_findings_table(findings: List[Finding]) -> None:
     for f in findings:
         sev_style = severity_colors.get(f.severity, "white")
         conf_style = confidence_colors.get(f.confidence, "white")
+        prov_badge = "[dim cyan]Fixture/Test[/dim cyan]" if (getattr(f, "is_fixture", False) or getattr(f, "provenance", "") == "fixture/test") else "[bold white]App[/bold white]"
 
         table.add_row(
             f.id,
             f"[{sev_style}]{f.severity.value}[/{sev_style}]",
             f"[{conf_style}]{f.confidence.value}[/{conf_style}]",
             f.category,
+            prov_badge,
             f.endpoint,
             f.title,
         )
 
     console.print(table)
     console.print("[dim]Use [bold green]trace explain <ID>[/bold green] for root cause analysis and reproduction steps.[/dim]\n")
+    print_coverage_summary(console, endpoints_count=endpoints_count or len({f.endpoint for f in findings}))
+    console.print(f"  [bold white]Overall Summary:[/bold white] [bold red]{len(findings)} finding(s) identified in the checks performed[/bold red] [dim](App: {len(app_findings)}, Fixture/Test: {len(fixture_findings)})[/dim]\n")
 
 
 def print_finding_detail(f: Finding) -> None:
@@ -287,11 +360,45 @@ def print_test_all_report(
     hypotheses_count: int,
     confirmed_count: int,
     model_metrics: Optional[Dict[str, Any]] = None,
+    scope_profile: Optional[str] = None,
 ) -> None:
-    if not findings:
-        console.print("\n[bold green]✓ No vulnerabilities or control boundary violations detected across all test packs.[/bold green]\n")
+    if endpoints_count == 0:
+        console.print("\n[bold yellow]Notice: Zero endpoints detected in target scope.[/bold yellow]")
+        console.print("  [dim]• Endpoint-based checks were not applicable (0 endpoints discovered).[/dim]")
+        console.print("  [bold yellow]• Notice:[/bold yellow] [yellow]Zero endpoint findings does NOT mean the codebase is secure or vulnerability-free.[/yellow]\n")
         if model_metrics:
             print_model_intelligence_report(model_metrics)
+        print_coverage_summary(console, endpoints_count=0)
+
+        summary_text = Text()
+        summary_text.append("Endpoints Audited: ", style="bold green")
+        summary_text.append("0 (No endpoints detected)  |  ", style="bold white")
+        summary_text.append("Attack Hypotheses: ", style="bold green")
+        summary_text.append("0  |  ", style="bold white")
+        summary_text.append("Runtime Confirmed: ", style="bold green")
+        summary_text.append("0\n", style="bold white")
+        summary_text.append("Overall Status: ", style="bold green")
+        summary_text.append("No findings in the checks performed\n", style="bold white")
+        summary_text.append("Security Posture Rating: ", style="bold green")
+        summary_text.append("N/A [UNASSESSED - 0 ENDPOINTS DETECTED]", style="bold yellow")
+
+        console.print(
+            Panel(
+                summary_text,
+                title="[bold yellow]Executive Audit Summary (Incomplete Coverage - Zero Endpoints)[/bold yellow]",
+                border_style="yellow",
+                box=ROUNDED,
+                padding=(1, 2),
+            )
+        )
+        console.print()
+        return
+
+    if not findings:
+        console.print(f"\n[bold green]✓ No findings in the checks performed across {endpoints_count} evaluated endpoint(s).[/bold green]\n")
+        if model_metrics:
+            print_model_intelligence_report(model_metrics)
+        print_coverage_summary(console, endpoints_count=endpoints_count)
 
         summary_text = Text()
         summary_text.append(f"Endpoints Audited: ", style="bold green")
@@ -300,10 +407,10 @@ def print_test_all_report(
         summary_text.append(f"{hypotheses_count}  |  ", style="bold white")
         summary_text.append(f"Runtime Confirmed Vulnerabilities: ", style="bold green")
         summary_text.append("0\n", style="bold green")
-        summary_text.append("Breakdown: ", style="bold green")
-        summary_text.append("Critical: 0  |  High: 0  |  Medium: 0\n", style="bold white")
+        summary_text.append("Overall Status: ", style="bold green")
+        summary_text.append("No findings in the checks performed\n", style="bold white")
         summary_text.append("Security Posture Rating: ", style="bold green")
-        summary_text.append("100/100 [A (SECURE)]", style="bold green")
+        summary_text.append("Assessed Routes Clean [A]", style="bold green")
 
         console.print(
             Panel(
@@ -316,6 +423,16 @@ def print_test_all_report(
         )
         console.print()
         return
+
+    fixture_findings = [f for f in findings if getattr(f, "is_fixture", False) or getattr(f, "provenance", "application") == "fixture/test"]
+    app_findings = [f for f in findings if not (getattr(f, "is_fixture", False) or getattr(f, "provenance", "application") == "fixture/test")]
+
+    if fixture_findings:
+        console.print("\n[bold yellow]◆ Scan Scope & Finding Provenance Notice[/bold yellow]")
+        console.print(f"  [yellow]• {len(fixture_findings)} finding(s) originate from test/fixture directories (e.g. labs/, test-repository/, testbed_hardcore/, tests/).[/yellow]")
+        console.print("  [dim]• These establish detections in test/lab assets, NOT vulnerabilities in TRACE application code.[/dim]")
+        console.print(f"  [dim]• Application code findings: [bold white]{len(app_findings)}[/bold white][/dim]")
+        console.print("  [dim]• To audit application code exclusively, run with:[/dim] [bold green]trace scan <target> --scope app[/bold green]\n")
 
     # Sort strictly by priority / severity: CRITICAL (P0) > HIGH (P1) > MEDIUM (P2) > LOW (P3)
     sev_rank = {
@@ -351,6 +468,7 @@ def print_test_all_report(
     table.add_column("Rank", justify="center", style="bold white", width=5)
     table.add_column("Priority", justify="center", no_wrap=True)
     table.add_column("Finding ID", style="bold white", no_wrap=True)
+    table.add_column("Provenance", justify="center", no_wrap=True)
     table.add_column("Category", style="bold green")
     table.add_column("Exposed Endpoint", style="white")
     table.add_column("Source Location", style="dim")
@@ -360,11 +478,13 @@ def print_test_all_report(
         prio = priority_labels.get(f.severity, str(f.severity.value))
         loc_str = str(f.source_location) if f.source_location else "-"
         remediation_snippet = f.short_action or (f.remediation.strip().split(".")[0] + "." if f.remediation else "Apply strict authorization check.")
+        prov_badge = "[dim cyan]Fixture/Test[/dim cyan]" if (getattr(f, "is_fixture", False) or getattr(f, "provenance", "") == "fixture/test") else "[bold white]App[/bold white]"
 
         table.add_row(
             f"#{idx}",
             prio,
             f.id,
+            prov_badge,
             f.category,
             f.endpoint,
             loc_str,
@@ -376,6 +496,8 @@ def print_test_all_report(
     # Intelligence & AI Models Performance Summary
     if model_metrics:
         print_model_intelligence_report(model_metrics)
+
+    print_coverage_summary(console, endpoints_count=endpoints_count)
 
     # Posture Summary Panel
     crit_count = sum(1 for f in findings if f.severity == Severity.CRITICAL)
@@ -391,12 +513,17 @@ def print_test_all_report(
     summary_text.append(f"{endpoints_count}  |  ", style="bold white")
     summary_text.append(f"Attack Hypotheses Evaluated: ", style="bold green")
     summary_text.append(f"{hypotheses_count}  |  ", style="bold white")
-    summary_text.append(f"Runtime Confirmed Vulnerabilities: ", style="bold green")
+    summary_text.append(f"Runtime Confirmed: ", style="bold green")
     summary_text.append(f"{confirmed_count}\n", style="bold red" if confirmed_count > 0 else "bold green")
-    summary_text.append(f"Breakdown: ", style="bold green")
+    summary_text.append(f"Findings Breakdown: ", style="bold green")
+    summary_text.append(f"App Findings: {len(app_findings)}  |  Fixture/Test Findings: {len(fixture_findings)}\n", style="bold white")
+    summary_text.append(f"Severity Breakdown: ", style="bold green")
     summary_text.append(f"Critical: {crit_count}  |  High: {high_count}  |  Medium: {med_count}\n", style="bold white")
     summary_text.append(f"Security Posture Rating: ", style="bold green")
-    summary_text.append(f"{posture_score}/100 [{rating}]", style=score_color)
+    if fixture_findings and not app_findings:
+        summary_text.append(f"{posture_score}/100 [{rating}] (Driven by fixture/test assets; App code clean)", style=score_color)
+    else:
+        summary_text.append(f"{posture_score}/100 [{rating}]", style=score_color)
 
     console.print(
         Panel(

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from trace_engine.apm.model import AttackPathModel
 from trace_engine.framework.base import Endpoint
 from trace_engine.security.signals import SecuritySignal, SignalType
+from trace_engine.parsing.locations import SourceLocation
 
 
 class Severity(str, Enum):
@@ -43,6 +44,63 @@ class SecurityHypothesis(BaseModel):
     confidence_prior: float = 0.5  # Prior confidence from static signals alone
     static_evidence: List[str] = Field(default_factory=list)
     severity: Optional[Severity] = None  # Contextual severity override
+    source_location: Optional[SourceLocation] = None
+
+
+def has_unsafe_sql_construction(file_src: str) -> bool:
+    """Evidence of dynamically built SQL (not a bare query API call).
+
+    A parameterized ``execute("... WHERE id = %s", params)`` is safe usage
+    and must not count: ``%s``/``?`` placeholders passed as parameters are
+    evidence *against* injection. Only interpolated/concatenated SQL counts:
+    f-strings, ``Sprintf("SELECT...")``, ``.format()`` on a query line,
+    ``+`` concatenation on a query line, or ``"..." % var`` formatting.
+    """
+    if not file_src:
+        return False
+    for line in file_src.splitlines():
+        if not re.search(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", line, re.IGNORECASE):
+            continue
+        stripped = line.lstrip()
+        if (
+            "{" in line
+            or ".format(" in line
+            or "Sprintf" in line
+            or re.search(r"\+\s*\w", line)
+            or stripped.startswith('f"')
+            or stripped.startswith("f'")
+        ):
+            return True
+    # Percent-formatting: "..." % var  (vs placeholder "...%s", params)
+    if re.search(r"[\"']\s*%\s*\(?\w", file_src):
+        return True
+    return False
+
+
+_TEMPLATE_ENGINE_SINKS = (
+    "jinja2",
+    "mako",
+    "render_template",
+    "template.render",
+    "Template(",
+    "tornado.template",
+    "django.template",
+    "handlebars",
+    "mustache(",
+    "thymeleaf",
+    "velocity",
+    "freemarker",
+    "erb.new",
+    "ejs.render",
+)
+
+
+def has_template_sink(file_src: str) -> bool:
+    """Evidence of a template-engine evaluation sink in handler source."""
+    if not file_src:
+        return False
+    lowered = file_src.lower()
+    return any(sink.lower() in lowered for sink in _TEMPLATE_ENGINE_SINKS)
 
 
 class HypothesisEngine:
@@ -77,6 +135,10 @@ class HypothesisEngine:
                 source_files.add(ep.source.file)
 
         for ep in endpoints:
+            # Unregistered/low-confidence inventory (e.g. a decorated function
+            # with no route registration) never generates findings on its own.
+            if not ep.registered:
+                continue
             ep_disp = ep.display_name()
             file_src = read_file(ep.source.file) if ep.source and ep.source.file else ""
 
@@ -131,8 +193,21 @@ class HypothesisEngine:
                     )
                     hypo_idx += 1
 
-            # 2. BFLA Hypothesis: Endpoint has administrative or privileged semantics
-            is_admin = "admin" in ep.path.lower() or "admin" in [r.lower() for r in ep.roles]
+            # 2. BFLA Hypothesis: Endpoint has administrative or privileged semantics.
+            # A file-wide "admin" role alone is not per-route evidence: when
+            # the path itself is not administrative, require admin evidence in
+            # the handler name or source file name as well.
+            admin_in_path = "admin" in ep.path.lower()
+            admin_in_roles = "admin" in [r.lower() for r in ep.roles]
+            # Handler context uses the handler name plus the source file's
+            # base name only: absolute workspace paths (temp dirs, usernames)
+            # must never contribute privilege evidence.
+            try:
+                src_base = os.path.basename(ep.source.file) if ep.source and ep.source.file else ""
+            except Exception:
+                src_base = ""
+            handler_ctx = f"{ep.handler_name} {src_base}".lower()
+            is_admin = admin_in_path or (admin_in_roles and "admin" in handler_ctx)
             if is_admin:
                 admin_endpoint_ids.add(ep.id)
                 is_critical_admin = any(term in ep.path.lower() for term in ("reset-db", "wipe", "truncate")) or (
@@ -432,9 +507,17 @@ class HypothesisEngine:
 
             if ep.method in ("PATCH", "PUT", "POST") and is_profile_path:
                 # Check for Privilege Escalation via Unvalidated Role Assignment:
-                # (e.g. POST /api/admin/users/create with role parameter)
+                # (e.g. POST /api/admin/users/create with role parameter).
+                # A bare "role" substring (comments, imports, docs) is not
+                # evidence; require a role parameter or role-field assignment.
                 has_role_param = any(p.name in ("role", "is_admin", "is_superuser", "permissions") for p in ep.parameters)
-                has_role_in_code = "role" in file_src.lower() and ("create" in ep.path.lower() or "register" in ep.path.lower() or "users" in ep.path.lower())
+                has_role_in_code = bool(
+                    re.search(
+                        r"\brole\b[\"']?\s*[:=]|is_admin|is_superuser|permissions\s*[:=]",
+                        file_src,
+                        re.IGNORECASE,
+                    )
+                ) and ("create" in ep.path.lower() or "register" in ep.path.lower() or "users" in ep.path.lower())
 
                 if (has_role_param or has_role_in_code) and any(term in ep.path.lower() for term in ("create", "register", "users", "signup")):
                     hypotheses.append(
@@ -482,8 +565,10 @@ class HypothesisEngine:
                         )
                         hypo_idx += 1
 
-            # 6. Injection Indicator Hypothesis: Search or query with DB access
-            if any(term in ep.path.lower() for term in ("search", "filter", "query")) and ep.database_access:
+            # 6. Injection Indicator Hypothesis: search/query route PLUS evidence
+            # of dynamically constructed SQL in handler source. Route words
+            # alone (or a generic database-access default) are not proof.
+            if any(term in ep.path.lower() for term in ("search", "filter", "query")) and has_unsafe_sql_construction(file_src):
                 hypotheses.append(
                     SecurityHypothesis(
                         id=f"HYP-INJ-{hypo_idx:03d}",
@@ -497,6 +582,7 @@ class HypothesisEngine:
                         static_evidence=[
                             "User query parameter routed to database handler",
                             f"Endpoint parameters: {[p.name for p in ep.parameters]}",
+                            "Dynamically constructed SQL (interpolated/concatenated query string) found in handler source",
                         ],
                         severity=Severity.CRITICAL,
                     )
@@ -544,9 +630,11 @@ class HypothesisEngine:
                 )
                 hypo_idx += 1
 
-            # 8. Server-Side Template Injection (SSTI) Hypothesis
+            # 8. Server-Side Template Injection (SSTI) Hypothesis: template-ish
+            # route/params PLUS a template-engine sink in handler source.
+            # SSRF evidence (outbound fetch) must not be reported as SSTI.
             template_param_names = [p.name for p in ep.parameters if any(term in p.name.lower() for term in ("template", "render", "msg", "format", "view", "preview"))]
-            if template_param_names or any(term in ep.path.lower() for term in ("template", "render", "preview", "email", "notify")):
+            if (template_param_names or any(term in ep.path.lower() for term in ("template", "render", "preview", "email", "notify"))) and has_template_sink(file_src):
                 hypotheses.append(
                     SecurityHypothesis(
                         id=f"HYP-SSTI-{hypo_idx:03d}",

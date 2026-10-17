@@ -65,6 +65,31 @@ def test_apm_sqlite_roundtrip(tmp_path):
     assert db.exists() and db.stat().st_size > 0
 
 
+def test_apm_choke_points_exact_on_small_graphs():
+    apm = AttackPathModel(name="small")
+    for i in range(4):
+        apm.add_node(APMNode(id=f"p{i}", node_type=NodeType.ENDPOINT, label=f"p{i}"))
+    for i in range(3):
+        apm.add_edge(APMEdge(source_id=f"p{i}", target_id=f"p{i+1}", edge_type=EdgeType.CONTAINS))
+    points = apm.choke_points(limit=2)
+    assert points and points[0]["node"] in {"p1", "p2"}
+    assert points[0]["betweenness"] > 0
+
+
+def test_apm_choke_points_samples_large_graphs_deterministically():
+    apm = AttackPathModel(name="large")
+    n = 2200
+    for i in range(n):
+        apm.add_node(APMNode(id=f"p{i}", node_type=NodeType.ENDPOINT, label=f"p{i}"))
+    for i in range(n - 1):
+        apm.add_edge(APMEdge(source_id=f"p{i}", target_id=f"p{i+1}", edge_type=EdgeType.CONTAINS))
+    first = apm.choke_points(limit=3)
+    second = apm.choke_points(limit=3)
+    assert first == second
+    top_idx = int(first[0]["node"][1:])
+    assert n // 2 - 400 < top_idx < n // 2 + 400
+
+
 def test_runtime_target_from_url():
     t = Target.from_url("http://127.0.0.1:18080/api")
     assert t.host in ("127.0.0.1",)

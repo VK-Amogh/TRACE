@@ -17,16 +17,20 @@ from trace_engine.updater import (
 def test_get_current_version():
     ver = get_current_version()
     assert ver == trace_engine.__version__
-    assert ver == "2.1.18"
+    import re
+
+    assert re.fullmatch(r"\d+\.\d+\.\d+", ver)
 
 
 def test_check_for_updates_when_newer_available(tmp_path):
-    with patch("trace_engine.updater.fetch_latest_version", return_value="2.2.0"):
+    current = trace_engine.__version__
+    newer = "99.0.0"
+    with patch("trace_engine.updater.fetch_latest_version", return_value=newer):
         info = check_for_updates(force=True)
         assert info is not None
         assert info["update_available"] is True
-        assert info["latest_version"] == "2.2.0"
-        assert info["current_version"] == "2.1.18"
+        assert info["latest_version"] == newer
+        assert info["current_version"] == current
 
 
 def test_check_for_updates_when_up_to_date(tmp_path):

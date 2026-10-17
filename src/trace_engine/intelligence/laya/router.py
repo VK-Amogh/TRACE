@@ -2,6 +2,7 @@
 
 import time
 import logging
+import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -68,7 +69,10 @@ class LayaDecisionEngine:
         for p in candidates:
             pt_file = p / "laya_dual_head.pt"
             onnx_file = p / "laya_dual_head.onnx"
-            if (pt_file.exists() and pt_file.stat().st_size < 10000) or (onnx_file.exists() and onnx_file.stat().st_size < 10000):
+            if (
+                (pt_file.exists() and pt_file.stat().st_size < 10000)
+                or (onnx_file.exists() and onnx_file.stat().st_size < 10000)
+            ) and os.environ.get("TRACE_ALLOW_LFS_PULL") == "1":
                 try:
                     import subprocess
                     subprocess.run(["git", "lfs", "pull"], cwd=repo_root, capture_output=True, timeout=60)

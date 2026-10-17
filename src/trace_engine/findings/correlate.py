@@ -87,7 +87,9 @@ class EvidenceCorrelator:
         severity = hypothesis.severity or SEVERITY_BY_CATEGORY.get(category_str, Severity.MEDIUM)
 
         ep_node = apm.get_node(hypothesis.endpoint_id)
-        source_loc = ep_node.location if ep_node else None
+        source_loc = (ep_node.location if ep_node and ep_node.location else None) or getattr(
+            hypothesis, "source_location", None
+        )
 
         file_path = source_loc.file if source_loc else ""
 
@@ -98,6 +100,10 @@ class EvidenceCorrelator:
             static_evidence=hypothesis.static_evidence,
             filepath=file_path,
         )
+
+        from trace_engine.ingest.scan_scope import is_fixture_path, get_path_provenance
+        is_fixture = is_fixture_path(file_path)
+        provenance = get_path_provenance(file_path)
 
         return Finding(
             id=finding_id,
@@ -114,6 +120,8 @@ class EvidenceCorrelator:
             remediation=remediation,
             root_cause=root_cause,
             short_action=short_action,
+            provenance=provenance,
+            is_fixture=is_fixture,
             reproduction_steps=test_result.reproduction_steps if test_result else [],
             observations=test_result.observations if test_result else [],
         )

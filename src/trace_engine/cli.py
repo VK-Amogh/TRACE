@@ -64,6 +64,27 @@ console = Console()
 progress_console = Console(stderr=True)
 
 
+def _scoped_repo_scanner(project_dir: Path, scope: str):
+    """Build a scope-configured scanner once for all scan commands.
+
+    Raises typer.BadParameter for unknown profiles so every command,
+    MCP tool, and test shares one validation path.
+    """
+    from trace_engine.ingest.scan_scope import (
+        VALID_PROFILES,
+        scoped_scanner,
+        print_scope_summary,
+    )
+
+    if scope not in VALID_PROFILES:
+        raise typer.BadParameter(
+            f"invalid --scope {scope!r}: choose from {', '.join(VALID_PROFILES)}"
+        )
+    scanner, scope_result = scoped_scanner(project_dir, scope)
+    print_scope_summary(progress_console, scope_result)
+    return scanner, scope_result
+
+
 @app.callback()
 def main(
     ctx: typer.Context,
@@ -296,13 +317,14 @@ def analyze(
 def test(
     path: Path = typer.Argument(Path("."), help="Path to project repository"),
     target: str = typer.Option(DEFAULT_TARGET_URL, "--target", "-t", help="Target URL (must be localhost or authorized lab)"),
+    scope: str = typer.Option("full", "--scope", help="Scan scope: full (everything), app (exclude fixture/test dirs), fixtures (fixtures only)"),
 ):
     """Execute active test packs against derived hypotheses using ScopedHttpClient."""
     project_dir = path.resolve()
     config = load_config(project_dir)
 
-    # Ingest and derive hypotheses
-    scanner = RepositoryScanner(project_dir)
+    # Ingest and derive hypotheses (explicit scan scope; default full preserves behavior)
+    scanner, _scope_result = _scoped_repo_scanner(project_dir, scope)
     source_files = scanner.scan()
     parser = CodeParser()
     adapters = get_adapters()
@@ -324,12 +346,23 @@ def test(
     hypotheses = engine.derive_hypotheses(graph_model, discovered_endpoints)
 
     # Setup ScopedHttpClient
+    from trace_engine.policy.scope import ScopeViolationError
+
     scope_guard = ScopeGuard(
         allowed_hosts=config.target.allowed_hosts,
         allowed_ports=config.target.allowed_ports,
         mode=config.target.scope_mode,
     )
-    scope_guard.allow_target(target)
+    try:
+        scope_guard.allow_target(target)
+    except ScopeViolationError as e:
+        console.print(f"  [yellow]Scope policy:[/yellow] target {target} refused ({e}). Continuing static-only.")
+        target_online = False
+    else:
+        # Check target connectivity (scope-validated: unauthorized targets stay offline)
+        from trace_engine.runtime.client import probe_target_online
+
+        target_online = probe_target_online(scope_guard, target, timeout_seconds=1.0)
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
 
     # Setup test context with synthetic tokens
@@ -337,16 +370,6 @@ def test(
         target_base_url=target,
         active_tokens={"user-a": "user-a", "user-b": "user-b", "admin": "admin"},
     )
-
-    # Check target connectivity
-    target_online = False
-    try:
-        import httpx
-        with httpx.Client(timeout=1.0) as chk:
-            chk.get(target)
-            target_online = True
-    except Exception:
-        target_online = False
 
     if target_online:
         console.print(f"\n[bold green]Executing Controlled Runtime Tests[/bold green] against [white]{target}[/white]...")
@@ -410,6 +433,8 @@ def scan(
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json, or sarif"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (e.g. trace-results.sarif)"),
     chain: bool = typer.Option(True, "--chain/--no-chain", help="Re-inject harvested leaks into other routes (bounded)"),
+    models: bool = typer.Option(True, "--models/--no-models", help="Check and provision AI intelligence models (Laya System 1 & SecureBERT 2.0) before scanning"),
+    scope: str = typer.Option("full", "--scope", help="Scan scope: full (everything), app (exclude fixture/test dirs), fixtures (fixtures only)"),
 ):
     """Execute end-to-end scan: Ingestion -> APM -> Signals -> Runtime Tests -> Correlated Findings."""
     import time
@@ -418,18 +443,19 @@ def scan(
 
     t_start = time.perf_counter()
     project_dir = path.resolve()
-    from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
-    if not prompt_and_bootstrap_models(interactive=True):
-        console.print("[yellow]Continuing without neural models — deterministic AST analysis with heuristic scoring.[/yellow]\n")
+    if models:
+        from trace_engine.intelligence.downloader import prompt_and_bootstrap_models
+        if not prompt_and_bootstrap_models(interactive=True):
+            console.print("[yellow]Continuing without neural models — deterministic AST analysis with heuristic scoring.[/yellow]\n")
 
     config = load_config(project_dir)
 
     progress_console.print(f"\n[bold green]Starting TRACE Full Scan[/bold green] on [white]{project_dir.name}[/white]")
     progress_console.print(f"  [dim]Target Runtime:[/dim] [white]{target}[/white]")
 
-    # 1. Ingest
+    # 1. Ingest (explicit scan scope; default full preserves behavior)
     t_stage = time.perf_counter()
-    scanner = RepositoryScanner(project_dir)
+    scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
     source_files = scanner.scan()
     parser = CodeParser()
     adapters = get_adapters()
@@ -469,12 +495,25 @@ def scan(
     t_stage = time.perf_counter()
 
     # 4. Runtime Validation
+    from trace_engine.policy.scope import ScopeViolationError
+
     scope_guard = ScopeGuard(
         allowed_hosts=config.target.allowed_hosts,
         allowed_ports=config.target.allowed_ports,
         mode=config.target.scope_mode,
     )
-    scope_guard.allow_target(target)
+    try:
+        scope_guard.allow_target(target)
+    except ScopeViolationError as e:
+        progress_console.print(f"  [yellow]Scope policy:[/yellow] target {target} refused ({e}). Continuing static-only.")
+
+    from trace_engine.runtime.client import probe_target_online
+    target_online = probe_target_online(scope_guard, target, timeout_seconds=1.5)
+    if target_online:
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({target}) - executing active test packs")
+    else:
+        progress_console.print(f"  [dim]Target Runtime Status:[/dim] [yellow]OFFLINE / UNREACHABLE[/yellow] ({target}) - static boundary correlation")
+
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
     context = TestContext(
         target_base_url=target,
@@ -487,7 +526,7 @@ def scan(
     for hyp in hypotheses:
         pack = default_registry.get(hyp.recommended_test_pack)
         test_res = None
-        if pack:
+        if pack and target_online:
             try:
                 test_res = pack.execute(hyp, client, context)
             except Exception:
@@ -498,7 +537,7 @@ def scan(
             findings.append(finding)
 
     # 4b. Chain-mode escalation: re-inject harvested leaks into other routes.
-    if chain and findings:
+    if chain and findings and target_online:
         from trace_engine.testpacks.chain import escalate_chains
         from trace_engine.findings.model import Severity, FindingConfidence
 
@@ -574,7 +613,12 @@ def scan(
         else:
             console.print_json(json.dumps(payload, default=str))
     elif format.lower() == "markdown" or (output and str(output).endswith(".md")):
-        md = generate_markdown_report(findings, project_name=project_dir.name)
+        md = generate_markdown_report(
+            findings,
+            project_name=project_dir.name,
+            scope_summary=scope_result,
+            endpoints_count=len(discovered_endpoints),
+        )
         if output:
             out_path = output
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -583,7 +627,7 @@ def scan(
         else:
             console.print(md)
     else:
-        print_findings_table(findings)
+        print_findings_table(findings, scope_profile=scope, endpoints_count=len(discovered_endpoints))
 
     progress_console.print(f"  [dim]Total scan time:[/dim] [bold white]{time.perf_counter() - t_start:.2f}s[/bold white]")
     _maybe_update_notice(format)
@@ -627,6 +671,7 @@ def test_all(
     target: Optional[str] = typer.Option(None, "--target", "-t", help="Target runtime URL (must be localhost or authorized lab)"),
     format: str = typer.Option("table", "--format", "-f", help="Output format: table, markdown, json"),
     models: bool = typer.Option(True, "--models/--no-models", help="Run AI intelligence models (Laya System 1 & SecureBERT 2.0)"),
+    scope: str = typer.Option("full", "--scope", help="Scan scope: full (everything), app (exclude fixture/test dirs), fixtures (fixtures only)"),
 ):
     """Execute end-to-end full audit across all languages, test packs, and AI models."""
     import time
@@ -652,9 +697,9 @@ def test_all(
     else:
         progress_console.print(f"  [dim]Target Runtime:[/dim] [white]{resolved_target}[/white] (auto probe)")
 
-    # 1. Ingestion across all supported languages
+    # 1. Ingestion across all supported languages (explicit scan scope)
     t_stage = time.perf_counter()
-    scanner = RepositoryScanner(project_dir)
+    scanner, scope_result = _scoped_repo_scanner(project_dir, scope)
     source_files = scanner.scan()
     parser = CodeParser()
     adapters = get_adapters()
@@ -699,6 +744,7 @@ def test_all(
     model_metrics = {}
     if models and discovered_endpoints:
         try:
+            print("  [AI] Loading SecureBERT 2.0 & Laya System 1 (first run may take a minute)...", file=sys.stderr, flush=True)
             with console.status("  [bold green]Running AI Models:[/bold green] Evaluating SecureBERT 2.0 & Laya System 1..."):
                 orchestrator = IntelligenceOrchestrator()
                 code_slices = [f"{ep.method} {ep.path}" for ep in discovered_endpoints]
@@ -734,15 +780,16 @@ def test_all(
         except Exception as e:
             progress_console.print(f"  [dim]• AI Intelligence:[/dim] [dim]Bypassed ({e})[/dim]")
 
-    # 5. Runtime Validation & Test Pack Execution
-    target_online = False
-    try:
-        import httpx
-        with httpx.Client(timeout=1.5) as chk_client:
-            chk_client.get(resolved_target)
-            target_online = True
-    except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError, Exception):
-        target_online = False
+    # 5. Runtime Validation & Test Pack Execution (scope-validated probe)
+    from trace_engine.policy.scope import ScopeGuard as _ScopeGuard2
+    from trace_engine.runtime.client import probe_target_online as _probe_online2
+
+    _pre_guard = _ScopeGuard2(
+        allowed_hosts=config.target.allowed_hosts,
+        allowed_ports=config.target.allowed_ports,
+        mode=config.target.scope_mode,
+    )
+    target_online = _probe_online2(_pre_guard, resolved_target, timeout_seconds=1.5)
 
     if target_online:
         progress_console.print(f"  [dim]Target Runtime Status:[/dim] [bold green]ONLINE[/bold green] ({resolved_target}) - executing active test packs")
@@ -754,7 +801,13 @@ def test_all(
         allowed_ports=config.target.allowed_ports,
         mode=config.target.scope_mode,
     )
-    scope_guard.allow_target(resolved_target)
+    from trace_engine.policy.scope import ScopeViolationError
+
+    try:
+        scope_guard.allow_target(resolved_target)
+    except ScopeViolationError as e:
+        progress_console.print(f"  [yellow]Scope policy:[/yellow] target {resolved_target} refused ({e}). Continuing static-only.")
+        target_online = False
     client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=config.runtime.timeout_seconds)
     context = TestContext(
         target_base_url=resolved_target,
@@ -815,7 +868,12 @@ def test_all(
     if format == "json":
         console.print_json(json.dumps(report_payload, default=str))
     elif format == "markdown":
-        md = generate_markdown_report(findings, project_name=project_dir.name)
+        md = generate_markdown_report(
+            findings,
+            project_name=project_dir.name,
+            scope_summary=scope_result,
+            endpoints_count=len(discovered_endpoints),
+        )
         console.print(md)
     elif format == "sarif":
         sarif_payload = generate_sarif_report(findings, project_name=project_dir.name, workspace_root=str(project_dir))
@@ -827,6 +885,7 @@ def test_all(
             hypotheses_count=len(hypotheses),
             confirmed_count=confirmed_count,
             model_metrics=model_metrics,
+            scope_profile=scope,
         )
 
     _maybe_update_notice(format, prompt_update=True)

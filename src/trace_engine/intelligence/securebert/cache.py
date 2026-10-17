@@ -12,6 +12,7 @@ class SecureBERTCache:
     def __init__(self, cache_file: Path):
         self.cache_file = cache_file
         self._cache: Dict[str, Dict[str, float]] = {}
+        self._dirty = False
         self._load()
 
     def _load(self) -> None:
@@ -29,6 +30,13 @@ class SecureBERTCache:
     def set(self, text: str, scores: Dict[str, float]) -> None:
         key = hash_content(text)
         self._cache[key] = scores
+        self._dirty = True
+
+    def flush(self) -> None:
+        """Persist buffered entries (called once per batch, not per endpoint)."""
+        if not self._dirty:
+            return
+        self._dirty = False
         try:
             self.cache_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.cache_file, "w", encoding="utf-8") as f:

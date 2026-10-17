@@ -61,6 +61,7 @@ TRACE_TOOLS = [
                 "repository": {"type": "string", "default": ".", "description": "Path to target repository"},
                 "target": {"type": "string", "default": DEFAULT_TARGET_URL, "description": "Target HTTP runtime URL"},
                 "profile": {"type": "string", "default": "standard", "enum": ["quick", "standard", "deep"]},
+                "scope": {"type": "string", "default": "full", "enum": ["full", "app", "fixtures"]},
             },
             "required": ["repository"],
         },
@@ -337,7 +338,6 @@ class TraceMCPServer:
             return res.model_dump()
 
         elif name == "trace_scan":
-            from trace_engine.ingest.repository import RepositoryScanner
             from trace_engine.parsing.parser import CodeParser
             from trace_engine.framework import get_adapters
             from trace_engine.apm.builder import APMBuilder
@@ -349,9 +349,26 @@ class TraceMCPServer:
             from trace_engine.findings.correlate import EvidenceCorrelator
 
             # Execute scan programmatic flow
+            from trace_engine.ingest.scan_scope import (
+                VALID_PROFILES,
+                scoped_scanner,
+            )
+            from trace_engine.policy.scope import ScopeViolationError
+
             profile = str(args.get("profile", "standard") or "standard").lower()
             run_probes = profile in ("standard", "deep")
-            scanner = RepositoryScanner(repo_path)
+            scope = str(args.get("scope", "full") or "full").lower()
+            if scope not in VALID_PROFILES:
+                return {"status": "error", "error": f"Unknown scan scope profile: {scope}."}
+
+            # Refuse out-of-scope targets before touching the repository.
+            scope_guard = ScopeGuard()
+            try:
+                scope_guard.allow_target(target_url)
+            except ScopeViolationError:
+                return {"status": "refused", "error": f"Target {target_url} is outside the authorized scope; no requests were sent."}
+
+            scanner, _scope_result = scoped_scanner(repo_path, scope)
             source_files = scanner.scan()
             parser = CodeParser()
             adapters = get_adapters()
@@ -376,8 +393,6 @@ class TraceMCPServer:
             engine = HypothesisEngine()
             hypotheses = engine.derive_hypotheses(apm, discovered_endpoints)
 
-            scope_guard = ScopeGuard()
-            scope_guard.allow_target(target_url)
             client = ScopedHttpClient(scope_guard=scope_guard, timeout_seconds=SCAN_HTTP_TIMEOUT)
             context = TestContext(
                 target_base_url=target_url,
